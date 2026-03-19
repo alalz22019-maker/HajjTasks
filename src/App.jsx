@@ -85,6 +85,7 @@ function App() {
         )}
       </div>
 
+      <div className="nav-spacer" />
       <nav className="bottom-nav">
         {NAV.map(n => (
           <button

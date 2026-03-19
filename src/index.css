@@ -128,12 +128,20 @@ input, textarea, select {
   display: flex;
   background: var(--bg2);
   border-top: 1px solid var(--border);
-  /* iPhone 11 home indicator = ~34px */
   padding-bottom: max(12px, env(safe-area-inset-bottom, 34px));
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
-  position: relative;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   z-index: 20;
+}
+
+/* Spacer to prevent content from hiding behind fixed nav */
+.nav-spacer {
+  height: calc(60px + max(12px, env(safe-area-inset-bottom, 34px)));
+  flex-shrink: 0;
 }
 
 .nav-item {
@@ -378,7 +386,7 @@ input, textarea, select {
 /* FAB */
 .fab {
   position: fixed;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   left: 20px;
   width: 52px;
   height: 52px;
@@ -398,7 +406,7 @@ input, textarea, select {
 /* Extract FAB */
 .extract-fab {
   position: fixed;
-  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   right: 20px;
   padding: 10px 16px;
   border-radius: 24px;
