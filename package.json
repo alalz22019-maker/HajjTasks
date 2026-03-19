@@ -12,10 +12,8 @@
     "gen:splash": "node scripts/gen-splash.cjs"
   },
   "dependencies": {
-    "jimp": "^1.6.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "sharp": "^0.34.5"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
