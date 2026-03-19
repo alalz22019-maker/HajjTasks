@@ -378,7 +378,7 @@ input, textarea, select {
 /* FAB */
 .fab {
   position: fixed;
-  bottom: calc(90px + env(safe-area-inset-bottom, 34px));
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   left: 20px;
   width: 52px;
   height: 52px;
@@ -398,7 +398,7 @@ input, textarea, select {
 /* Extract FAB */
 .extract-fab {
   position: fixed;
-  bottom: calc(90px + env(safe-area-inset-bottom, 34px));
+  bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   right: 20px;
   padding: 10px 16px;
   border-radius: 24px;
