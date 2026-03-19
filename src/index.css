@@ -1107,26 +1107,45 @@ select.form-input option {
 
 /* ── Print CSS ──────────────────────────────────────────── */
 @media print {
-  body > * { display: none !important; }
-  #exec-report { display: block !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  html, body {
+    background: #fff !important;
+    visibility: hidden;
+    margin: 0;
+    padding: 0;
+  }
+
+  #exec-report,
+  #exec-report * {
+    visibility: visible !important;
+  }
 
   #exec-report {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
     margin: 0;
-    border: none;
-    border-radius: 0;
-    background: #fff;
-    color: #111;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #111 !important;
     font-family: Arial, sans-serif;
     direction: rtl;
   }
 
   .exec-report-header {
-    background: #f0f4ff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    background: #e8eeff !important;
+    color: #111 !important;
   }
 
   .exec-report-logo {
+    color: #3b82f6 !important;
     -webkit-text-fill-color: #3b82f6 !important;
   }
 
@@ -1135,9 +1154,16 @@ select.form-input option {
     color: #555 !important;
   }
 
-  .exec-section { border-color: #eee !important; }
-  .exec-section-title { color: #555 !important; }
-  .exec-kpi { background: #f5f5f5 !important; }
-  .exec-task-row { background: #fafafa !important; }
+  .exec-section { border-color: #ddd !important; background: #fff !important; }
+  .exec-section-title { color: #444 !important; }
+  .exec-kpi { background: #f5f5f5 !important; color: #111 !important; }
+  .exec-kpi-value { color: #111 !important; }
+  .exec-kpi-label { color: #555 !important; }
+  .exec-task-row { background: #fafafa !important; border-color: #eee !important; }
+  .exec-task-title { color: #111 !important; }
+  .exec-task-meta { color: #666 !important; }
   .exec-report-footer { background: #f5f5f5 !important; color: #999 !important; }
+
+  /* hide print button itself */
+  .exec-actions { display: none !important; }
 }
