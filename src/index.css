@@ -28,19 +28,34 @@
   --font: 'IBM Plex Sans Arabic', system-ui, sans-serif;
 }
 
-html, body {
+html {
+  /* Fill entire screen including notch area */
   height: 100%;
+  height: -webkit-fill-available;
+  background: var(--bg);
+}
+
+body {
+  height: 100%;
+  height: -webkit-fill-available;
   width: 100%;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   direction: rtl;
   overflow: hidden;
+  /* Prevent overscroll bounce on iOS */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  /* Prevent text size adjustment on iOS rotation */
+  -webkit-text-size-adjust: 100%;
 }
 
 #root {
   width: 100%;
   height: 100%;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
   max-width: 430px;
   margin: 0 auto;
   display: flex;
@@ -67,15 +82,19 @@ input, textarea, select {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding-bottom: 90px;
+  /* Extra bottom padding = nav height + home indicator */
+  padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 .page::-webkit-scrollbar { display: none; }
 
 /* Header */
 .header {
   padding: 16px 20px 12px;
-  padding-top: max(16px, env(safe-area-inset-top));
+  /* iPhone 11 status bar = ~44px */
+  padding-top: max(16px, env(safe-area-inset-top, 44px));
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -109,7 +128,10 @@ input, textarea, select {
   display: flex;
   background: var(--bg2);
   border-top: 1px solid var(--border);
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  /* iPhone 11 home indicator = ~34px */
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 34px));
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   position: relative;
   z-index: 20;
 }
@@ -356,7 +378,7 @@ input, textarea, select {
 /* FAB */
 .fab {
   position: fixed;
-  bottom: 90px;
+  bottom: calc(90px + env(safe-area-inset-bottom, 34px));
   left: 20px;
   width: 52px;
   height: 52px;
@@ -376,7 +398,7 @@ input, textarea, select {
 /* Extract FAB */
 .extract-fab {
   position: fixed;
-  bottom: 90px;
+  bottom: calc(90px + env(safe-area-inset-bottom, 34px));
   right: 20px;
   padding: 10px 16px;
   border-radius: 24px;
@@ -411,7 +433,7 @@ input, textarea, select {
   overflow-y: auto;
   scrollbar-width: none;
   padding: 20px;
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 34px));
 }
 .modal::-webkit-scrollbar { display: none; }
 
@@ -807,7 +829,7 @@ select.form-input option {
 /* Toast */
 .toast {
   position: fixed;
-  top: max(60px, env(safe-area-inset-top));
+  top: max(60px, calc(env(safe-area-inset-top, 44px) + 16px));
   left: 50%;
   transform: translateX(-50%);
   background: var(--card2);
