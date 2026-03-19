@@ -72,10 +72,13 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       let updated = { ...t, done }
       if (done && t.recurrence) {
         const newDue = calcNextDue(t.dueDate, t.recurrence)
-        updated = { ...updated, done: false, dueDate: newDue }
+        updated = { ...updated, done: false, dueDate: newDue, completedAt: null }
         showToast('🔄 تجددت المهمة المتكررة')
       } else if (done) {
+        updated = { ...updated, completedAt: new Date().toISOString() }
         showToast('🎉 أحسنت! تم إنجاز المهمة')
+      } else {
+        updated = { ...updated, completedAt: null }
       }
       return updated
     }))

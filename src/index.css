@@ -892,3 +892,252 @@ select.form-input option {
   text-align: center;
   margin-top: 12px;
 }
+
+/* ── Report Tab Bar ─────────────────────────────────────── */
+.report-tab-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.report-tab {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.report-tab.active {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ── Executive Actions ──────────────────────────────────── */
+.exec-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+
+.exec-btn {
+  flex: 1;
+  padding: 13px 0;
+  border-radius: 12px;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+
+.exec-btn:active { opacity: 0.7; }
+
+.exec-btn.whatsapp {
+  background: #25D366;
+  color: #fff;
+}
+
+.exec-btn.print {
+  background: var(--card2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.exec-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 16px 10px;
+  padding: 10px 14px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text2);
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  width: calc(100% - 32px);
+}
+
+.exec-settings-box {
+  margin: 0 16px 12px;
+  padding: 16px;
+  background: var(--card);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+
+/* ── Executive Report Card ──────────────────────────────── */
+.exec-report-card {
+  margin: 0 16px 32px;
+  background: var(--card);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.exec-report-header {
+  padding: 20px 16px 16px;
+  background: linear-gradient(135deg, #1a1f3c, #16161f);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.exec-report-logo {
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #60a5fa, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 6px;
+}
+
+.exec-report-date {
+  font-size: 13px;
+  color: var(--text2);
+  margin-bottom: 4px;
+}
+
+.exec-report-user {
+  font-size: 12px;
+  color: var(--text3);
+}
+
+.exec-section {
+  padding: 16px 16px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.exec-section:last-of-type {
+  border-bottom: none;
+}
+
+.exec-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 12px;
+}
+
+.exec-kpi-row {
+  display: flex;
+  gap: 8px;
+}
+
+.exec-kpi {
+  flex: 1;
+  background: var(--bg3);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.exec-kpi-num {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.exec-kpi-label {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+.exec-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 8px;
+  margin-bottom: 6px;
+  background: var(--bg3);
+  border-radius: 10px;
+  border-right: 3px solid var(--border);
+}
+
+.exec-task-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text3);
+  width: 20px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+.exec-task-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.exec-task-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text3);
+  flex-wrap: wrap;
+}
+
+.exec-report-footer {
+  padding: 12px 16px;
+  font-size: 11px;
+  color: var(--text3);
+  text-align: center;
+  border-top: 1px solid var(--border);
+  background: var(--bg2);
+}
+
+/* ── Print CSS ──────────────────────────────────────────── */
+@media print {
+  body > * { display: none !important; }
+  #exec-report { display: block !important; }
+
+  #exec-report {
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background: #fff;
+    color: #111;
+    font-family: Arial, sans-serif;
+    direction: rtl;
+  }
+
+  .exec-report-header {
+    background: #f0f4ff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .exec-report-logo {
+    -webkit-text-fill-color: #3b82f6 !important;
+  }
+
+  .exec-report-date,
+  .exec-report-user {
+    color: #555 !important;
+  }
+
+  .exec-section { border-color: #eee !important; }
+  .exec-section-title { color: #555 !important; }
+  .exec-kpi { background: #f5f5f5 !important; }
+  .exec-task-row { background: #fafafa !important; }
+  .exec-report-footer { background: #f5f5f5 !important; color: #999 !important; }
+}
