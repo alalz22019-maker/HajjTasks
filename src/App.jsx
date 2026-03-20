@@ -6,6 +6,7 @@ import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
 import { loadData, saveData } from './utils/storage'
 import Toast from './components/Toast'
+import { HARDCODED_API_KEY } from './config'
 
 const NAV = [
   { id: 'tasks', label: 'المهام', icon: '✓' },
@@ -23,12 +24,10 @@ function App() {
 
   useEffect(() => {
     const storedTasks = loadData('mytasks_tasks') || []
-    const envKey = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     const storedKey = loadData('mytasks_apikey') || ''
-    const key = envKey || storedKey
+    const key = HARDCODED_API_KEY || storedKey
     setTasks(storedTasks)
     setApiKey(key)
-    if (envKey && !storedKey) saveData('mytasks_apikey', envKey)
   }, [])
 
   const persistTasks = useCallback((newTasks) => {
