@@ -51,7 +51,7 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {toast && <Toast msg={toast} />}
 
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: 0 }}>
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}

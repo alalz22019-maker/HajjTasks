@@ -30,6 +30,15 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [extracting, setExtracting] = useState(false)
   const [extractedTasks, setExtractedTasks] = useState([])
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set())
+
+  function toggleCollapse(id) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   const filtered = useMemo(() => {
     return tasks.filter(t => {
@@ -43,6 +52,26 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       return true
     })
   }, [tasks, filter])
+
+  // Build parent→children map from ALL tasks (not just filtered)
+  const childrenMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(t => {
+      if (t.parentId) {
+        if (!map[t.parentId]) map[t.parentId] = []
+        map[t.parentId].push(t)
+      }
+    })
+    return map
+  }, [tasks])
+
+  // Top-level groups: tasks without parentId, each with their children
+  const taskGroups = useMemo(() => {
+    const childIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId))
+    return filtered
+      .filter(t => !t.parentId)
+      .map(t => ({ task: t, children: childrenMap[t.id] || [], isParent: childIds.has(t.id) }))
+  }, [filtered, childrenMap, tasks])
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -229,7 +258,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       </div>
 
       {/* Tasks */}
-      {filtered.length === 0 ? (
+      {taskGroups.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📋</div>
           <div className="empty-text">لا توجد مهام</div>
@@ -237,15 +266,34 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         </div>
       ) : (
         <div className="task-list">
-          {filtered.map(t => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onToggle={toggleTask}
-              onEdit={setEditTask}
-              onDelete={id => setDeleteConfirm(id)}
-              showToast={showToast}
-            />
+          {taskGroups.map(({ task, children }) => (
+            <div key={task.id} className="task-group">
+              <TaskCard
+                task={task}
+                onToggle={toggleTask}
+                onEdit={setEditTask}
+                onDelete={id => setDeleteConfirm(id)}
+                showToast={showToast}
+                childCount={children.length}
+                isCollapsed={collapsedGroups.has(task.id)}
+                onToggleCollapse={() => toggleCollapse(task.id)}
+              />
+              {children.length > 0 && !collapsedGroups.has(task.id) && (
+                <div className="subtask-group">
+                  {children.map(c => (
+                    <TaskCard
+                      key={c.id}
+                      task={c}
+                      onToggle={toggleTask}
+                      onEdit={setEditTask}
+                      onDelete={id => setDeleteConfirm(id)}
+                      showToast={showToast}
+                      isSubtask
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

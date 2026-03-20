@@ -14,8 +14,13 @@ function formatDate(d) {
   return `${day}/${m}/${y}`
 }
 
-export default function TaskCard({ task, onToggle, onEdit, onDelete, showToast }) {
-  const [expanded, setExpanded] = useState(false)
+export default function TaskCard({
+  task, onToggle, onEdit, onDelete, showToast,
+  childCount = 0, isCollapsed, onToggleCollapse,
+  isSubtask = false
+}) {
+  const [actionsOpen, setActionsOpen] = useState(false)
+  const isParent = childCount > 0
 
   function shareWhatsApp() {
     const msg = encodeURIComponent(
@@ -49,7 +54,7 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, showToast }
   }
 
   return (
-    <div className={`task-card${task.done ? ' done' : ''}`}>
+    <div className={`task-card${task.done ? ' done' : ''}${isParent ? ' parent-task' : ''}${isSubtask ? ' subtask-card' : ''}`}>
       <div className="task-top">
         <button
           className={`task-check${task.done ? ' done' : ''}`}
@@ -59,8 +64,20 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, showToast }
           {task.done && <span style={{ color: '#fff', fontSize: 12 }}>✓</span>}
         </button>
 
-        <div className="task-body" onClick={() => setExpanded(e => !e)} style={{ cursor: 'pointer' }}>
-          <div className={`task-title${task.done ? ' done' : ''}`}>{task.title}</div>
+        <div className="task-body" onClick={() => setActionsOpen(e => !e)} style={{ cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div className={`task-title${task.done ? ' done' : ''}`}>{task.title}</div>
+            {isParent && (
+              <button
+                className="collapse-toggle"
+                onClick={e => { e.stopPropagation(); onToggleCollapse() }}
+                aria-label={isCollapsed ? 'فتح' : 'طي'}
+              >
+                <span style={{ fontSize: 11, marginLeft: 3 }}>{childCount}</span>
+                <span style={{ fontSize: 13, transition: 'transform 0.2s', display: 'inline-block', transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▾</span>
+              </button>
+            )}
+          </div>
           <div className="task-meta">
             <span className={`badge badge-${task.priority}`}>
               {PRIORITY_LABELS[task.priority]}
@@ -85,14 +102,11 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, showToast }
             {task.projectName && (
               <span className="badge badge-project">📁 {task.projectName}</span>
             )}
-            {task.parentId && (
-              <span className="badge badge-subtask">↳ فرعية</span>
-            )}
           </div>
         </div>
       </div>
 
-      {expanded && (
+      {actionsOpen && (
         <div className="task-actions">
           <button className="task-action-btn whatsapp" onClick={shareWhatsApp}>
             <span>💬</span> واتساب
