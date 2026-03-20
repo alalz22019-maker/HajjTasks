@@ -86,7 +86,8 @@ input, textarea, select {
   padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
+  overscroll-behavior-y: none;
+  touch-action: pan-y;
 }
 .page::-webkit-scrollbar { display: none; }
 

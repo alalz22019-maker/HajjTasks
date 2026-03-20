@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM } from '../utils/claude'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -26,6 +26,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [extracted, setExtracted] = useState([])
+  const [meetingMeta, setMeetingMeta] = useState(null)
   const [showApiKey, setShowApiKey] = useState(false)
   const inputRef = useRef()
 
@@ -48,8 +49,10 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
 
     setLoading(true)
     setExtracted([])
+    setMeetingMeta(null)
     try {
       let content
+      let isPdfMeeting = false
 
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
@@ -93,6 +96,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           reader.readAsDataURL(file)
         })
 
+        isPdfMeeting = true
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -105,12 +109,12 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           body: JSON.stringify({
             model: 'claude-opus-4-6',
             max_tokens: 4096,
-            system: UPLOAD_SYSTEM,
+            system: PDF_MEETING_SYSTEM,
             messages: [{
               role: 'user',
               content: [
                 { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-                { type: 'text', text: 'استخرج المهام والتكليفات من هذا الملف' }
+                { type: 'text', text: 'استخرج المهام والتكليفات من هذا المحضر' }
               ]
             }]
           })
@@ -119,18 +123,31 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         let data
         try { data = JSON.parse(rawText) } catch { throw new Error('خطأ في الاتصال بالـ API: ' + rawText.slice(0, 200)) }
         if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
-        content = data.content?.[0]?.text || '[]'
+        content = data.content?.[0]?.text || '{}'
 
       } else {
         const text = await file.text()
         content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
       }
 
-      // استخراج JSON array من الرد مهما كان الشكل
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (!jsonMatch) throw new Error('لم يتم العثور على مهام في الملف')
-      const parsed = JSON.parse(jsonMatch[0])
-      setExtracted(Array.isArray(parsed) ? parsed : [])
+      if (isPdfMeeting) {
+        // استخراج JSON object من محضر الاجتماع
+        const objMatch = content.match(/\{[\s\S]*\}/)
+        if (!objMatch) throw new Error('لم يتم العثور على مهام في الملف')
+        const parsed = JSON.parse(objMatch[0])
+        if (parsed.tasks && Array.isArray(parsed.tasks)) {
+          setMeetingMeta({ meetingTitle: parsed.meetingTitle, suggestedProject: parsed.suggestedProject, chairperson: parsed.chairperson })
+          setExtracted(parsed.tasks)
+        } else {
+          throw new Error('تعذّر استخراج المهام من المحضر')
+        }
+      } else {
+        // استخراج JSON array عادي
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) throw new Error('لم يتم العثور على مهام في الملف')
+        const parsed = JSON.parse(jsonMatch[0])
+        setExtracted(Array.isArray(parsed) ? parsed : [])
+      }
     } catch (e) {
       showToast('❌ ' + e.message)
     } finally {
@@ -139,17 +156,50 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   }
 
   function addAll() {
-    const newTasks = extracted.map(t => ({
-      ...t,
-      id: genId(),
-      done: false,
-      createdAt: Date.now(),
-      subcategory: t.subcategory || 'other',
-      recurrence: '',
-      reminderTime: '',
-    }))
+    let newTasks
+    if (meetingMeta) {
+      // إنشاء مهمة رئيسية للمحضر
+      const parentId = genId()
+      const parentTask = {
+        id: parentId,
+        title: meetingMeta.meetingTitle || 'مهام محضر اجتماع',
+        priority: 'urgent',
+        category: 'work',
+        subcategory: 'leaders',
+        person: meetingMeta.chairperson || '',
+        dueDate: '',
+        recurrence: '',
+        reminderTime: '',
+        projectName: meetingMeta.suggestedProject || '',
+        done: false,
+        createdAt: Date.now(),
+      }
+      const subTasks = extracted.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: 'leaders',
+        recurrence: '',
+        reminderTime: '',
+        parentId,
+        projectName: meetingMeta.suggestedProject || '',
+      }))
+      newTasks = [parentTask, ...subTasks]
+    } else {
+      newTasks = extracted.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: t.subcategory || 'other',
+        recurrence: '',
+        reminderTime: '',
+      }))
+    }
     setTasks([...newTasks, ...tasks])
     setExtracted([])
+    setMeetingMeta(null)
     setFile(null)
     setPreview(null)
     showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
@@ -234,6 +284,14 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
 
           {extracted.length > 0 && (
             <div className="ai-result">
+              {meetingMeta && (
+                <div style={{ background: 'rgba(59,130,246,0.1)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid rgba(59,130,246,0.2)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--blue-light)', marginBottom: 4 }}>📋 {meetingMeta.meetingTitle}</div>
+                  {meetingMeta.suggestedProject && (
+                    <div style={{ fontSize: 12, color: 'var(--text2)' }}>📁 {meetingMeta.suggestedProject}</div>
+                  )}
+                </div>
+              )}
               <div className="ai-result-title">🎯 استُخرجت {extracted.length} مهمة:</div>
               {extracted.map((t, i) => (
                 <div key={i} className="ai-task-item">
