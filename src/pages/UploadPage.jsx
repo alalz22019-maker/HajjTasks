@@ -82,13 +82,50 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           })
         })
         const data = await res.json()
+        if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
         content = data.content?.[0]?.text || '[]'
+
+      } else if (file.type === 'application/pdf') {
+        const reader = new FileReader()
+        const base64 = await new Promise((res, rej) => {
+          reader.onload = e => res(e.target.result.split(',')[1])
+          reader.onerror = rej
+          reader.readAsDataURL(file)
+        })
+
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          },
+          body: JSON.stringify({
+            model: 'claude-opus-4-6',
+            max_tokens: 2048,
+            system: UPLOAD_SYSTEM,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+                { type: 'text', text: 'استخرج المهام والتكليفات من هذا الملف' }
+              ]
+            }]
+          })
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
+        content = data.content?.[0]?.text || '[]'
+
       } else {
         const text = await file.text()
         content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
       }
 
-      const parsed = JSON.parse(content)
+      // تنظيف الرد من أي markdown wrappers
+      const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim()
+      const parsed = JSON.parse(cleaned)
       setExtracted(Array.isArray(parsed) ? parsed : [])
     } catch (e) {
       showToast('❌ ' + e.message)
