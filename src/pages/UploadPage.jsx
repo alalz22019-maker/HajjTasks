@@ -99,11 +99,12 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
             'Content-Type': 'application/json',
             'x-api-key': apiKey,
             'anthropic-version': '2023-06-01',
+            'anthropic-beta': 'pdfs-2024-09-25',
             'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
             model: 'claude-opus-4-6',
-            max_tokens: 2048,
+            max_tokens: 4096,
             system: UPLOAD_SYSTEM,
             messages: [{
               role: 'user',
@@ -114,7 +115,9 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
             }]
           })
         })
-        const data = await res.json()
+        const rawText = await res.text()
+        let data
+        try { data = JSON.parse(rawText) } catch { throw new Error('خطأ في الاتصال بالـ API: ' + rawText.slice(0, 200)) }
         if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
         content = data.content?.[0]?.text || '[]'
 
