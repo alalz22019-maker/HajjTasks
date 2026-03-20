@@ -1,5 +1,21 @@
 const API_URL = 'https://api.anthropic.com/v1/messages'
 
+// التحقق من تكرار المهمة بمقارنة العنوان مع المهام الموجودة
+export function isDuplicateTask(newTitle, existingTasks) {
+  const norm = s => (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+  const n = norm(newTitle)
+  if (!n) return false
+  return existingTasks.some(t => {
+    const e = norm(t.title)
+    if (!e) return false
+    if (e === n) return true
+    // تطابق جزئي إذا كان أحدهما يحتوي الآخر (بحد أدنى 15 حرف)
+    if (n.length >= 15 && e.includes(n)) return true
+    if (e.length >= 15 && n.includes(e)) return true
+    return false
+  })
+}
+
 export async function callClaude(apiKey, systemPrompt, userContent) {
   const res = await fetch(API_URL, {
     method: 'POST',

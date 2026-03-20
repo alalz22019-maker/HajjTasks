@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask } from '../utils/claude'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -158,11 +158,13 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   function addAll() {
     let newTasks
     if (meetingMeta) {
-      // إنشاء مهمة رئيسية للمحضر
+      // التحقق من تكرار المهمة الرئيسية
+      const parentTitle = meetingMeta.meetingTitle || 'مهام محضر اجتماع'
+      const parentDuplicate = isDuplicateTask(parentTitle, tasks)
       const parentId = genId()
-      const parentTask = {
+      const parentTask = parentDuplicate ? null : {
         id: parentId,
-        title: meetingMeta.meetingTitle || 'مهام محضر اجتماع',
+        title: parentTitle,
         priority: 'urgent',
         category: 'work',
         subcategory: 'leaders',
@@ -174,7 +176,14 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         done: false,
         createdAt: Date.now(),
       }
-      const subTasks = extracted.map(t => ({
+      // استخدام parentId موجود إذا كان المحضر مكرراً
+      const existingParent = parentDuplicate
+        ? tasks.find(t => isDuplicateTask(parentTitle, [t]))
+        : null
+      const effectiveParentId = existingParent ? existingParent.id : parentId
+
+      const uniqueSubs = extracted.filter(t => !isDuplicateTask(t.title, tasks))
+      const subTasks = uniqueSubs.map(t => ({
         ...t,
         id: genId(),
         done: false,
@@ -182,12 +191,16 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         subcategory: 'leaders',
         recurrence: '',
         reminderTime: '',
-        parentId,
+        parentId: effectiveParentId,
         projectName: meetingMeta.suggestedProject || '',
       }))
-      newTasks = [parentTask, ...subTasks]
+      newTasks = [...(parentTask ? [parentTask] : []), ...subTasks]
+      const skipped = extracted.length - uniqueSubs.length + (parentDuplicate ? 1 : 0)
+      if (skipped > 0) showToast(`⚠️ تم تخطي ${skipped} مهمة مكررة`)
     } else {
-      newTasks = extracted.map(t => ({
+      const unique = extracted.filter(t => !isDuplicateTask(t.title, tasks))
+      const skipped = extracted.length - unique.length
+      newTasks = unique.map(t => ({
         ...t,
         id: genId(),
         done: false,
@@ -196,6 +209,11 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         recurrence: '',
         reminderTime: '',
       }))
+      if (skipped > 0) showToast(`⚠️ تم تخطي ${skipped} مهمة مكررة`)
+    }
+    if (newTasks.length === 0) {
+      showToast('ℹ️ جميع المهام موجودة مسبقاً')
+      return
     }
     setTasks([...newTasks, ...tasks])
     setExtracted([])
