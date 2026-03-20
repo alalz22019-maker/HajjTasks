@@ -82,6 +82,12 @@ export default function TaskCard({ task, onToggle, onEdit, onDelete, showToast }
             {task.recurrence && (
               <span className="badge badge-recur">🔄 {RECURRENCE_LABELS[task.recurrence]}</span>
             )}
+            {task.projectName && (
+              <span className="badge badge-project">📁 {task.projectName}</span>
+            )}
+            {task.parentId && (
+              <span className="badge badge-subtask">↳ فرعية</span>
+            )}
           </div>
         </div>
       </div>

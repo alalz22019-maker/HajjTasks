@@ -52,11 +52,33 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
     return { total, done, urgent, pending: total - done, pct }
   }, [tasks])
 
-  function addTask(form) {
-    const newTask = { ...form, id: genId(), createdAt: Date.now() }
-    setTasks([newTask, ...tasks])
+  function addTask(form, subTaskTitles = []) {
+    const parentId = genId()
+    const newTask = { ...form, id: parentId, createdAt: Date.now() }
+
+    if (subTaskTitles.length > 0) {
+      const subTaskObjects = subTaskTitles.map(title => ({
+        title,
+        priority: form.priority,
+        category: form.category,
+        subcategory: form.subcategory,
+        person: form.person,
+        dueDate: '',
+        recurrence: '',
+        reminderTime: '',
+        projectName: form.projectName || form.title,
+        parentId,
+        done: false,
+        id: genId(),
+        createdAt: Date.now(),
+      }))
+      setTasks([newTask, ...subTaskObjects, ...tasks])
+      showToast(`✅ تمت إضافة المهمة و${subTaskTitles.length} مهام فرعية`)
+    } else {
+      setTasks([newTask, ...tasks])
+      showToast('✅ تمت إضافة المهمة')
+    }
     setShowForm(false)
-    showToast('✅ تمت إضافة المهمة')
   }
 
   function updateTask(form) {
@@ -240,10 +262,10 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
       {/* Modals */}
       {showForm && (
-        <TaskForm onSave={addTask} onClose={() => setShowForm(false)} />
+        <TaskForm onSave={addTask} onClose={() => setShowForm(false)} apiKey={apiKey} />
       )}
       {editTask && (
-        <TaskForm task={editTask} onSave={updateTask} onClose={() => setEditTask(null)} />
+        <TaskForm task={editTask} onSave={updateTask} onClose={() => setEditTask(null)} apiKey={apiKey} />
       )}
       {showApiKey && (
         <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />

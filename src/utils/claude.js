@@ -45,3 +45,43 @@ export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج الم�
 - أرجع JSON فقط بدون \`\`\`json أو أي نص`
 
 export const EXTRACT_SYSTEM_EN = EXTRACT_SYSTEM
+
+export const ANALYZE_TASK_SYSTEM = `أنت مساعد ذكي لتحليل المهام في بيئة حكومية سعودية (وزارة الصحة).
+حلل عنوان المهمة وأرجع JSON بالشكل التالي بالضبط (بدون أي نص إضافي):
+{
+  "priority": "urgent|medium|low",
+  "category": "work|personal|health",
+  "subcategory": "leaders|team|other|home|business",
+  "person": "اسم الشخص أو فارغ",
+  "projectName": "اسم المشروع أو المبادرة أو null",
+  "reason": "سبب قصير جداً باللغة العربية",
+  "subTasks": ["مهمة فرعية 1", "مهمة فرعية 2"]
+}
+
+قواعد الأولوية (الأهم):
+- إذا ذُكر "الرئيس التنفيذي" (تحديداً وليس المدير التنفيذي) → priority: urgent، subcategory: leaders
+- إذا ذُكر "معالي مساعد الوزير" أو "مساعد الوزير" → priority: urgent، subcategory: leaders
+- إذا ذُكر "وزير" أو "معالي" → priority: urgent، subcategory: leaders
+- إذا ذُكر "مجلس الإدارة" أو "القيادة" → priority: urgent، subcategory: leaders
+- إذا ذُكرت كلمات "عاجل" أو "فوراً" أو "ضروري" أو "اليوم" → priority: urgent
+
+قواعد المشروع (projectName):
+- إذا كانت المهمة جزءاً من مبادرة أو مشروع → اذكر اسمه
+- مثال: "تقرير منجزات التحول الرقمي" → projectName: "مشروع التحول الرقمي"
+- إذا لم تكن جزءاً من مشروع محدد → projectName: null
+
+قواعد المهام الفرعية (subTasks):
+- إذا كانت المهمة كبيرة وتحتاج خطوات متعددة → قسّمها لمهام فرعية (3 إلى 5 مهام)
+- إذا كانت المهمة بسيطة وواضحة → subTasks: []
+- مثال: "تجهيز خطة التحول الرقمي" → subTasks: ["تحليل الوضع الراهن", "تحديد الأهداف", "إعداد خارطة الطريق", "مراجعة الميزانية"]
+
+أرجع JSON فقط بدون \`\`\`json أو أي نص إضافي`
+
+export async function analyzeTaskWithAI(apiKey, taskTitle) {
+  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle)
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
