@@ -123,9 +123,10 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
       }
 
-      // تنظيف الرد من أي markdown wrappers
-      const cleaned = content.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim()
-      const parsed = JSON.parse(cleaned)
+      // استخراج JSON array من الرد مهما كان الشكل
+      const jsonMatch = content.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) throw new Error('لم يتم العثور على مهام في الملف')
+      const parsed = JSON.parse(jsonMatch[0])
       setExtracted(Array.isArray(parsed) ? parsed : [])
     } catch (e) {
       showToast('❌ ' + e.message)
