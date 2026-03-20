@@ -6,6 +6,7 @@ import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
 import { loadData, saveData } from './utils/storage'
 import Toast from './components/Toast'
+import { HARDCODED_API_KEY } from './config'
 
 const NAV = [
   { id: 'tasks', label: 'المهام', icon: '✓' },
@@ -24,8 +25,9 @@ function App() {
   useEffect(() => {
     const storedTasks = loadData('mytasks_tasks') || []
     const storedKey = loadData('mytasks_apikey') || ''
+    const key = HARDCODED_API_KEY || storedKey
     setTasks(storedTasks)
-    setApiKey(storedKey)
+    setApiKey(key)
   }, [])
 
   const persistTasks = useCallback((newTasks) => {

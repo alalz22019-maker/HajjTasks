@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { analyzeTaskWithAI } from '../utils/claude'
 
 const PRIORITIES = [
   { value: 'urgent', label: 'عاجل' },
@@ -44,11 +45,16 @@ const DEFAULT_TASK = {
   dueDate: '',
   recurrence: '',
   reminderTime: '',
+  projectName: '',
   done: false,
 }
 
-export default function TaskForm({ task, onSave, onClose }) {
-  const [form, setForm] = useState(task ? { ...task } : { ...DEFAULT_TASK })
+export default function TaskForm({ task, onSave, onClose, apiKey }) {
+  const [form, setForm] = useState(task ? { ...task, projectName: task.projectName || '' } : { ...DEFAULT_TASK })
+  const [analyzing, setAnalyzing] = useState(false)
+  const [aiReason, setAiReason] = useState('')
+  const [subTasks, setSubTasks] = useState([])
+  const [selectedSubTasks, setSelectedSubTasks] = useState([])
 
   function set(field, value) {
     setForm(f => {
@@ -61,9 +67,45 @@ export default function TaskForm({ task, onSave, onClose }) {
     })
   }
 
+  async function analyzeTask() {
+    if (!form.title.trim()) return
+    setAnalyzing(true)
+    setAiReason('')
+    setSubTasks([])
+    setSelectedSubTasks([])
+    try {
+      const result = await analyzeTaskWithAI(apiKey, form.title)
+      if (result) {
+        setForm(f => ({
+          ...f,
+          priority: result.priority || f.priority,
+          category: result.category || f.category,
+          subcategory: result.subcategory || f.subcategory,
+          person: result.person || f.person,
+          projectName: result.projectName || f.projectName || '',
+        }))
+        if (result.reason) setAiReason(result.reason)
+        if (Array.isArray(result.subTasks) && result.subTasks.length > 0) {
+          setSubTasks(result.subTasks)
+          setSelectedSubTasks(result.subTasks)
+        }
+      }
+    } catch (e) {
+      console.error('AI analyze error:', e)
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  function toggleSubTask(st) {
+    setSelectedSubTasks(prev =>
+      prev.includes(st) ? prev.filter(s => s !== st) : [...prev, st]
+    )
+  }
+
   function handleSubmit() {
     if (!form.title.trim()) return
-    onSave(form)
+    onSave(form, selectedSubTasks)
   }
 
   const subs = SUBCATEGORIES[form.category] || []
@@ -76,13 +118,36 @@ export default function TaskForm({ task, onSave, onClose }) {
 
         <div className="form-group">
           <label className="form-label">عنوان المهمة *</label>
-          <input
-            className="form-input"
-            value={form.title}
-            onChange={e => set('title', e.target.value)}
-            placeholder="اكتب المهمة..."
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              className="form-input"
+              style={{ flex: 1 }}
+              value={form.title}
+              onChange={e => set('title', e.target.value)}
+              placeholder="اكتب المهمة..."
+            />
+            <button
+              className="ai-analyze-btn"
+              onClick={analyzeTask}
+              disabled={!form.title.trim() || analyzing || !apiKey}
+              title={!apiKey ? 'يلزم إعداد مفتاح API أولاً' : 'تحليل ذكي'}
+            >
+              {analyzing ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
+            </button>
+          </div>
+          {!apiKey && (
+            <div style={{ fontSize: 11, color: 'var(--orange)', marginTop: 4 }}>
+              أضف مفتاح API لتفعيل التحليل الذكي
+            </div>
+          )}
         </div>
+
+        {aiReason && (
+          <div className="ai-reason-box">
+            <span style={{ fontSize: 13 }}>🤖</span>
+            <span>{aiReason}</span>
+          </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">الأولوية</label>
@@ -124,6 +189,16 @@ export default function TaskForm({ task, onSave, onClose }) {
               ))}
             </select>
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">اسم المشروع / المبادرة</label>
+          <input
+            className="form-input"
+            value={form.projectName}
+            onChange={e => set('projectName', e.target.value)}
+            placeholder="مثال: مشروع التحول الرقمي..."
+          />
         </div>
 
         <div className="form-group">
@@ -172,8 +247,32 @@ export default function TaskForm({ task, onSave, onClose }) {
           </div>
         </div>
 
+        {subTasks.length > 0 && (
+          <div className="subtasks-panel">
+            <div className="subtasks-title">
+              📋 المهام الفرعية المقترحة
+              <span className="subtasks-hint">اختر ما تريد إضافته</span>
+            </div>
+            {subTasks.map(st => (
+              <label key={st} className="subtask-item">
+                <input
+                  type="checkbox"
+                  checked={selectedSubTasks.includes(st)}
+                  onChange={() => toggleSubTask(st)}
+                  className="subtask-checkbox"
+                />
+                <span>{st}</span>
+              </label>
+            ))}
+          </div>
+        )}
+
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim()}>
-          {task ? 'حفظ التغييرات' : 'إضافة المهمة'}
+          {task
+            ? 'حفظ التغييرات'
+            : selectedSubTasks.length > 0
+              ? `إضافة المهمة + ${selectedSubTasks.length} مهام فرعية`
+              : 'إضافة المهمة'}
         </button>
         <button className="cancel-btn" onClick={onClose}>إلغاء</button>
       </div>
