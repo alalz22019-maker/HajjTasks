@@ -23,9 +23,12 @@ function App() {
 
   useEffect(() => {
     const storedTasks = loadData('mytasks_tasks') || []
+    const envKey = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
     const storedKey = loadData('mytasks_apikey') || ''
+    const key = envKey || storedKey
     setTasks(storedTasks)
-    setApiKey(storedKey)
+    setApiKey(key)
+    if (envKey && !storedKey) saveData('mytasks_apikey', envKey)
   }, [])
 
   const persistTasks = useCallback((newTasks) => {
