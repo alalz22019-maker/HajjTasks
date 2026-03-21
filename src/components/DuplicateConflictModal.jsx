@@ -56,6 +56,7 @@ export default function DuplicateConflictModal({ conflicts, onResolve, onCancel 
               <div key={i} style={{
                 borderRadius: 14,
                 overflow: 'hidden',
+                flexShrink: 0,
                 border: d === true
                   ? '1.5px solid rgba(16,185,129,0.5)'
                   : d === false
