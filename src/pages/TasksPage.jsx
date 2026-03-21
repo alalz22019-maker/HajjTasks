@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { loadData } from '../utils/storage'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
@@ -201,7 +202,12 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
   const circumference = 2 * Math.PI * 40
 
-  const handleRefresh = useCallback(() => showToast('✓ محدّث'), [showToast])
+  const handleRefresh = useCallback(() => {
+    const fresh = loadData('mytasks_tasks') || []
+    setTasks(fresh)
+    setFilter('all')
+    showToast('✓ محدّث')
+  }, [setTasks, showToast])
 
   return (
     <PullToRefresh onRefresh={handleRefresh}>

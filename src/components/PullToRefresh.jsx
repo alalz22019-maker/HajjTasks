@@ -50,6 +50,7 @@ export default function PullToRefresh({ children, onRefresh }) {
         busy.current = true
         setStatus('refreshing')
         setTy(46) // قفل الـ indicator ظاهر أثناء التحديث
+        el.scrollTop = 0  // ارجع للأعلى دائماً عند التحديث
         curPull.current = 0
         Promise.resolve(onRefresh()).finally(() => {
           setTimeout(() => {
