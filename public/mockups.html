@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockups — طرق عرض المهام</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0f1117;
+    color: #e2e8f0;
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    padding: 32px 16px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    color: #a78bfa;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 40px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .phone-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .phone-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: #c4b5fd;
+    letter-spacing: 0.3px;
+  }
+  .phone-desc {
+    font-size: 12px;
+    color: #64748b;
+    text-align: center;
+    max-width: 300px;
+    line-height: 1.6;
+  }
+
+  .phone {
+    width: 320px;
+    height: 620px;
+    background: #1a1d2e;
+    border-radius: 40px;
+    border: 2px solid #2d2f45;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 5px;
+    background: #2d2f45;
+    border-radius: 4px;
+    z-index: 10;
+  }
+
+  .phone-status {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 20px 8px;
+    font-size: 11px;
+    color: #64748b;
+    flex-shrink: 0;
+  }
+
+  .phone-header {
+    padding: 6px 16px 10px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #e2e8f0;
+    flex-shrink: 0;
+  }
+
+  .phone-body {
+    flex: 1;
+    overflow: hidden;
+    padding: 0 12px 12px;
+  }
+
+  /* ===== 1. KANBAN ===== */
+  .kanban-scroll {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    height: 100%;
+    padding-bottom: 4px;
+  }
+  .kanban-scroll::-webkit-scrollbar { display: none; }
+  .kanban-col {
+    min-width: 130px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .kanban-col-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    padding: 4px 0;
+    border-bottom: 2px solid #2d2f45;
+    margin-bottom: 2px;
+  }
+  .kanban-card {
+    background: #252840;
+    border-radius: 10px;
+    padding: 9px 10px;
+    font-size: 11px;
+    line-height: 1.5;
+    border-right: 3px solid #6366f1;
+  }
+  .kanban-card.red { border-right-color: #ef4444; }
+  .kanban-card.green { border-right-color: #10b981; }
+  .kanban-card.yellow { border-right-color: #f59e0b; }
+  .kanban-tag {
+    display: inline-block;
+    font-size: 9px;
+    background: rgba(239,68,68,0.2);
+    color: #f87171;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-top: 5px;
+  }
+  .kanban-tag.blue { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+
+  /* ===== 2. TIMELINE ===== */
+  .timeline-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .timeline-wrap::-webkit-scrollbar { display: none; }
+  .tl-day {
+    font-size: 11px;
+    font-weight: 700;
+    color: #6366f1;
+    padding: 8px 0 4px;
+  }
+  .tl-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid #1e2035;
+  }
+  .tl-time {
+    font-size: 10px;
+    color: #64748b;
+    min-width: 32px;
+    padding-top: 2px;
+  }
+  .tl-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .tl-dot.blue { background: #6366f1; }
+  .tl-dot.green { background: #10b981; }
+  .tl-content {
+    flex: 1;
+    font-size: 11px;
+    line-height: 1.5;
+    color: #e2e8f0;
+  }
+  .tl-badge {
+    display: inline-block;
+    font-size: 9px;
+    background: rgba(239,68,68,0.2);
+    color: #f87171;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-top: 3px;
+  }
+  .tl-badge.b { background: rgba(99,102,241,0.2); color: #a5b4fc; }
+
+  /* ===== 3. COMPACT ===== */
+  .compact-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .compact-wrap::-webkit-scrollbar { display: none; }
+  .compact-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: #252840;
+  }
+  .compact-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex-shrink: 0;
+  }
+  .compact-dot.b { background: #6366f1; }
+  .compact-dot.g { background: #10b981; }
+  .compact-title {
+    flex: 1;
+    font-size: 12px;
+    color: #e2e8f0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .compact-person {
+    font-size: 10px;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .compact-check {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1.5px solid #2d2f45;
+    flex-shrink: 0;
+  }
+
+  /* ===== 5. GROUP BY PERSON ===== */
+  .group-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: 100%;
+    overflow-y: auto;
+  }
+  .group-wrap::-webkit-scrollbar { display: none; }
+  .group-section { }
+  .group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    margin-bottom: 6px;
+  }
+  .group-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #a78bfa);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .group-avatar.g2 { background: linear-gradient(135deg, #10b981, #34d399); }
+  .group-avatar.g3 { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+  .group-name { font-size: 13px; font-weight: 700; color: #e2e8f0; }
+  .group-count {
+    font-size: 10px;
+    background: #2d2f45;
+    border-radius: 10px;
+    padding: 1px 7px;
+    color: #94a3b8;
+    margin-right: auto;
+  }
+  .group-task {
+    background: #252840;
+    border-radius: 9px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.5;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-task-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #ef4444;
+    flex-shrink: 0;
+  }
+  .group-task-dot.b { background: #6366f1; }
+
+  /* ===== 6. MATRIX ===== */
+  .matrix-wrap {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    height: 100%;
+  }
+  .matrix-cell {
+    background: #252840;
+    border-radius: 12px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow: hidden;
+  }
+  .matrix-cell-title {
+    font-size: 9px;
+    font-weight: 700;
+    color: #94a3b8;
+    border-bottom: 1px solid #2d2f45;
+    padding-bottom: 4px;
+    margin-bottom: 2px;
+  }
+  .matrix-cell.q1 { border: 1.5px solid rgba(239,68,68,0.4); }
+  .matrix-cell.q2 { border: 1.5px solid rgba(99,102,241,0.3); }
+  .matrix-cell.q3 { border: 1.5px solid rgba(245,158,11,0.3); }
+  .matrix-cell.q4 { border: 1.5px solid rgba(30,32,53,0.8); }
+  .matrix-cell-title.q1c { color: #f87171; }
+  .matrix-cell-title.q2c { color: #a5b4fc; }
+  .matrix-cell-title.q3c { color: #fbbf24; }
+  .matrix-item {
+    font-size: 9.5px;
+    color: #cbd5e1;
+    line-height: 1.45;
+    padding: 4px 6px;
+    background: #1a1d2e;
+    border-radius: 6px;
+  }
+
+  /* ===== 7. BUBBLE ===== */
+  .bubble-wrap {
+    position: relative;
+    height: 100%;
+    overflow: hidden;
+  }
+  .bubble {
+    position: absolute;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .bubble span {
+    font-size: 9px;
+    line-height: 1.3;
+    padding: 6px;
+    color: #fff;
+    font-weight: 600;
+  }
+  .b1 { width:100px;height:100px; background:rgba(239,68,68,0.75); top:10px; right:10px; }
+  .b2 { width:80px; height:80px; background:rgba(99,102,241,0.7); top:20px; left:20px; }
+  .b3 { width:110px;height:110px;background:rgba(239,68,68,0.6); top:120px;right:30px; }
+  .b4 { width:65px; height:65px; background:rgba(16,185,129,0.65);top:110px;left:10px;}
+  .b5 { width:90px; height:90px; background:rgba(245,158,11,0.65);top:230px;right:5px; }
+  .b6 { width:75px; height:75px; background:rgba(99,102,241,0.55);top:240px;left:50px;}
+  .b7 { width:55px; height:55px; background:rgba(16,185,129,0.5); top:340px;right:80px;}
+  .bubble-legend {
+    position:absolute;
+    bottom:8px;
+    left:0;right:0;
+    text-align:center;
+    font-size:10px;
+    color:#64748b;
+  }
+
+  /* bottom nav shared */
+  .phone-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 10px 0 14px;
+    border-top: 1px solid #2d2f45;
+    flex-shrink: 0;
+    background: #1a1d2e;
+  }
+  .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    color: #64748b;
+  }
+  .nav-item.active { color: #6366f1; }
+  .nav-icon { font-size: 18px; }
+</style>
+</head>
+<body>
+
+<h1>طرق عرض المهام — Mockups</h1>
+<p class="subtitle">6 أفكار تقريبية قبل التصميم الفعلي</p>
+
+<div class="grid">
+
+  <!-- 1. KANBAN -->
+  <div class="phone-wrap">
+    <div class="phone-label">١. كانبان (Kanban)</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي</div>
+      <div class="phone-body">
+        <div class="kanban-scroll">
+          <div class="kanban-col">
+            <div class="kanban-col-title">🔴 عاجل</div>
+            <div class="kanban-card red">رفع تقارير الجاهزية الصباحية<div><span class="kanban-tag">عمل</span></div></div>
+            <div class="kanban-card red">تحديث لوحة بيانات 937<div><span class="kanban-tag">عمل</span></div></div>
+            <div class="kanban-card red">البدء بتحديث عرض اجتماع أبو خالد<div><span class="kanban-tag">عمل</span></div></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-title">🔵 فريق</div>
+            <div class="kanban-card">التنسيق مع محمد الحجيلي<div><span class="kanban-tag blue">فريق</span></div></div>
+            <div class="kanban-card">متابعة الملاحظات مع شادي<div><span class="kanban-tag blue">فريق</span></div></div>
+          </div>
+          <div class="kanban-col">
+            <div class="kanban-col-title">✅ منجزة</div>
+            <div class="kanban-card green">استكمال تحليل بلاغات<div><span class="kanban-tag" style="background:rgba(16,185,129,0.2);color:#34d399">منجز</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">أعمدة أفقية حسب الحالة أو النوع — تسحب المهمة بين الأعمدة</div>
+  </div>
+
+  <!-- 2. TIMELINE -->
+  <div class="phone-wrap">
+    <div class="phone-label">٢. مخطط زمني (Timeline)</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي — اليوم</div>
+      <div class="phone-body">
+        <div class="timeline-wrap">
+          <div class="tl-day">اليوم — السبت ٢٢ مارس</div>
+          <div class="tl-row">
+            <div class="tl-time">9ص</div>
+            <div class="tl-dot"></div>
+            <div class="tl-content">رفع تقارير الجاهزية الصباحية<br><span class="tl-badge">عاجل</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">10ص</div>
+            <div class="tl-dot blue"></div>
+            <div class="tl-content">البدء بتحديث عرض اجتماع أبو خالد<br><span class="tl-badge b">فريق</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">12م</div>
+            <div class="tl-dot"></div>
+            <div class="tl-content">تحديث لوحة بيانات 937<br><span class="tl-badge">عاجل</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">3م</div>
+            <div class="tl-dot blue"></div>
+            <div class="tl-content">رفع تقارير الجاهزية المسائية<br><span class="tl-badge b">فريق</span></div>
+          </div>
+          <div class="tl-day" style="margin-top:8px">غداً — الأحد ٢٣ مارس</div>
+          <div class="tl-row">
+            <div class="tl-time">9ص</div>
+            <div class="tl-dot green"></div>
+            <div class="tl-content">تنسيق الاجتماع القادم — أبريل<br><span class="tl-badge" style="background:rgba(16,185,129,0.2);color:#34d399">قادة</span></div>
+          </div>
+          <div class="tl-row">
+            <div class="tl-time">11ص</div>
+            <div class="tl-dot"></div>
+            <div class="tl-content">التنسيق مع محمد الحجيلي<br><span class="tl-badge">عاجل</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">مهام مرتبة على خط زمني يومي — تشوف ايش عندك اليوم وغداً بالوقت</div>
+  </div>
+
+  <!-- 3. COMPACT -->
+  <div class="phone-wrap">
+    <div class="phone-label">٣. عرض مضغوط (Compact)</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي — ١٢ مهمة</div>
+      <div class="phone-body">
+        <div class="compact-wrap">
+          <div class="compact-row"><div class="compact-dot"></div><div class="compact-title">رفع تقارير الجاهزية الصباحية</div><div class="compact-person">علي</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot"></div><div class="compact-title">تحديث لوحة بيانات 937</div><div class="compact-person">سعد</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot b"></div><div class="compact-title">البدء بتحديث عرض اجتماع أبو خالد</div><div class="compact-person">شادي</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot"></div><div class="compact-title">رفع تقارير الجاهزية المسائية</div><div class="compact-person">سعد</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot b"></div><div class="compact-title">التنسيق مع محمد الحجيلي</div><div class="compact-person">علي</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot g"></div><div class="compact-title">تنسيق الاجتماع — أبريل</div><div class="compact-person">راما</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot"></div><div class="compact-title">التأكد من ثغرات الفحوصات</div><div class="compact-person">علي</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot b"></div><div class="compact-title">توضيح أثر قرارات اللجنة</div><div class="compact-person">سعد</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot"></div><div class="compact-title">رصد الممارسات الخاطئة</div><div class="compact-person">شادي</div><div class="compact-check"></div></div>
+          <div class="compact-row"><div class="compact-dot g"></div><div class="compact-title">استكمال تحليل بلاغات</div><div class="compact-person">Amjad</div><div class="compact-check"></div></div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">كل مهمة سطر واحد — تشوف أكبر عدد من المهام في نفس الشاشة</div>
+  </div>
+
+  <!-- 5. GROUP BY PERSON -->
+  <div class="phone-wrap">
+    <div class="phone-label">٥. مجمّع حسب الشخص</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي — الفريق</div>
+      <div class="phone-body">
+        <div class="group-wrap">
+          <div class="group-section">
+            <div class="group-header">
+              <div class="group-avatar">ع</div>
+              <div class="group-name">علي الزهراني</div>
+              <div class="group-count">٣</div>
+            </div>
+            <div class="group-task"><div class="group-task-dot"></div>رفع تقارير الجاهزية الصباحية</div>
+            <div class="group-task"><div class="group-task-dot"></div>التنسيق مع محمد الحجيلي</div>
+            <div class="group-task"><div class="group-task-dot b"></div>البدء بتحديث عرض اجتماع</div>
+          </div>
+          <div class="group-section">
+            <div class="group-header">
+              <div class="group-avatar g2">س</div>
+              <div class="group-name">سعد القرشي</div>
+              <div class="group-count">٢</div>
+            </div>
+            <div class="group-task"><div class="group-task-dot"></div>تحديث لوحة بيانات 937</div>
+            <div class="group-task"><div class="group-task-dot"></div>رفع تقارير الجاهزية المسائية</div>
+          </div>
+          <div class="group-section">
+            <div class="group-header">
+              <div class="group-avatar g3">ش</div>
+              <div class="group-name">شادي</div>
+              <div class="group-count">٢</div>
+            </div>
+            <div class="group-task"><div class="group-task-dot b"></div>متابعة الملاحظات مع عبير</div>
+            <div class="group-task"><div class="group-task-dot"></div>رصد الممارسات الخاطئة</div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">المهام مقسّمة حسب المسؤول — سهل تتابع كل شخص في الفريق</div>
+  </div>
+
+  <!-- 6. MATRIX -->
+  <div class="phone-wrap">
+    <div class="phone-label">٦. مصفوفة الأولويات</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي — المصفوفة</div>
+      <div class="phone-body" style="padding-top:4px">
+        <div class="matrix-wrap">
+          <div class="matrix-cell q1">
+            <div class="matrix-cell-title q1c">🔴 عاجل + مهم</div>
+            <div class="matrix-item">رفع تقارير الجاهزية</div>
+            <div class="matrix-item">تحديث لوحة 937</div>
+            <div class="matrix-item">التصعيد المباشر</div>
+          </div>
+          <div class="matrix-cell q2">
+            <div class="matrix-cell-title q2c">🔵 مهم + غير عاجل</div>
+            <div class="matrix-item">تنسيق اجتماع أبريل</div>
+            <div class="matrix-item">توضيح أثر قرارات اللجنة</div>
+          </div>
+          <div class="matrix-cell q3">
+            <div class="matrix-cell-title q3c">🟡 عاجل + أقل أهمية</div>
+            <div class="matrix-item">البدء بتحديث العرض</div>
+            <div class="matrix-item">رصد الممارسات</div>
+          </div>
+          <div class="matrix-cell q4">
+            <div class="matrix-cell-title">⚪ يمكن تأجيله</div>
+            <div class="matrix-item">التنسيق مع محمد</div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">شبكة ٢×٢ تصنّف المهام حسب الأهمية والعجلة تلقائياً</div>
+  </div>
+
+  <!-- 7. BUBBLE -->
+  <div class="phone-wrap">
+    <div class="phone-label">٧. عرض الفقاعات (Bubbles)</div>
+    <div class="phone">
+      <div class="phone-status"><span>12:00</span><span>4G ◼</span></div>
+      <div class="phone-header">مهامي — الأولويات</div>
+      <div class="phone-body">
+        <div class="bubble-wrap">
+          <div class="bubble b1"><span>رفع تقارير الجاهزية</span></div>
+          <div class="bubble b2"><span>لوحة 937</span></div>
+          <div class="bubble b3"><span>البدء بتحديث عرض اجتماع أبو خالد</span></div>
+          <div class="bubble b4"><span>تنسيق أبريل</span></div>
+          <div class="bubble b5"><span>التصعيد المباشر</span></div>
+          <div class="bubble b6"><span>توضيح قرارات اللجنة</span></div>
+          <div class="bubble b7"><span>رصد</span></div>
+          <div class="bubble-legend">الحجم = الأولوية • اضغط للتفاصيل</div>
+        </div>
+      </div>
+      <div class="phone-nav">
+        <div class="nav-item"><span class="nav-icon">📊</span>تقرير</div>
+        <div class="nav-item"><span class="nav-icon">👥</span>جهات</div>
+        <div class="nav-item"><span class="nav-icon">📎</span>رفع ملف</div>
+        <div class="nav-item"><span class="nav-icon">✏️</span>ملاحظة</div>
+        <div class="nav-item active"><span class="nav-icon">✓</span>المهام</div>
+      </div>
+    </div>
+    <div class="phone-desc">فقاعات بأحجام مختلفة — الأكبر = الأهم. اضغط على أي فقاعة لتشوف التفاصيل</div>
+  </div>
+
+</div>
+
+<p style="text-align:center;color:#334155;font-size:12px;margin-top:48px">mockups.html — تقريبي فقط، التصميم الفعلي سيطابق نمط التطبيق</p>
+
+</body>
+</html>
