@@ -30,6 +30,19 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [extracting, setExtracting] = useState(false)
   const [extractedTasks, setExtractedTasks] = useState([])
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [viewMode, setViewMode] = useState('list') // list | compact | grouped
+
+  const VIEW_MODES = [
+    { id: 'list',    icon: '▤', label: 'قائمة' },
+    { id: 'compact', icon: '☰', label: 'مضغوط' },
+    { id: 'grouped', icon: '👥', label: 'حسب الشخص' },
+  ]
+  function cycleView() {
+    setViewMode(cur => {
+      const idx = VIEW_MODES.findIndex(v => v.id === cur)
+      return VIEW_MODES[(idx + 1) % VIEW_MODES.length].id
+    })
+  }
 
   const filtered = useMemo(() => {
     return tasks.filter(t => {
@@ -145,6 +158,17 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
     showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
   }
 
+  // Grouped by person (for grouped view)
+  const groupedByPerson = useMemo(() => {
+    const map = {}
+    filtered.forEach(t => {
+      const key = t.person?.trim() || 'بدون مسؤول'
+      if (!map[key]) map[key] = []
+      map[key].push(t)
+    })
+    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], 'ar'))
+  }, [filtered])
+
   const circumference = 2 * Math.PI * 40
 
   return (
@@ -156,21 +180,43 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             <div className="header-title">مهامي Pro</div>
             <div className="header-sub">علي الزهراني • PMO وزارة الصحة</div>
           </div>
-          <button
-            onClick={() => setShowApiKey(true)}
-            style={{
-              background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-              color: apiKey ? 'var(--green)' : 'var(--orange)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '6px 10px',
-              fontSize: 12,
-              fontFamily: 'var(--font)',
-              cursor: 'pointer'
-            }}
-          >
-            {apiKey ? '🔑 API' : '⚙️ API'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={cycleView}
+              title={VIEW_MODES.find(v => v.id === viewMode)?.label}
+              style={{
+                background: 'rgba(59,130,246,0.12)',
+                color: 'var(--blue-light)',
+                border: '1px solid rgba(59,130,246,0.25)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                fontSize: 13,
+                fontFamily: 'var(--font)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+              }}
+            >
+              <span>{VIEW_MODES.find(v => v.id === viewMode)?.icon}</span>
+              <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
+            </button>
+            <button
+              onClick={() => setShowApiKey(true)}
+              style={{
+                background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                color: apiKey ? 'var(--green)' : 'var(--orange)',
+                border: 'none',
+                borderRadius: 8,
+                padding: '6px 10px',
+                fontSize: 12,
+                fontFamily: 'var(--font)',
+                cursor: 'pointer'
+              }}
+            >
+              {apiKey ? '🔑 API' : '⚙️ API'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -235,7 +281,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           <div className="empty-text">لا توجد مهام</div>
           <div className="empty-sub">اضغط + لإضافة مهمة جديدة</div>
         </div>
-      ) : (
+      ) : viewMode === 'list' ? (
         <div className="task-list">
           {filtered.map(t => (
             <TaskCard
@@ -246,6 +292,49 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
               onDelete={id => setDeleteConfirm(id)}
               showToast={showToast}
             />
+          ))}
+        </div>
+      ) : viewMode === 'compact' ? (
+        <div className="compact-list">
+          {filtered.map(task => (
+            <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
+              <button
+                className={`task-check${task.done ? ' done' : ''}`}
+                style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }}
+                onClick={() => toggleTask(task.id)}
+              >
+                {task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
+              </button>
+              <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
+              <span className={`compact-dot priority-dot-${task.priority}`} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grouped-list">
+          {groupedByPerson.map(([person, personTasks]) => (
+            <div key={person} className="person-group">
+              <div className="person-group-header">
+                <span className="person-group-icon">👤</span>
+                <span className="person-group-name">{person}</span>
+                <span className="person-group-count">{personTasks.length}</span>
+              </div>
+              <div className="person-group-tasks">
+                {personTasks.map(task => (
+                  <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
+                    <button
+                      className={`task-check${task.done ? ' done' : ''}`}
+                      style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }}
+                      onClick={() => toggleTask(task.id)}
+                    >
+                      {task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
+                    </button>
+                    <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
+                    <span className={`compact-dot priority-dot-${task.priority}`} />
+                  </div>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
