@@ -1,5 +1,51 @@
 const API_URL = 'https://api.anthropic.com/v1/messages'
 
+// تطبيع النص العربي: توحيد الألفات والهمزات والتاء المربوطة وإزالة التشكيل
+function normalizeAr(s) {
+  return (s || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(/[أإآٱ]/g, 'ا')          // توحيد الألف
+    .replace(/ة/g, 'ه')               // تاء مربوطة → هاء
+    .replace(/[\u064B-\u065F\u0670]/g, '') // إزالة التشكيل
+    .replace(/\u0640/g, '')            // إزالة التطويل (كشيدة)
+    .replace(/ى/g, 'ي')               // ألف مقصورة → ياء
+    .replace(/ؤ/g, 'و')               // واو بهمزة
+    .replace(/ئ/g, 'ي')               // ياء بهمزة
+}
+
+// نسبة التشابه بين عنوانين عبر Jaccard على مستوى الكلمات (يتجاهل كلمات < 3 أحرف)
+function wordSimilarity(a, b) {
+  const words = s => new Set(s.split(' ').filter(w => w.length >= 3))
+  const A = words(a), B = words(b)
+  if (A.size === 0 || B.size === 0) return 0
+  let inter = 0
+  A.forEach(w => { if (B.has(w)) inter++ })
+  return inter / (A.size + B.size - inter)
+}
+
+// إيجاد المهمة المشابهة من القائمة الموجودة (تُرجع المهمة أو null)
+export function findDuplicateTask(newTitle, existingTasks) {
+  const n = normalizeAr(newTitle)
+  if (!n) return null
+  return existingTasks.find(t => {
+    const e = normalizeAr(t.title)
+    if (!e) return false
+    if (e === n) return true
+    // تحقق من احتواء أحدهما الآخر (حد أدنى 15 حرف بعد التطبيع)
+    if (n.length >= 15 && e.includes(n)) return true
+    if (e.length >= 15 && n.includes(e)) return true
+    // تشابه الكلمات ≥ 72% → مكرر
+    if (wordSimilarity(n, e) >= 0.72) return true
+    return false
+  }) || null
+}
+
+export function isDuplicateTask(newTitle, existingTasks) {
+  return findDuplicateTask(newTitle, existingTasks) !== null
+}
+
 export async function callClaude(apiKey, systemPrompt, userContent) {
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -45,6 +91,35 @@ export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج الم�
 - أرجع JSON فقط بدون \`\`\`json أو أي نص`
 
 export const EXTRACT_SYSTEM_EN = EXTRACT_SYSTEM
+
+export const PDF_MEETING_SYSTEM = `أنت مساعد ذكي متخصص في استخراج المهام من محاضر الاجتماعات الحكومية (وزارة الصحة السعودية).
+
+اقرأ المحضر واستخرج:
+1. اسم الاجتماع ومن ترأسه (مساعد الوزير، الرئيس التنفيذي، الخ)
+2. جميع المهام والتكليفات
+
+أرجع JSON بهذا الشكل بالضبط (بدون أي نص إضافي):
+{
+  "meetingTitle": "اسم الاجتماع الكامل مع التاريخ إن وُجد",
+  "chairperson": "اسم رئيس الاجتماع",
+  "suggestedProject": "أقرب مشروع أو لجنة من هذه الخيارات: عيني | لجنة الفحوصات المخبرية | جاهزية المختبرات | مشروع علم الأمراض الرقمي | عام",
+  "tasks": [
+    {
+      "title": "عنوان المهمة",
+      "priority": "urgent|medium|low",
+      "category": "work|personal|health",
+      "subcategory": "leaders",
+      "person": "اسم المسؤول عن المهمة أو فارغ",
+      "dueDate": "YYYY-MM-DD أو فارغ"
+    }
+  ]
+}
+
+قواعد مهمة:
+- كل مهام المحضر تكون subcategory: leaders (لأنها من اجتماع قيادي)
+- إذا رأس الاجتماع مساعد وزير أو وزير → priority: urgent لجميع المهام
+- استخرج التكليفات الواضحة فقط، ولا تخترع مهام
+- أرجع JSON فقط بدون \`\`\`json`
 
 export const ANALYZE_TASK_SYSTEM = `أنت مساعد ذكي لتحليل المهام في بيئة حكومية سعودية (وزارة الصحة).
 حلل عنوان المهمة وأرجع JSON بالشكل التالي بالضبط (بدون أي نص إضافي):

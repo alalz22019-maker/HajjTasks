@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
+import DuplicateConflictModal from '../components/DuplicateConflictModal'
+import PullToRefresh from '../components/PullToRefresh'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -26,6 +28,8 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   const [preview, setPreview] = useState(null)
   const [loading, setLoading] = useState(false)
   const [extracted, setExtracted] = useState([])
+  const [meetingMeta, setMeetingMeta] = useState(null)
+  const [uploadConflicts, setUploadConflicts] = useState(null) // { conflicts, unique, meta }
   const [showApiKey, setShowApiKey] = useState(false)
   const inputRef = useRef()
 
@@ -48,8 +52,10 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
 
     setLoading(true)
     setExtracted([])
+    setMeetingMeta(null)
     try {
       let content
+      let isPdfMeeting = false
 
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
@@ -93,6 +99,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           reader.readAsDataURL(file)
         })
 
+        isPdfMeeting = true
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
@@ -105,12 +112,12 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           body: JSON.stringify({
             model: 'claude-opus-4-6',
             max_tokens: 4096,
-            system: UPLOAD_SYSTEM,
+            system: PDF_MEETING_SYSTEM,
             messages: [{
               role: 'user',
               content: [
                 { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-                { type: 'text', text: 'استخرج المهام والتكليفات من هذا الملف' }
+                { type: 'text', text: 'استخرج المهام والتكليفات من هذا المحضر' }
               ]
             }]
           })
@@ -119,18 +126,31 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         let data
         try { data = JSON.parse(rawText) } catch { throw new Error('خطأ في الاتصال بالـ API: ' + rawText.slice(0, 200)) }
         if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
-        content = data.content?.[0]?.text || '[]'
+        content = data.content?.[0]?.text || '{}'
 
       } else {
         const text = await file.text()
         content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
       }
 
-      // استخراج JSON array من الرد مهما كان الشكل
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (!jsonMatch) throw new Error('لم يتم العثور على مهام في الملف')
-      const parsed = JSON.parse(jsonMatch[0])
-      setExtracted(Array.isArray(parsed) ? parsed : [])
+      if (isPdfMeeting) {
+        // استخراج JSON object من محضر الاجتماع
+        const objMatch = content.match(/\{[\s\S]*\}/)
+        if (!objMatch) throw new Error('لم يتم العثور على مهام في الملف')
+        const parsed = JSON.parse(objMatch[0])
+        if (parsed.tasks && Array.isArray(parsed.tasks)) {
+          setMeetingMeta({ meetingTitle: parsed.meetingTitle, suggestedProject: parsed.suggestedProject, chairperson: parsed.chairperson })
+          setExtracted(parsed.tasks)
+        } else {
+          throw new Error('تعذّر استخراج المهام من المحضر')
+        }
+      } else {
+        // استخراج JSON array عادي
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) throw new Error('لم يتم العثور على مهام في الملف')
+        const parsed = JSON.parse(jsonMatch[0])
+        setExtracted(Array.isArray(parsed) ? parsed : [])
+      }
     } catch (e) {
       showToast('❌ ' + e.message)
     } finally {
@@ -139,24 +159,98 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   }
 
   function addAll() {
-    const newTasks = extracted.map(t => ({
-      ...t,
-      id: genId(),
-      done: false,
-      createdAt: Date.now(),
-      subcategory: t.subcategory || 'other',
-      recurrence: '',
-      reminderTime: '',
-    }))
-    setTasks([...newTasks, ...tasks])
+    if (meetingMeta) {
+      // فصل مهام المحضر إلى نظيفة ومتعارضة
+      const unique = []
+      const conflicts = []
+      extracted.forEach(t => {
+        const existing = findDuplicateTask(t.title, tasks)
+        if (existing) conflicts.push({ newTask: t, existingTask: existing })
+        else unique.push(t)
+      })
+      if (conflicts.length > 0) {
+        setUploadConflicts({ conflicts, unique, meta: meetingMeta })
+        return
+      }
+      _commitUploadTasks(unique, [], meetingMeta)
+    } else {
+      const unique = []
+      const conflicts = []
+      extracted.forEach(t => {
+        const existing = findDuplicateTask(t.title, tasks)
+        if (existing) conflicts.push({ newTask: t, existingTask: existing })
+        else unique.push(t)
+      })
+      if (conflicts.length > 0) {
+        setUploadConflicts({ conflicts, unique, meta: null })
+        return
+      }
+      _commitUploadTasks(unique, [], null)
+    }
+  }
+
+  function _commitUploadTasks(uniqueTasks, extraApproved, meta) {
+    let newTasks
+    const all = [...uniqueTasks, ...extraApproved]
+
+    if (meta) {
+      const parentTitle = meta.meetingTitle || 'مهام محضر اجتماع'
+      const existingParent = findDuplicateTask(parentTitle, tasks)
+      const parentId = genId()
+      const parentTask = existingParent ? null : {
+        id: parentId,
+        title: parentTitle,
+        priority: 'urgent',
+        category: 'work',
+        subcategory: 'leaders',
+        person: meta.chairperson || '',
+        dueDate: '',
+        recurrence: '',
+        reminderTime: '',
+        projectName: meta.suggestedProject || '',
+        done: false,
+        createdAt: Date.now(),
+      }
+      const effectiveParentId = existingParent ? existingParent.id : parentId
+      const subTasks = all.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: 'leaders',
+        recurrence: '',
+        reminderTime: '',
+        parentId: effectiveParentId,
+        projectName: meta.suggestedProject || '',
+      }))
+      newTasks = [...(parentTask ? [parentTask] : []), ...subTasks]
+    } else {
+      newTasks = all.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: t.subcategory || 'other',
+        recurrence: '',
+        reminderTime: '',
+      }))
+    }
+
+    if (newTasks.length === 0) {
+      showToast('ℹ️ جميع المهام موجودة مسبقاً')
+    } else {
+      setTasks([...newTasks, ...tasks])
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
+    }
+    setUploadConflicts(null)
     setExtracted([])
+    setMeetingMeta(null)
     setFile(null)
     setPreview(null)
-    showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
       <div className="header">
         <div className="header-row">
           <div>
@@ -234,6 +328,14 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
 
           {extracted.length > 0 && (
             <div className="ai-result">
+              {meetingMeta && (
+                <div style={{ background: 'rgba(59,130,246,0.1)', borderRadius: 10, padding: '10px 12px', marginBottom: 12, border: '1px solid rgba(59,130,246,0.2)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--blue-light)', marginBottom: 4 }}>📋 {meetingMeta.meetingTitle}</div>
+                  {meetingMeta.suggestedProject && (
+                    <div style={{ fontSize: 12, color: 'var(--text2)' }}>📁 {meetingMeta.suggestedProject}</div>
+                  )}
+                </div>
+              )}
               <div className="ai-result-title">🎯 استُخرجت {extracted.length} مهمة:</div>
               {extracted.map((t, i) => (
                 <div key={i} className="ai-task-item">
@@ -267,6 +369,14 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
       {showApiKey && (
         <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />
       )}
-    </div>
+
+      {uploadConflicts && (
+        <DuplicateConflictModal
+          conflicts={uploadConflicts.conflicts}
+          onResolve={approved => _commitUploadTasks(uploadConflicts.unique, approved, uploadConflicts.meta)}
+          onCancel={() => setUploadConflicts(null)}
+        />
+      )}
+    </PullToRefresh>
   )
 }

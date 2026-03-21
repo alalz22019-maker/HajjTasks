@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { loadData, saveData } from '../utils/storage'
+import PullToRefresh from '../components/PullToRefresh'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -163,7 +164,7 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── Main Page ───────────────────────────────────────────── */
-export default function ReportsPage({ tasks }) {
+export default function ReportsPage({ tasks, showToast }) {
   const [tab, setTab] = useState('dashboard')
   const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
   const [notifEnabled, setNotifEnabled] = useState(() => loadData('mytasks_notif') || false)
@@ -252,7 +253,7 @@ export default function ReportsPage({ tasks }) {
 
   if (all.length === 0) {
     return (
-      <div className="page">
+      <PullToRefresh onRefresh={() => showToast?.('✓ محدّث')}>
         <div className="header">
           <div className="header-title">📊 التقارير</div>
           <div className="header-sub">لا توجد مهام بعد</div>
@@ -262,12 +263,12 @@ export default function ReportsPage({ tasks }) {
           <div className="empty-text">لا توجد بيانات</div>
           <div className="empty-sub">أضف مهام لعرض التقارير</div>
         </div>
-      </div>
+      </PullToRefresh>
     )
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast?.('✓ محدّث')}>
       <div className="header">
         <div className="header-title">📊 التقارير</div>
         <div className="header-sub">{formatArabicDate()}</div>
@@ -406,62 +407,69 @@ export default function ReportsPage({ tasks }) {
 
           {/* Executive report card */}
           <div id="exec-report" className="exec-report-card">
+
+            {/* ── Header ── */}
             <div className="exec-report-header">
-              <div className="exec-report-logo">مهامي Pro</div>
+              <div className="exec-header-top">
+                <div className="exec-report-logo">مهامي <span>Pro</span></div>
+                <div className="exec-header-badge">التقرير التنفيذي</div>
+              </div>
               <div className="exec-report-date">{formatArabicDate()}</div>
               <div className="exec-report-user">علي الزهراني — PMO | وزارة الصحة</div>
+              <div className="exec-header-bar" />
             </div>
 
-            {/* KPIs */}
-            <div className="exec-section">
-              <div className="exec-section-title">الملخص التنفيذي</div>
-              <div className="exec-kpi-row">
-                <div className="exec-kpi">
-                  <div className="exec-kpi-num" style={{ color: '#60a5fa' }}>{total}</div>
-                  <div className="exec-kpi-label">إجمالي</div>
-                </div>
-                <div className="exec-kpi">
-                  <div className="exec-kpi-num" style={{ color: '#10b981' }}>{pct}%</div>
-                  <div className="exec-kpi-label">إنجاز</div>
-                </div>
-                <div className="exec-kpi">
-                  <div className="exec-kpi-num" style={{ color: '#ef4444' }}>{urgent.length}</div>
-                  <div className="exec-kpi-label">عاجلة</div>
-                </div>
-                <div className="exec-kpi">
-                  <div className="exec-kpi-num" style={{ color: '#f59e0b' }}>{todayDone.length}</div>
-                  <div className="exec-kpi-label">أنجز اليوم</div>
-                </div>
+            {/* ── KPI Strip ── */}
+            <div className="exec-kpi-strip">
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
+                <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{total}</div>
+                <div className="exec-kpi-label">إجمالي</div>
               </div>
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6,
-                  fontSize: 12, color: 'var(--text2)' }}>
-                  <span>التقدم الكلي</span>
-                  <span>{doneCount} / {total}</span>
-                </div>
-                <div style={{ height: 10, background: 'var(--bg3)', borderRadius: 5, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', width: `${pct}%`,
-                    background: 'linear-gradient(90deg, #3b82f6, #10b981)', borderRadius: 5
-                  }} />
-                </div>
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
+                <div className="exec-kpi-num" style={{ color: '#059669' }}>{pct}%</div>
+                <div className="exec-kpi-label">إنجاز</div>
+              </div>
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
+                <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgent.length}</div>
+                <div className="exec-kpi-label">عاجلة</div>
+              </div>
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#f59e0b' }} />
+                <div className="exec-kpi-num" style={{ color: '#d97706' }}>{todayDone.length}</div>
+                <div className="exec-kpi-label">أنجز اليوم</div>
               </div>
             </div>
 
-            {/* Urgent */}
+            {/* ── Progress ── */}
+            <div className="exec-progress-wrap">
+              <div className="exec-progress-label">
+                <span>التقدم الكلي</span>
+                <span style={{ color: '#059669', fontWeight: 700 }}>{doneCount} / {total} مهمة</span>
+              </div>
+              <div className="exec-progress-track">
+                <div className="exec-progress-fill" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+
+            {/* ── Urgent ── */}
             {urgent.length > 0 && (
               <div className="exec-section">
-                <div className="exec-section-title" style={{ color: '#ef4444' }}>
-                  المهام العاجلة المعلقة ({urgent.length})
+                <div className="exec-section-head">
+                  <div className="exec-section-line" style={{ background: '#ef4444' }} />
+                  <div className="exec-section-title" style={{ color: '#dc2626' }}>المهام العاجلة المعلقة</div>
+                  <div className="exec-section-badge" style={{ background: '#fee2e2', color: '#991b1b' }}>{urgent.length}</div>
                 </div>
-                {urgent.map((t, i) => (
-                  <div key={t.id} className="exec-task-row" style={{ borderRightColor: '#ef4444' }}>
-                    <div className="exec-task-num">{i + 1}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                {urgent.map(t => (
+                  <div key={t.id} className="exec-task-row">
+                    <div className="exec-task-indicator" style={{ background: '#ef4444' }} />
+                    <div className="exec-task-body">
                       <div className="exec-task-title">{t.title}</div>
-                      <div className="exec-task-meta">
-                        {t.person && <span>👤 {t.person}</span>}
-                        {t.dueDate && <span>📅 {formatShortDate(t.dueDate)}</span>}
+                      <div className="exec-chips">
+                        {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                        {t.dueDate && <span className="exec-chip exec-chip-date">{formatShortDate(t.dueDate)}</span>}
                       </div>
                     </div>
                   </div>
@@ -469,40 +477,22 @@ export default function ReportsPage({ tasks }) {
               </div>
             )}
 
-            {/* Completed today */}
-            {todayDone.length > 0 && (
-              <div className="exec-section">
-                <div className="exec-section-title" style={{ color: '#10b981' }}>
-                  أنجز اليوم ({todayDone.length})
-                </div>
-                {todayDone.map(t => (
-                  <div key={t.id} className="exec-task-row" style={{ borderRightColor: '#10b981' }}>
-                    <div style={{ color: '#10b981', fontSize: 16, marginLeft: 10, flexShrink: 0 }}>✓</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="exec-task-title" style={{ textDecoration: 'line-through', opacity: 0.7 }}>
-                        {t.title}
-                      </div>
-                      {t.person && <div className="exec-task-meta"><span>👤 {t.person}</span></div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Overdue */}
+            {/* ── Overdue ── */}
             {overdue.length > 0 && (
               <div className="exec-section">
-                <div className="exec-section-title" style={{ color: '#f59e0b' }}>
-                  تنبيه — متأخرة عن موعدها ({overdue.length})
+                <div className="exec-section-head">
+                  <div className="exec-section-line" style={{ background: '#f59e0b' }} />
+                  <div className="exec-section-title" style={{ color: '#b45309' }}>متأخرة عن الموعد</div>
+                  <div className="exec-section-badge" style={{ background: '#fef3c7', color: '#92400e' }}>{overdue.length}</div>
                 </div>
                 {overdue.map(t => (
-                  <div key={t.id} className="exec-task-row" style={{ borderRightColor: '#f59e0b' }}>
-                    <div style={{ color: '#f59e0b', fontSize: 16, marginLeft: 10, flexShrink: 0 }}>⚠️</div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div key={t.id} className="exec-task-row">
+                    <div className="exec-task-indicator" style={{ background: '#f59e0b' }} />
+                    <div className="exec-task-body">
                       <div className="exec-task-title">{t.title}</div>
-                      <div className="exec-task-meta">
-                        {t.person && <span>👤 {t.person}</span>}
-                        <span style={{ color: '#f59e0b' }}>📅 {formatShortDate(t.dueDate)}</span>
+                      <div className="exec-chips">
+                        {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                        {t.dueDate && <span className="exec-chip exec-chip-date late">{formatShortDate(t.dueDate)}</span>}
                       </div>
                     </div>
                   </div>
@@ -510,30 +500,49 @@ export default function ReportsPage({ tasks }) {
               </div>
             )}
 
-            {/* By person */}
+            {/* ── Completed Today ── */}
+            {todayDone.length > 0 && (
+              <div className="exec-section">
+                <div className="exec-section-head">
+                  <div className="exec-section-line" style={{ background: '#10b981' }} />
+                  <div className="exec-section-title" style={{ color: '#059669' }}>أنجز اليوم</div>
+                  <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{todayDone.length}</div>
+                </div>
+                {todayDone.map(t => (
+                  <div key={t.id} className="exec-task-row">
+                    <div className="exec-task-indicator" style={{ background: '#10b981' }} />
+                    <div className="exec-task-body">
+                      <div className="exec-task-title done">{t.title}</div>
+                      <div className="exec-chips">
+                        {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── By Person ── */}
             {persons.length > 0 && (
               <div className="exec-section">
-                <div className="exec-section-title">الأداء حسب المسؤول</div>
+                <div className="exec-section-head">
+                  <div className="exec-section-line" style={{ background: '#6366f1' }} />
+                  <div className="exec-section-title" style={{ color: '#4338ca' }}>الأداء حسب المسؤول</div>
+                </div>
                 {persons.map(([name, v]) => {
                   const p = v.total ? Math.round((v.done / v.total) * 100) : 0
                   return (
-                    <div key={name} style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 0', borderBottom: '1px solid var(--border)'
-                    }}>
-                      <div style={{ minWidth: 0, flex: 1, fontSize: 13, fontWeight: 500,
-                        overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                        {name}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text2)' }}>{v.done}/{v.total}</span>
-                        <div style={{ width: 50, height: 6, background: 'var(--bg3)', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', width: `${p}%`,
-                            background: p === 100 ? '#10b981' : '#3b82f6', borderRadius: 3
+                    <div key={name} className="exec-person-row">
+                      <div className="exec-person-name">{name}</div>
+                      <div className="exec-person-bar-wrap">
+                        <div className="exec-person-count">{v.done}/{v.total}</div>
+                        <div className="exec-person-track">
+                          <div className="exec-person-fill" style={{
+                            width: `${p}%`,
+                            background: p === 100 ? '#10b981' : '#6366f1'
                           }} />
                         </div>
-                        <span style={{ fontSize: 12, color: 'var(--text3)', width: 28 }}>{p}%</span>
+                        <div className="exec-person-pct">{p}%</div>
                       </div>
                     </div>
                   )
@@ -541,13 +550,16 @@ export default function ReportsPage({ tasks }) {
               </div>
             )}
 
+            {/* ── Footer ── */}
             <div className="exec-report-footer">
-              تم الإصدار بواسطة مهامي Pro •{' '}
-              {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })}
+              <div className="exec-foot-brand">مهامي Pro</div>
+              <div className="exec-foot-time">
+                {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {formatArabicDate()}
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </PullToRefresh>
   )
 }

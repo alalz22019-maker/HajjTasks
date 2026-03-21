@@ -1,3 +1,5 @@
+import PullToRefresh from '../components/PullToRefresh'
+
 export default function ContactsPage({ contacts, tasks, showToast }) {
   function shareWhatsApp(name) {
     const personTasks = tasks.filter(t => t.person?.toLowerCase() === name.toLowerCase() && !t.done)
@@ -16,7 +18,7 @@ export default function ContactsPage({ contacts, tasks, showToast }) {
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
       <div className="header">
         <div className="header-title">👥 جهات الاتصال</div>
         <div className="header-sub">تُضاف تلقائياً من المهام • {contacts.length} جهة</div>
@@ -58,6 +60,6 @@ export default function ContactsPage({ contacts, tasks, showToast }) {
           })}
         </div>
       )}
-    </div>
+    </PullToRefresh>
   )
 }

@@ -1,8 +1,11 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
+import { loadData } from '../utils/storage'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
+import DuplicateConflictModal from '../components/DuplicateConflictModal'
+import PullToRefresh from '../components/PullToRefresh'
 
 const MY_NAMES = ['علي الزهراني', 'ali alzahrani', 'ali', 'علي']
 
@@ -29,18 +32,15 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [waText, setWaText] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractedTasks, setExtractedTasks] = useState([])
+  const [waConflicts, setWaConflicts] = useState(null) // [{ newTask, existingTask }]
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [viewMode, setViewMode] = useState('list') // list | compact | grouped
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set())
 
-  const VIEW_MODES = [
-    { id: 'list',    icon: '▤', label: 'قائمة' },
-    { id: 'compact', icon: '☰', label: 'مضغوط' },
-    { id: 'grouped', icon: '👥', label: 'حسب الشخص' },
-  ]
-  function cycleView() {
-    setViewMode(cur => {
-      const idx = VIEW_MODES.findIndex(v => v.id === cur)
-      return VIEW_MODES[(idx + 1) % VIEW_MODES.length].id
+  function toggleCollapse(id) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
   }
 
@@ -56,6 +56,26 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       return true
     })
   }, [tasks, filter])
+
+  // Build parent→children map from ALL tasks (not just filtered)
+  const childrenMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(t => {
+      if (t.parentId) {
+        if (!map[t.parentId]) map[t.parentId] = []
+        map[t.parentId].push(t)
+      }
+    })
+    return map
+  }, [tasks])
+
+  // Top-level groups: tasks without parentId, each with their children
+  const taskGroups = useMemo(() => {
+    const childIds = new Set(tasks.filter(t => t.parentId).map(t => t.parentId))
+    return filtered
+      .filter(t => !t.parentId)
+      .map(t => ({ task: t, children: childrenMap[t.id] || [], isParent: childIds.has(t.id) }))
+  }, [filtered, childrenMap, tasks])
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -142,37 +162,55 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   function addExtractedTasks() {
-    const newTasks = extractedTasks.map(t => ({
-      ...t,
-      id: genId(),
-      done: false,
-      createdAt: Date.now(),
-      subcategory: t.subcategory || 'other',
-      recurrence: t.recurrence || '',
-      reminderTime: '',
-    }))
-    setTasks([...newTasks, ...tasks])
+    const unique = []
+    const conflicts = []
+    extractedTasks.forEach(t => {
+      const existing = findDuplicateTask(t.title, tasks)
+      if (existing) conflicts.push({ newTask: t, existingTask: existing })
+      else unique.push(t)
+    })
+
+    if (conflicts.length > 0) {
+      setWaConflicts({ conflicts, unique })
+      return
+    }
+    _commitWaTasks(unique, [])
+  }
+
+  function _commitWaTasks(uniqueTasks, extraApproved) {
+    const all = [...uniqueTasks, ...extraApproved]
+    if (all.length === 0) {
+      showToast('ℹ️ جميع المهام موجودة مسبقاً')
+    } else {
+      const newTasks = all.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: t.subcategory || 'other',
+        recurrence: t.recurrence || '',
+        reminderTime: '',
+      }))
+      setTasks([...newTasks, ...tasks])
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
+    }
+    setWaConflicts(null)
     setExtractedTasks([])
     setWaText('')
     setShowWaExtract(false)
-    showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
   }
-
-  // Grouped by person (for grouped view)
-  const groupedByPerson = useMemo(() => {
-    const map = {}
-    filtered.forEach(t => {
-      const key = t.person?.trim() || 'بدون مسؤول'
-      if (!map[key]) map[key] = []
-      map[key].push(t)
-    })
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], 'ar'))
-  }, [filtered])
 
   const circumference = 2 * Math.PI * 40
 
+  const handleRefresh = useCallback(() => {
+    const fresh = loadData('mytasks_tasks') || []
+    setTasks(fresh)
+    setFilter('all')
+    showToast('✓ محدّث')
+  }, [setTasks, showToast])
+
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={handleRefresh}>
       {/* Header */}
       <div className="header">
         <div className="header-row">
@@ -180,43 +218,21 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             <div className="header-title">مهامي Pro</div>
             <div className="header-sub">علي الزهراني • PMO وزارة الصحة</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              onClick={cycleView}
-              title={VIEW_MODES.find(v => v.id === viewMode)?.label}
-              style={{
-                background: 'rgba(59,130,246,0.12)',
-                color: 'var(--blue-light)',
-                border: '1px solid rgba(59,130,246,0.25)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 13,
-                fontFamily: 'var(--font)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 5,
-              }}
-            >
-              <span>{VIEW_MODES.find(v => v.id === viewMode)?.icon}</span>
-              <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
-            </button>
-            <button
-              onClick={() => setShowApiKey(true)}
-              style={{
-                background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: apiKey ? 'var(--green)' : 'var(--orange)',
-                border: 'none',
-                borderRadius: 8,
-                padding: '6px 10px',
-                fontSize: 12,
-                fontFamily: 'var(--font)',
-                cursor: 'pointer'
-              }}
-            >
-              {apiKey ? '🔑 API' : '⚙️ API'}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowApiKey(true)}
+            style={{
+              background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+              color: apiKey ? 'var(--green)' : 'var(--orange)',
+              border: 'none',
+              borderRadius: 8,
+              padding: '6px 10px',
+              fontSize: 12,
+              fontFamily: 'var(--font)',
+              cursor: 'pointer'
+            }}
+          >
+            {apiKey ? '🔑 API' : '⚙️ API'}
+          </button>
         </div>
       </div>
 
@@ -275,65 +291,41 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       </div>
 
       {/* Tasks */}
-      {filtered.length === 0 ? (
+      {taskGroups.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📋</div>
           <div className="empty-text">لا توجد مهام</div>
           <div className="empty-sub">اضغط + لإضافة مهمة جديدة</div>
         </div>
-      ) : viewMode === 'list' ? (
-        <div className="task-list">
-          {filtered.map(t => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onToggle={toggleTask}
-              onEdit={setEditTask}
-              onDelete={id => setDeleteConfirm(id)}
-              showToast={showToast}
-            />
-          ))}
-        </div>
-      ) : viewMode === 'compact' ? (
-        <div className="compact-list">
-          {filtered.map(task => (
-            <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
-              <button
-                className={`task-check${task.done ? ' done' : ''}`}
-                style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }}
-                onClick={() => toggleTask(task.id)}
-              >
-                {task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
-              </button>
-              <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
-              <span className={`compact-dot priority-dot-${task.priority}`} />
-            </div>
-          ))}
-        </div>
       ) : (
-        <div className="grouped-list">
-          {groupedByPerson.map(([person, personTasks]) => (
-            <div key={person} className="person-group">
-              <div className="person-group-header">
-                <span className="person-group-icon">👤</span>
-                <span className="person-group-name">{person}</span>
-                <span className="person-group-count">{personTasks.length}</span>
-              </div>
-              <div className="person-group-tasks">
-                {personTasks.map(task => (
-                  <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
-                    <button
-                      className={`task-check${task.done ? ' done' : ''}`}
-                      style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }}
-                      onClick={() => toggleTask(task.id)}
-                    >
-                      {task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
-                    </button>
-                    <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
-                    <span className={`compact-dot priority-dot-${task.priority}`} />
-                  </div>
-                ))}
-              </div>
+        <div className="task-list">
+          {taskGroups.map(({ task, children }) => (
+            <div key={task.id} className="task-group">
+              <TaskCard
+                task={task}
+                onToggle={toggleTask}
+                onEdit={setEditTask}
+                onDelete={id => setDeleteConfirm(id)}
+                showToast={showToast}
+                childCount={children.length}
+                isCollapsed={collapsedGroups.has(task.id)}
+                onToggleCollapse={() => toggleCollapse(task.id)}
+              />
+              {children.length > 0 && !collapsedGroups.has(task.id) && (
+                <div className="subtask-group">
+                  {children.map(c => (
+                    <TaskCard
+                      key={c.id}
+                      task={c}
+                      onToggle={toggleTask}
+                      onEdit={setEditTask}
+                      onDelete={id => setDeleteConfirm(id)}
+                      showToast={showToast}
+                      isSubtask
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -386,14 +378,17 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             {extractedTasks.length > 0 && (
               <div className="ai-result">
                 <div className="ai-result-title">تم استخراج {extractedTasks.length} مهمة:</div>
-                {extractedTasks.map((t, i) => (
-                  <div key={i} className="ai-task-item">
-                    <span style={{ fontSize: 14 }}>{t.title}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text2)' }}>{t.priority === 'urgent' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}</span>
-                  </div>
-                ))}
+                {extractedTasks.map((t, i) => {
+                  const isDupe = isDuplicateTask(t.title, tasks)
+                  return (
+                    <div key={i} className="ai-task-item" style={{ opacity: isDupe ? 0.45 : 1 }}>
+                      <span style={{ fontSize: 14 }}>{isDupe ? '🔁 ' : ''}{t.title}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text2)' }}>{t.priority === 'urgent' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}</span>
+                    </div>
+                  )
+                })}
                 <button className="submit-btn" onClick={addExtractedTasks}>
-                  إضافة جميع المهام
+                  إضافة المهام
                 </button>
               </div>
             )}
@@ -414,6 +409,15 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         </div>
       )}
 
+      {/* Duplicate Conflict Modal - WhatsApp */}
+      {waConflicts && (
+        <DuplicateConflictModal
+          conflicts={waConflicts.conflicts}
+          onResolve={approved => _commitWaTasks(waConflicts.unique, approved)}
+          onCancel={() => setWaConflicts(null)}
+        />
+      )}
+
       {/* Delete Confirm */}
       {deleteConfirm && (
         <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
@@ -431,7 +435,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           </div>
         </div>
       )}
-    </div>
+    </PullToRefresh>
   )
 }
 

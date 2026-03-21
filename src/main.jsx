@@ -5,7 +5,7 @@ import App from './App.jsx'
 import { registerSW } from 'virtual:pwa-register'
 
 // Auto-update service worker silently
-registerSW({ immediate: true })
+registerSW({ immediate: true, onRegisteredSW: () => {} })
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
