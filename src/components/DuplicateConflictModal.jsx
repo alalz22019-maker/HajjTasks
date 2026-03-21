@@ -27,9 +27,7 @@ export default function DuplicateConflictModal({ conflicts, onResolve, onCancel 
     onResolve(approved)
   }
 
-  const pendingCount   = Object.values(decisions).filter(v => v === null).length
   const approvedCount  = Object.values(decisions).filter(v => v === true).length
-  const allDecided     = pendingCount === 0
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -138,21 +136,19 @@ export default function DuplicateConflictModal({ conflicts, onResolve, onCancel 
 
         {/* Footer */}
         <div style={{ paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {/* زر التأكيد — يظهر فقط بعد اتخاذ قرار بالإضافة */}
-          {allDecided && (
-            <button
-              className="submit-btn"
-              onClick={confirm}
-              style={{
-                background: approvedCount > 0
-                  ? 'linear-gradient(135deg, var(--blue), var(--purple))'
-                  : 'var(--bg3)',
-                color: approvedCount > 0 ? '#fff' : 'var(--text2)',
-              }}
-            >
-              {approvedCount > 0 ? `✅ إضافة ${approvedCount} مهمة` : '✓ تم — لا إضافة'}
-            </button>
-          )}
+          {/* زر التأكيد — يظهر دائماً، المهام غير المقررة تُتخطى */}
+          <button
+            className="submit-btn"
+            onClick={confirm}
+            style={{
+              background: approvedCount > 0
+                ? 'linear-gradient(135deg, var(--blue), var(--purple))'
+                : 'var(--bg3)',
+              color: approvedCount > 0 ? '#fff' : 'var(--text2)',
+            }}
+          >
+            {approvedCount > 0 ? `✅ إضافة ${approvedCount} مهمة` : '✓ تم — لا إضافة'}
+          </button>
 
           {/* إضافة الجميع / تخطي الجميع */}
           <div style={{ display: 'flex', gap: 8 }}>
