@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM, isDuplicateTask } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
+import DuplicateConflictModal from '../components/DuplicateConflictModal'
 
 const MY_NAMES = ['علي الزهراني', 'ali alzahrani', 'ali', 'علي']
 
@@ -29,6 +30,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [waText, setWaText] = useState('')
   const [extracting, setExtracting] = useState(false)
   const [extractedTasks, setExtractedTasks] = useState([])
+  const [waConflicts, setWaConflicts] = useState(null) // [{ newTask, existingTask }]
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
 
@@ -158,30 +160,42 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   function addExtractedTasks() {
-    const unique = extractedTasks.filter(t => !isDuplicateTask(t.title, tasks))
-    const skipped = extractedTasks.length - unique.length
-    if (unique.length === 0) {
-      showToast('ℹ️ جميع المهام موجودة مسبقاً')
-      setShowWaExtract(false)
-      setExtractedTasks([])
-      setWaText('')
+    const unique = []
+    const conflicts = []
+    extractedTasks.forEach(t => {
+      const existing = findDuplicateTask(t.title, tasks)
+      if (existing) conflicts.push({ newTask: t, existingTask: existing })
+      else unique.push(t)
+    })
+
+    if (conflicts.length > 0) {
+      setWaConflicts({ conflicts, unique })
       return
     }
-    const newTasks = unique.map(t => ({
-      ...t,
-      id: genId(),
-      done: false,
-      createdAt: Date.now(),
-      subcategory: t.subcategory || 'other',
-      recurrence: t.recurrence || '',
-      reminderTime: '',
-    }))
-    setTasks([...newTasks, ...tasks])
+    _commitWaTasks(unique, [])
+  }
+
+  function _commitWaTasks(uniqueTasks, extraApproved) {
+    const all = [...uniqueTasks, ...extraApproved]
+    if (all.length === 0) {
+      showToast('ℹ️ جميع المهام موجودة مسبقاً')
+    } else {
+      const newTasks = all.map(t => ({
+        ...t,
+        id: genId(),
+        done: false,
+        createdAt: Date.now(),
+        subcategory: t.subcategory || 'other',
+        recurrence: t.recurrence || '',
+        reminderTime: '',
+      }))
+      setTasks([...newTasks, ...tasks])
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
+    }
+    setWaConflicts(null)
     setExtractedTasks([])
     setWaText('')
     setShowWaExtract(false)
-    if (skipped > 0) showToast(`✅ أُضيفت ${newTasks.length} • تخطي ${skipped} مكررة`)
-    else showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
   }
 
   const circumference = 2 * Math.PI * 40
@@ -354,26 +368,18 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
             {extractedTasks.length > 0 && (
               <div className="ai-result">
-                {(() => {
-                  const dupes = extractedTasks.filter(t => isDuplicateTask(t.title, tasks))
-                  return dupes.length > 0 ? (
-                    <div style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: 12, color: 'var(--orange)' }}>
-                      ⚠️ {dupes.length} مهمة مكررة سيتم تخطيها
-                    </div>
-                  ) : null
-                })()}
                 <div className="ai-result-title">تم استخراج {extractedTasks.length} مهمة:</div>
                 {extractedTasks.map((t, i) => {
                   const isDupe = isDuplicateTask(t.title, tasks)
                   return (
-                    <div key={i} className="ai-task-item" style={{ opacity: isDupe ? 0.4 : 1 }}>
+                    <div key={i} className="ai-task-item" style={{ opacity: isDupe ? 0.45 : 1 }}>
                       <span style={{ fontSize: 14 }}>{isDupe ? '🔁 ' : ''}{t.title}</span>
                       <span style={{ fontSize: 11, color: 'var(--text2)' }}>{t.priority === 'urgent' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}</span>
                     </div>
                   )
                 })}
                 <button className="submit-btn" onClick={addExtractedTasks}>
-                  إضافة المهام الجديدة
+                  إضافة المهام
                 </button>
               </div>
             )}
@@ -392,6 +398,15 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             </button>
           </div>
         </div>
+      )}
+
+      {/* Duplicate Conflict Modal - WhatsApp */}
+      {waConflicts && (
+        <DuplicateConflictModal
+          conflicts={waConflicts.conflicts}
+          onResolve={approved => _commitWaTasks(waConflicts.unique, approved)}
+          onCancel={() => setWaConflicts(null)}
+        />
       )}
 
       {/* Delete Confirm */}

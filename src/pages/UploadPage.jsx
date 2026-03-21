@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
-import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask } from '../utils/claude'
+import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
+import DuplicateConflictModal from '../components/DuplicateConflictModal'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -27,6 +28,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   const [loading, setLoading] = useState(false)
   const [extracted, setExtracted] = useState([])
   const [meetingMeta, setMeetingMeta] = useState(null)
+  const [uploadConflicts, setUploadConflicts] = useState(null) // { conflicts, unique, meta }
   const [showApiKey, setShowApiKey] = useState(false)
   const inputRef = useRef()
 
@@ -156,34 +158,60 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   }
 
   function addAll() {
-    let newTasks
     if (meetingMeta) {
-      // التحقق من تكرار المهمة الرئيسية
-      const parentTitle = meetingMeta.meetingTitle || 'مهام محضر اجتماع'
-      const parentDuplicate = isDuplicateTask(parentTitle, tasks)
+      // فصل مهام المحضر إلى نظيفة ومتعارضة
+      const unique = []
+      const conflicts = []
+      extracted.forEach(t => {
+        const existing = findDuplicateTask(t.title, tasks)
+        if (existing) conflicts.push({ newTask: t, existingTask: existing })
+        else unique.push(t)
+      })
+      if (conflicts.length > 0) {
+        setUploadConflicts({ conflicts, unique, meta: meetingMeta })
+        return
+      }
+      _commitUploadTasks(unique, [], meetingMeta)
+    } else {
+      const unique = []
+      const conflicts = []
+      extracted.forEach(t => {
+        const existing = findDuplicateTask(t.title, tasks)
+        if (existing) conflicts.push({ newTask: t, existingTask: existing })
+        else unique.push(t)
+      })
+      if (conflicts.length > 0) {
+        setUploadConflicts({ conflicts, unique, meta: null })
+        return
+      }
+      _commitUploadTasks(unique, [], null)
+    }
+  }
+
+  function _commitUploadTasks(uniqueTasks, extraApproved, meta) {
+    let newTasks
+    const all = [...uniqueTasks, ...extraApproved]
+
+    if (meta) {
+      const parentTitle = meta.meetingTitle || 'مهام محضر اجتماع'
+      const existingParent = findDuplicateTask(parentTitle, tasks)
       const parentId = genId()
-      const parentTask = parentDuplicate ? null : {
+      const parentTask = existingParent ? null : {
         id: parentId,
         title: parentTitle,
         priority: 'urgent',
         category: 'work',
         subcategory: 'leaders',
-        person: meetingMeta.chairperson || '',
+        person: meta.chairperson || '',
         dueDate: '',
         recurrence: '',
         reminderTime: '',
-        projectName: meetingMeta.suggestedProject || '',
+        projectName: meta.suggestedProject || '',
         done: false,
         createdAt: Date.now(),
       }
-      // استخدام parentId موجود إذا كان المحضر مكرراً
-      const existingParent = parentDuplicate
-        ? tasks.find(t => isDuplicateTask(parentTitle, [t]))
-        : null
       const effectiveParentId = existingParent ? existingParent.id : parentId
-
-      const uniqueSubs = extracted.filter(t => !isDuplicateTask(t.title, tasks))
-      const subTasks = uniqueSubs.map(t => ({
+      const subTasks = all.map(t => ({
         ...t,
         id: genId(),
         done: false,
@@ -192,15 +220,11 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         recurrence: '',
         reminderTime: '',
         parentId: effectiveParentId,
-        projectName: meetingMeta.suggestedProject || '',
+        projectName: meta.suggestedProject || '',
       }))
       newTasks = [...(parentTask ? [parentTask] : []), ...subTasks]
-      const skipped = extracted.length - uniqueSubs.length + (parentDuplicate ? 1 : 0)
-      if (skipped > 0) showToast(`⚠️ تم تخطي ${skipped} مهمة مكررة`)
     } else {
-      const unique = extracted.filter(t => !isDuplicateTask(t.title, tasks))
-      const skipped = extracted.length - unique.length
-      newTasks = unique.map(t => ({
+      newTasks = all.map(t => ({
         ...t,
         id: genId(),
         done: false,
@@ -209,18 +233,19 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
         recurrence: '',
         reminderTime: '',
       }))
-      if (skipped > 0) showToast(`⚠️ تم تخطي ${skipped} مهمة مكررة`)
     }
+
     if (newTasks.length === 0) {
       showToast('ℹ️ جميع المهام موجودة مسبقاً')
-      return
+    } else {
+      setTasks([...newTasks, ...tasks])
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
     }
-    setTasks([...newTasks, ...tasks])
+    setUploadConflicts(null)
     setExtracted([])
     setMeetingMeta(null)
     setFile(null)
     setPreview(null)
-    showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
   }
 
   return (
@@ -342,6 +367,14 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
 
       {showApiKey && (
         <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />
+      )}
+
+      {uploadConflicts && (
+        <DuplicateConflictModal
+          conflicts={uploadConflicts.conflicts}
+          onResolve={approved => _commitUploadTasks(uploadConflicts.unique, approved, uploadConflicts.meta)}
+          onCancel={() => setUploadConflicts(null)}
+        />
       )}
     </div>
   )
