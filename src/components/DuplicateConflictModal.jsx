@@ -16,6 +16,10 @@ export default function DuplicateConflictModal({ conflicts, onResolve, onCancel 
     onResolve([])
   }
 
+  function addAll() {
+    onResolve(conflicts.map(c => c.newTask))
+  }
+
   function confirm() {
     const approved = conflicts
       .filter((_, i) => decisions[i] === true)
@@ -150,24 +154,43 @@ export default function DuplicateConflictModal({ conflicts, onResolve, onCancel 
             </button>
           )}
 
-          {/* تخطي الجميع */}
-          <button
-            onClick={skipAll}
-            style={{
-              width: '100%',
-              padding: '12px',
-              border: '1.5px solid var(--border)',
-              borderRadius: 12,
-              background: 'transparent',
-              color: 'var(--text2)',
-              fontFamily: 'var(--font)',
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: 'pointer',
-            }}
-          >
-            ⏭ تخطي الجميع
-          </button>
+          {/* إضافة الجميع / تخطي الجميع */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={addAll}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '1.5px solid rgba(16,185,129,0.45)',
+                borderRadius: 12,
+                background: 'rgba(16,185,129,0.1)',
+                color: 'var(--green)',
+                fontFamily: 'var(--font)',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ✅ إضافة الجميع
+            </button>
+            <button
+              onClick={skipAll}
+              style={{
+                flex: 1,
+                padding: '12px',
+                border: '1.5px solid var(--border)',
+                borderRadius: 12,
+                background: 'transparent',
+                color: 'var(--text2)',
+                fontFamily: 'var(--font)',
+                fontSize: 14,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ⏭ تخطي الجميع
+            </button>
+          </div>
 
           <button className="cancel-btn" onClick={onCancel}>إلغاء</button>
         </div>
