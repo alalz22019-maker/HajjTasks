@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
 import DuplicateConflictModal from '../components/DuplicateConflictModal'
+import PullToRefresh from '../components/PullToRefresh'
 
 const MY_NAMES = ['علي الزهراني', 'ali alzahrani', 'ali', 'علي']
 
@@ -200,8 +201,10 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
   const circumference = 2 * Math.PI * 40
 
+  const handleRefresh = useCallback(() => showToast('✓ محدّث'), [showToast])
+
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={handleRefresh}>
       {/* Header */}
       <div className="header">
         <div className="header-row">
@@ -426,7 +429,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           </div>
         </div>
       )}
-    </div>
+    </PullToRefresh>
   )
 }
 

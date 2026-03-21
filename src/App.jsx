@@ -51,7 +51,7 @@ function App() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {toast && <Toast msg={toast} />}
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
@@ -83,7 +83,7 @@ function App() {
           <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
         )}
         {page === 'reports' && (
-          <ReportsPage tasks={tasks} />
+          <ReportsPage tasks={tasks} showToast={showToast} />
         )}
       </div>
 

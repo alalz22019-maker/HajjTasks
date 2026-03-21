@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import PullToRefresh from '../components/PullToRefresh'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -45,7 +46,7 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
       <div className="header">
         <div className="header-row">
           <div>
@@ -136,6 +137,6 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
       {showApiKey && (
         <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />
       )}
-    </div>
+    </PullToRefresh>
   )
 }

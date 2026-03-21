@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
 import DuplicateConflictModal from '../components/DuplicateConflictModal'
+import PullToRefresh from '../components/PullToRefresh'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -249,7 +250,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
       <div className="header">
         <div className="header-row">
           <div>
@@ -376,6 +377,6 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
           onCancel={() => setUploadConflicts(null)}
         />
       )}
-    </div>
+    </PullToRefresh>
   )
 }

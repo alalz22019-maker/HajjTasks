@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { loadData, saveData } from '../utils/storage'
+import PullToRefresh from '../components/PullToRefresh'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -163,7 +164,7 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── Main Page ───────────────────────────────────────────── */
-export default function ReportsPage({ tasks }) {
+export default function ReportsPage({ tasks, showToast }) {
   const [tab, setTab] = useState('dashboard')
   const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
   const [notifEnabled, setNotifEnabled] = useState(() => loadData('mytasks_notif') || false)
@@ -252,7 +253,7 @@ export default function ReportsPage({ tasks }) {
 
   if (all.length === 0) {
     return (
-      <div className="page">
+      <PullToRefresh onRefresh={() => showToast?.('✓ محدّث')}>
         <div className="header">
           <div className="header-title">📊 التقارير</div>
           <div className="header-sub">لا توجد مهام بعد</div>
@@ -262,12 +263,12 @@ export default function ReportsPage({ tasks }) {
           <div className="empty-text">لا توجد بيانات</div>
           <div className="empty-sub">أضف مهام لعرض التقارير</div>
         </div>
-      </div>
+      </PullToRefresh>
     )
   }
 
   return (
-    <div className="page">
+    <PullToRefresh onRefresh={() => showToast?.('✓ محدّث')}>
       <div className="header">
         <div className="header-title">📊 التقارير</div>
         <div className="header-sub">{formatArabicDate()}</div>
@@ -559,6 +560,6 @@ export default function ReportsPage({ tasks }) {
           </div>
         </div>
       )}
-    </div>
+    </PullToRefresh>
   )
 }
