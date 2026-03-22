@@ -86,6 +86,8 @@ input, textarea, select {
   padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  /* Tell iOS this container scrolls vertically — prevents touch routing confusion */
+  touch-action: pan-y;
 }
 .page::-webkit-scrollbar { display: none; }
 
@@ -96,9 +98,8 @@ input, textarea, select {
   padding-top: max(16px, env(safe-area-inset-top, 44px));
   background: var(--bg);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  /* No position:sticky — header now lives outside the scroll container */
+  flex-shrink: 0;
 }
 
 .header-row {
@@ -172,6 +173,8 @@ input, textarea, select {
   padding: 12px 16px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Tell iOS this scrolls horizontally — prevents conflict with vertical .page */
+  touch-action: pan-x;
 }
 .stats-bar::-webkit-scrollbar { display: none; }
 
@@ -244,6 +247,8 @@ input, textarea, select {
   padding: 8px 16px;
   overflow-x: auto;
   scrollbar-width: none;
+  /* Tell iOS this scrolls horizontally — prevents conflict with vertical .page */
+  touch-action: pan-x;
 }
 .filters::-webkit-scrollbar { display: none; }
 
