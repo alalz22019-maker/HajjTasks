@@ -86,7 +86,6 @@ input, textarea, select {
   padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
 }
 .page::-webkit-scrollbar { display: none; }
 
@@ -1305,3 +1304,158 @@ select.form-input option {
   .exec-task-row { background: #fafafa !important; }
   .exec-report-footer { background: #f5f5f5 !important; color: #999 !important; }
 }
+
+/* ── Task Hierarchy (list view) ──────────────────────────── */
+.task-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.task-card.parent-task {
+  border-color: rgba(59,130,246,0.35);
+  background: linear-gradient(160deg, var(--card) 60%, rgba(59,130,246,0.05));
+}
+
+.collapse-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(59,130,246,0.12);
+  color: var(--blue-light);
+  border: none;
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.collapse-toggle:active { background: rgba(59,130,246,0.25); }
+
+.subtask-group {
+  margin-top: 4px;
+  margin-right: 14px;
+  padding-right: 12px;
+  border-right: 2px solid rgba(59,130,246,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-card.subtask-card {
+  background: var(--bg3);
+  border-color: var(--border);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.task-card.subtask-card .task-title { font-size: 14px; }
+
+/* compact subtask indent */
+.compact-row.is-subtask {
+  margin-right: 12px;
+  border-right: 2px solid rgba(59,130,246,0.25);
+  padding-right: 8px;
+  opacity: 0.85;
+}
+
+/* ── Kanban Board ────────────────────────────────────────── */
+.kanban-board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
+.kanban-col {
+  background: var(--bg3);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.kanban-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kanban-col-urgent .kanban-col-header { background: rgba(239,68,68,0.08); }
+.kanban-col-active  .kanban-col-header { background: rgba(59,130,246,0.08); }
+.kanban-col-done    .kanban-col-header { background: rgba(16,185,129,0.08); }
+
+.kanban-col-label { font-size: 14px; font-weight: 700; }
+.kanban-col-count {
+  font-size: 12px;
+  background: var(--border);
+  border-radius: 99px;
+  padding: 2px 8px;
+  color: var(--text2);
+}
+
+.kanban-cards { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+
+.kanban-card {
+  background: var(--card);
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.kanban-card:active { transform: scale(0.98); }
+.kanban-card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.kanban-card-person { font-size: 12px; color: var(--text2); }
+.kanban-card-date   { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.kanban-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 8px; }
+
+/* ── Bubbles View ────────────────────────────────────────── */
+.bubbles-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px 16px;
+}
+
+.bubble-group {}
+
+.bubble-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.bubble-group-label { font-size: 15px; font-weight: 700; }
+.bubble-group-count {
+  font-size: 11px;
+  color: #fff;
+  border-radius: 99px;
+  padding: 2px 8px;
+  font-weight: 700;
+}
+
+.bubble-list { display: flex; flex-direction: column; gap: 6px; }
+
+.bubble-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.bubble-card:active { transform: scale(0.98); }
+.bubble-card.done { opacity: 0.5; }
+
+.bubble-title { font-size: 14px; font-weight: 600; }
+.bubble-title.done { text-decoration: line-through; color: var(--text3); }
+.bubble-person { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.bubble-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.bubble-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 8px 0; }
