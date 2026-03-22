@@ -8,31 +8,44 @@ function formatArabicDate() {
   })
 }
 
-// Section header colors (bold solid color bars like in the screenshot)
-const SC = {
-  urgent:   '#e63946',
-  projects: '#457b9d',
-  people:   '#6a4c93',
-  done:     '#2d6a4f',
-  recs:     '#b45309',
+// Dark-mode color palette (hardcoded hex for html-to-image compatibility)
+const D = {
+  bg:       '#0f172a',
+  bg2:      '#1e293b',
+  bg3:      '#0d1624',
+  border:   'rgba(148,163,184,0.15)',
+  text:     '#f1f5f9',
+  text2:    '#94a3b8',
+  text3:    '#475569',
+  green:    '#10b981', greenBg:  'rgba(16,185,129,0.1)',
+  red:      '#ef4444', redBg:    'rgba(239,68,68,0.1)',
+  blue:     '#3b82f6', blueBg:   'rgba(59,130,246,0.1)',
+  yellow:   '#f59e0b', yellowBg: 'rgba(245,158,11,0.1)',
+  gray:     '#94a3b8', grayBg:   'rgba(148,163,184,0.08)',
+  purple:   '#a78bfa', purpleBg: 'rgba(167,139,250,0.1)',
 }
 
-// Mind-map area dimensions
-const W       = 390   // card width
-const H       = 360   // mind-map area height
-const CX      = W / 2 // center x
-const CY      = H / 2 // center y
-const HUB_R   = 52    // hub radius
-const CARD_W  = 138   // section card width
-const CARD_H  = 115   // approx card height (for arrow anchoring)
+const KPI_PALETTE = {
+  green:  { color: D.green,  bg: D.greenBg,  glow: 'rgba(16,185,129,0.18)'  },
+  red:    { color: D.red,    bg: D.redBg,    glow: 'rgba(239,68,68,0.18)'   },
+  blue:   { color: D.blue,   bg: D.blueBg,   glow: 'rgba(59,130,246,0.18)'  },
+  gray:   { color: D.gray,   bg: D.grayBg,   glow: 'rgba(148,163,184,0.12)' },
+  yellow: { color: D.yellow, bg: D.yellowBg, glow: 'rgba(245,158,11,0.18)'  },
+}
 
-// Quadratic Bézier curves: from card inner corner → hub edge, through CX,CY as control point
-const ARROWS = [
-  { id: 'urgent',   x1: W-5-CARD_W, y1: 12+CARD_H,   x2: CX+HUB_R*0.7, y2: CY-HUB_R*0.7 },
-  { id: 'projects', x1: 5+CARD_W,   y1: 12+CARD_H,   x2: CX-HUB_R*0.7, y2: CY-HUB_R*0.7 },
-  { id: 'people',   x1: W-5-CARD_W, y1: H-12-CARD_H, x2: CX+HUB_R*0.7, y2: CY+HUB_R*0.7 },
-  { id: 'done',     x1: 5+CARD_W,   y1: H-12-CARD_H, x2: CX-HUB_R*0.7, y2: CY+HUB_R*0.7 },
+const MATRIX_CFG = [
+  { key: 'urgentImportant',    label: 'عاجل ومهم',      icon: '🔴', color: D.red,    bg: D.redBg    },
+  { key: 'importantNotUrgent', label: 'مهم وغير عاجل',  icon: '📌', color: D.blue,   bg: D.blueBg   },
+  { key: 'urgentNotImportant', label: 'عاجل وغير مهم',  icon: '⚡', color: D.yellow, bg: D.yellowBg },
+  { key: 'other',              label: 'أخرى',            icon: '📋', color: D.gray,   bg: D.grayBg   },
 ]
+
+const CARD = {
+  background: '#1e293b',
+  borderRadius: 14,
+  border: 'rgba(148,163,184,0.15)',
+  padding: '14px 16px',
+}
 
 export default function VisualSummary({ tasks, apiKey }) {
   const [summary, setSummary]     = useState(null)
@@ -41,18 +54,19 @@ export default function VisualSummary({ tasks, apiKey }) {
   const [exporting, setExporting] = useState(false)
   const cardRef = useRef(null)
 
-  const total     = tasks.length
-  const doneCnt   = tasks.filter(t => t.done).length
-  const urgentCnt = tasks.filter(t => t.priority === 'urgent' && !t.done).length
-  const overdue   = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
-  const pct       = total ? Math.round((doneCnt / total) * 100) : 0
+  const total      = tasks.length
+  const doneCnt    = tasks.filter(t => t.done).length
+  const urgentCnt  = tasks.filter(t => t.priority === 'urgent' && !t.done).length
+  const pendingCnt = tasks.filter(t => !t.done && t.priority !== 'urgent').length
+  const overdue    = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
+  const pct        = total ? Math.round((doneCnt / total) * 100) : 0
 
   async function handleGenerate() {
     if (!apiKey) { setError('أضف مفتاح API أولاً'); return }
     setLoading(true); setError(''); setSummary(null)
     try {
       const result = await generateVisualSummary(apiKey, tasks)
-      if (!result) throw new Error('لم يتم إنشاء الملخص')
+      if (!result) throw new Error('لم يتج إنشاء اللوحة')
       setSummary(result)
     } catch (e) {
       setError(e.message || 'حدث خطأ غير متوقع')
@@ -65,7 +79,7 @@ export default function VisualSummary({ tasks, apiKey }) {
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
       const link = document.createElement('a')
-      link.download = `ملخص-المهام-${new Date().toISOString().slice(0,10)}.png`
+      link.download = `لوحة-المهام-${new Date().toISOString().slice(0,10)}.png`
       link.href = dataUrl; link.click()
     } catch { setError('تعذّر تحميل الصورة') }
     finally { setExporting(false) }
@@ -77,54 +91,34 @@ export default function VisualSummary({ tasks, apiKey }) {
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
       const blob = await (await fetch(dataUrl)).blob()
-      const file = new File([blob], 'ملخص-المهام.png', { type: 'image/png' })
+      const file = new File([blob], 'لوحة-المهام.png', { type: 'image/png' })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'ملخص المهام' })
+        await navigator.share({ files: [file], title: 'لوحة إدارة المهام' })
       } else {
         const link = document.createElement('a')
-        link.download = 'ملخص-المهام.png'
+        link.download = 'لوحة-المهام.png'
         link.href = dataUrl; link.click()
       }
     } catch { setError('تعذّرت المشاركة') }
     finally { setExporting(false) }
   }
 
-  const getSection = id => summary?.sections.find(s => s.id === id)
+  // Fallback KPIs computed locally when Claude doesn't return them
+  const fallbackKPIs = [
+    { label: 'المهام المنجزة', value: doneCnt,    icon: '✅', color: 'green' },
+    { label: 'المهام العاجلة', value: urgentCnt,  icon: '🚨', color: 'red'   },
+    { label: 'قيد الانتظار',  value: pendingCnt, icon: '⏳', color: 'gray'  },
+    { label: 'نسبة الإنجاز',  value: `${pct}%`,  icon: '📈', color: 'blue'  },
+  ]
 
-  // Colored-header section card, absolutely positioned inside the mind-map area
-  function SectionCard({ sec, posStyle }) {
-    if (!sec) return null
-    const color = SC[sec.id] || SC.recs
+  const kpis = summary?.kpis?.length ? summary.kpis : fallbackKPIs
+
+  // Section divider label
+  function SectionLabel({ icon, label, color }) {
     return (
-      <div style={{
-        position: 'absolute',
-        width: CARD_W,
-        borderRadius: 12,
-        overflow: 'hidden',
-        boxShadow: '0 3px 14px rgba(0,0,0,0.15)',
-        ...posStyle,
-      }}>
-        {/* Bold solid-color header bar */}
-        <div style={{
-          background: color,
-          padding: '7px 10px',
-          display: 'flex', alignItems: 'center', gap: 6,
-        }}>
-          <span style={{ fontSize: 15 }}>{sec.icon}</span>
-          <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, lineHeight: 1.2 }}>{sec.title}</span>
-        </div>
-        {/* Item list */}
-        <div style={{ background: '#fff', padding: '8px 10px' }}>
-          {sec.items.map((item, i) => (
-            <div key={i} style={{
-              display: 'flex', gap: 5, alignItems: 'flex-start',
-              marginBottom: i < sec.items.length - 1 ? 5 : 0,
-            }}>
-              <span style={{ color, fontWeight: 900, fontSize: 11, flexShrink: 0, lineHeight: 1.3 }}>•</span>
-              <span style={{ fontSize: 10, color: '#1e293b', lineHeight: 1.4 }}>{item}</span>
-            </div>
-          ))}
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: color || D.text2 }}>{label}</span>
       </div>
     )
   }
@@ -132,35 +126,35 @@ export default function VisualSummary({ tasks, apiKey }) {
   return (
     <div style={{ padding: '16px', direction: 'rtl' }}>
 
-      {/* Generate prompt */}
+      {/* ── Generate prompt ── */}
       {!summary && !loading && (
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e8f0', marginBottom: 8 }}>
-            الملخص البصري
+            لوحة المهام البصرية
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 24 }}>
-            ينشئ لك Claude صورة احترافية بجميع أبرز مهامك
+            ينشئ لك Claude لوحة تحكم احترافية بجميع أبرز مهامك
           </div>
           <button onClick={handleGenerate} style={{
             background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
             color: '#fff', border: 'none', borderRadius: 14,
             padding: '14px 32px', fontSize: 16, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'inherit',
-          }}>✨ إنشاء ملخص</button>
+          }}>✨ إنشاء اللوحة</button>
           {error && <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>}
         </div>
       )}
 
-      {/* Loading */}
+      {/* ── Loading ── */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '48px 16px', color: '#9090a8' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
-          <div>Claude يحلل مهامك...</div>
+          <div>Claude يحلل مهامك ويبني اللوحة...</div>
         </div>
       )}
 
-      {/* Infographic */}
+      {/* ── Dashboard ── */}
       {summary && (
         <>
           {/* Action buttons */}
@@ -181,148 +175,303 @@ export default function VisualSummary({ tasks, apiKey }) {
               cursor: 'pointer', fontFamily: 'inherit',
             }}>🔄</button>
           </div>
-          {error && (
-            <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>
-          )}
+          {error && <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>}
 
-          {/* ── THE INFOGRAPHIC (captured by html-to-image) ── */}
+          {/* ════════════════════════════════
+              THE INFOGRAPHIC (html-to-image)
+              ════════════════════════════════ */}
           <div ref={cardRef} style={{
-            width: W, maxWidth: '100%',
-            background: '#faf8f0',
+            width: 390, maxWidth: '100%',
+            background: D.bg,
             borderRadius: 20,
             fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
             direction: 'rtl',
             overflow: 'hidden',
-            boxShadow: '0 4px 28px rgba(0,0,0,0.18)',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
           }}>
 
-            {/* Header */}
+            {/* ── HEADER ── */}
             <div style={{
-              background: 'linear-gradient(135deg, #1e3a5f 0%, #4a1d96 100%)',
-              padding: '14px 18px',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)',
+              borderBottom: '1px solid rgba(139,92,246,0.25)',
+              padding: '18px 20px 14px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 20 }}>🏥</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 800 }}>ملخص المهام البصري</div>
-                  <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>PMO • وزارة الصحة السعودية</div>
-                </div>
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10, textAlign: 'left' }}>
-                {formatArabicDate()}
-              </div>
-            </div>
-
-            {/* Mind-Map Area */}
-            <div style={{ position: 'relative', width: '100%', height: H }}>
-
-              {/* Subtle dot-grid background */}
-              <div style={{
-                position: 'absolute',
-                top: 0, right: 0, bottom: 0, left: 0,
-                backgroundImage: 'radial-gradient(circle, #c4b89a 1px, transparent 1px)',
-                backgroundSize: '18px 18px',
-                opacity: 0.45,
-              }} />
-
-              {/* SVG: curved dashed connecting lines + arrowheads */}
-              <svg
-                width={W} height={H}
-                viewBox={`0 0 ${W} ${H}`}
-                style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-              >
-                <defs>
-                  {ARROWS.map(a => (
-                    <marker key={a.id} id={`ah-${a.id}`}
-                      markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                      <path d="M0,0 L0,6 L6,3 z" fill={SC[a.id]} opacity="0.65" />
-                    </marker>
-                  ))}
-                </defs>
-                {ARROWS.map(a => (
-                  <path
-                    key={a.id}
-                    d={`M ${a.x1} ${a.y1} Q ${CX} ${CY} ${a.x2} ${a.y2}`}
-                    fill="none"
-                    stroke={SC[a.id]}
-                    strokeWidth="1.8"
-                    strokeDasharray="5,4"
-                    opacity="0.5"
-                    markerEnd={`url(#ah-${a.id})`}
-                  />
-                ))}
-              </svg>
-
-              {/* 4 Section cards at 4 quadrants */}
-              <SectionCard sec={getSection('urgent')}   posStyle={{ top: 12, right: 5 }} />
-              <SectionCard sec={getSection('projects')} posStyle={{ top: 12, left: 5 }} />
-              <SectionCard sec={getSection('people')}   posStyle={{ bottom: 12, right: 5 }} />
-              <SectionCard sec={getSection('done')}     posStyle={{ bottom: 12, left: 5 }} />
-
-              {/* Center Stats Hub */}
-              <div style={{
-                position: 'absolute',
-                width: HUB_R * 2, height: HUB_R * 2,
-                top: '50%', left: '50%',
-                transform: 'translate(-50%, -50%)',
-                borderRadius: '50%',
-                background: '#fff',
-                border: '3px solid #3b82f6',
-                boxShadow: '0 6px 24px rgba(59,130,246,0.28)',
-                display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                textAlign: 'center', padding: 6,
-              }}>
-                <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
-                <div style={{ fontSize: 22, fontWeight: 900, color: '#1e3a5f', lineHeight: 1.1, marginTop: 3 }}>
-                  {total}
-                </div>
-                <div style={{ fontSize: 9, color: '#64748b' }}>مهمة</div>
-                <div style={{
-                  fontSize: 15, fontWeight: 800, marginTop: 2,
-                  color: pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444',
-                }}>{pct}%</div>
-                <div style={{ fontSize: 8, color: '#94a3b8' }}>إنجاز</div>
-                <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-                  {urgentCnt > 0 && <span style={{ fontSize: 8, color: '#ef4444' }}>🔴{urgentCnt}</span>}
-                  {overdue   > 0 && <span style={{ fontSize: 8, color: '#f59e0b' }}>⚠️{overdue}</span>}
-                </div>
-              </div>
-            </div>
-
-            {/* Recommendations (full-width, below mind-map) */}
-            {getSection('recs') && (() => {
-              const sec = getSection('recs')
-              return (
-                <div style={{ borderTop: '2px solid #e8dcc8', padding: '12px 16px', background: '#fef3c7' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{ fontSize: 16 }}>{sec.icon}</span>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>{sec.title}</span>
+                  <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
+                    {summary.title || 'لوحة إدارة المهام'}
                   </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {sec.items.map((item, i) => (
+                  <div style={{ color: D.text2, fontSize: 10 }}>PMO • وزارة الصحة السعودية</div>
+                </div>
+                {/* Decorative UI chips */}
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <div style={{
+                    background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.35)',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.blue,
+                  }}>API</div>
+                  <div style={{
+                    background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.text2,
+                  }}>☰</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{
+                  width: 6, height: 6, borderRadius: '50%', background: D.green,
+                  boxShadow: `0 0 6px ${D.green}`,
+                }} />
+                <span style={{ color: D.text3, fontSize: 10 }}>آخر تحديث: {formatArabicDate()}</span>
+              </div>
+            </div>
+
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* ── KPI CARDS ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {kpis.map((kpi, i) => {
+                  const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
+                  return (
+                    <div key={i} style={{
+                      background: col.bg,
+                      border: `1px solid ${col.color}30`,
+                      borderRadius: 14, padding: '12px 13px',
+                      boxShadow: `0 4px 16px ${col.glow}`,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                    }}>
+                      <div style={{
+                        width: 38, height: 38, borderRadius: 10,
+                        background: `${col.color}18`,
+                        border: `1px solid ${col.color}30`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18, flexShrink: 0,
+                      }}>{kpi.icon}</div>
+                      <div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>
+                          {kpi.value}
+                        </div>
+                        <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>{kpi.label}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ── PROGRESS BAR ── */}
+              <div style={{
+                background: CARD.background, borderRadius: CARD.borderRadius,
+                border: `1px solid ${CARD.border}`, padding: CARD.padding,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <SectionLabel icon="📊" label="تقدم المشروع" color={D.blue} />
+                  <span style={{
+                    fontSize: 13, fontWeight: 800,
+                    color: pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red,
+                  }}>{pct}%</span>
+                </div>
+                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', width: `${pct}%`, borderRadius: 99,
+                    background: pct >= 70
+                      ? 'linear-gradient(90deg,#10b981,#34d399)'
+                      : pct >= 40
+                      ? 'linear-gradient(90deg,#f59e0b,#fbbf24)'
+                      : 'linear-gradient(90deg,#ef4444,#f87171)',
+                    boxShadow: pct >= 70 ? '0 0 8px rgba(16,185,129,0.45)' : undefined,
+                  }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  {[
+                    { n: doneCnt,   label: 'منجزة',   c: D.green  },
+                    { n: urgentCnt, label: 'عاجلة',   c: D.red    },
+                    { n: overdue,   label: 'متأخرة',  c: D.yellow },
+                    { n: total,     label: 'إجمالي',  c: D.text2  },
+                  ].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+                      <div style={{ fontSize: 17, fontWeight: 900, color: s.c }}>{s.n}</div>
+                      <div style={{ fontSize: 9, color: D.text3 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── EISENHOWER MATRIX ── */}
+              <div>
+                <SectionLabel icon="⊞" label="مصفوفة تصنيف المهام (الأهمية × العجلة)" color={D.purple} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, position: 'relative' }}>
+                  {MATRIX_CFG.map(q => {
+                    const data = summary.matrix?.[q.key] || { count: 0, items: [] }
+                    return (
+                      <div key={q.key} style={{
+                        background: q.bg,
+                        border: `1px solid ${q.color}28`,
+                        borderRadius: 12, padding: '10px 12px', minHeight: 85,
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 12 }}>{q.icon}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: q.color }}>{q.label}</span>
+                          </div>
+                          <div style={{
+                            background: `${q.color}20`, border: `1px solid ${q.color}40`,
+                            borderRadius: 20, padding: '1px 7px',
+                            fontSize: 12, fontWeight: 900, color: q.color,
+                          }}>{data.count}</div>
+                        </div>
+                        {(data.items || []).slice(0, 3).map((item, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'flex-start' }}>
+                            <span style={{ color: q.color, fontSize: 10, flexShrink: 0, lineHeight: 1.4 }}>›</span>
+                            <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  {/* Center crosshair */}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    transform: 'translate(-50%,-50%)',
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: D.bg3, border: `2px solid ${D.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: D.text3,
+                  }}>+</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, padding: '0 2px' }}>
+                  <span style={{ fontSize: 8, color: D.text3 }}>← غير عاجل</span>
+                  <span style={{ fontSize: 8, color: D.text3 }}>عاجل →</span>
+                </div>
+              </div>
+
+              {/* ── OVERVIEW ── */}
+              {summary.overview?.length > 0 && (
+                <div style={{
+                  background: CARD.background, borderRadius: CARD.borderRadius,
+                  border: `1px solid ${D.border}`, padding: CARD.padding,
+                }}>
+                  <SectionLabel icon="🎯" label="نظرة عامة" color={D.blue} />
+                  {summary.overview.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: 5, height: 5, borderRadius: '50%', background: D.blue,
+                        flexShrink: 0, marginTop: 6,
+                      }} />
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── CHALLENGES ── */}
+              {summary.challenges?.length > 0 && (
+                <div style={{
+                  background: 'rgba(239,68,68,0.06)',
+                  border: `1px solid ${D.red}20`,
+                  borderRadius: 14, padding: '14px 16px',
+                }}>
+                  <SectionLabel icon="⚠️" label="التحديات والعقبات" color={D.red} />
+                  {summary.challenges.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
+                      <span style={{ color: D.red, fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>!</span>
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── INSIGHTS ── */}
+              {summary.insights?.length > 0 && (
+                <div>
+                  <SectionLabel icon="📊" label="إحصائيات وبيانات" color={D.purple} />
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {summary.insights.map((ins, i) => (
                       <div key={i} style={{
-                        background: '#fff',
-                        border: '1.5px solid #fcd34d',
-                        borderRadius: 20,
-                        padding: '4px 10px',
-                        fontSize: 10, color: '#78350f',
-                      }}>{item}</div>
+                        background: CARD.background,
+                        border: `1px solid ${D.border}`,
+                        borderRadius: 12, padding: '11px 14px',
+                        flex: '1 1 calc(33% - 6px)',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ fontSize: 17, fontWeight: 900, color: D.purple }}>{ins.value}</div>
+                        <div style={{ fontSize: 9, color: D.text3, marginTop: 3 }}>{ins.label}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
-              )
-            })()}
+              )}
 
-            {/* Footer */}
+              {/* ── ACTION ITEMS ── */}
+              {summary.actionItems?.length > 0 && (
+                <div style={{
+                  background: CARD.background, borderRadius: CARD.borderRadius,
+                  border: `1px solid ${D.border}`, padding: CARD.padding,
+                }}>
+                  <SectionLabel icon="⚡" label="الإجراءات ذات الأولوية" color={D.yellow} />
+                  {summary.actionItems.map((item, i) => {
+                    const hi = item.priority === 'high'
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', gap: 8, alignItems: 'center',
+                        marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
+                        padding: '7px 10px', borderRadius: 9,
+                        background: hi ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${hi ? D.red + '22' : D.border}`,
+                      }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                          background: hi ? D.redBg : D.grayBg,
+                          border: `1px solid ${hi ? D.red + '40' : D.border}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10,
+                        }}>{hi ? '🔴' : '🔵'}</div>
+                        <span style={{ fontSize: 11, color: D.text, lineHeight: 1.4, flex: 1 }}>{item.text}</span>
+                        {hi && (
+                          <div style={{
+                            background: D.redBg, border: `1px solid ${D.red}40`,
+                            borderRadius: 20, padding: '2px 7px',
+                            fontSize: 8, color: D.red, flexShrink: 0,
+                          }}>عاجل</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* ── RECOMMENDATIONS ── */}
+              {summary.recommendations?.length > 0 && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.07), rgba(167,139,250,0.07))',
+                  border: `1px solid rgba(167,139,250,0.2)`,
+                  borderRadius: 14, padding: '14px 16px',
+                }}>
+                  <SectionLabel icon="💡" label="التوصيات الاستراتيجية" color={D.purple} />
+                  {summary.recommendations.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: 19, height: 19, borderRadius: 6, flexShrink: 0,
+                        background: D.purpleBg, border: `1px solid rgba(167,139,250,0.3)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, color: D.purple, fontWeight: 800,
+                      }}>{i + 1}</div>
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+
+            {/* ── FOOTER ── */}
             <div style={{
-              background: '#1e3a5f',
-              padding: '8px 16px',
+              background: D.bg3,
+              borderTop: `1px solid ${D.border}`,
+              padding: '9px 18px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>مهامي Pro • وزارة الصحة السعودية</span>
-              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>Claude AI ✦</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>مهامي Pro • وزارة الصحة السعودية</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>Claude AI ✦</span>
             </div>
 
           </div>
