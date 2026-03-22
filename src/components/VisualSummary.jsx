@@ -516,12 +516,27 @@ export default function VisualSummary({ tasks, apiKey }) {
                   if (t.priority === 'urgent') return { label: 'عاجل', color: '#f97316' }
                   return { label: 'معلق', color: D.text3 }
                 }
-                // Fixed % widths — reliable in html-to-image (no fr units)
-                const COL = ['42%', '18%', '22%', '18%']
-                const ROW = (cells, bg) => (
-                  <div style={{ display: 'flex', flexDirection: 'row-reverse', background: bg || 'transparent' }}>
+                // Sort: urgent → overdue → high → medium → done last; take top 7
+                const PRI = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 }
+                const top7 = [...tasks].sort((a, b) => {
+                  if (a.done !== b.done) return a.done ? 1 : -1
+                  const aOvd = !a.done && a.dueDate && new Date(a.dueDate) < today
+                  const bOvd = !b.done && b.dueDate && new Date(b.dueDate) < today
+                  if (aOvd !== bOvd) return aOvd ? -1 : 1
+                  return (PRI[a.priority] ?? 3) - (PRI[b.priority] ?? 3)
+                }).slice(0, 7)
+
+                // RTL flex row: first item (المهمة) renders on the RIGHT
+                const COL = ['45%', '16%', '21%', '18%']
+                const SEP = `1px solid rgba(255,255,255,0.06)`
+                const ROW = (cells) => (
+                  <div style={{ display: 'flex', flexDirection: 'row' }}>
                     {cells.map((cell, ci) => (
-                      <div key={ci} style={{ width: COL[ci], padding: '5px 6px', boxSizing: 'border-box', textAlign: ci === 0 ? 'right' : 'center', borderRight: ci > 0 ? `1px solid rgba(255,255,255,0.05)` : 'none' }}>
+                      <div key={ci} style={{
+                        width: COL[ci], padding: '6px 7px', boxSizing: 'border-box',
+                        textAlign: ci === 0 ? 'right' : 'center',
+                        borderLeft: ci < cells.length - 1 ? SEP : 'none',
+                      }}>
                         {cell}
                       </div>
                     ))}
@@ -529,26 +544,27 @@ export default function VisualSummary({ tasks, apiKey }) {
                 )
                 return (
                   <div>
-                    <SectionLabel icon="📋" label="جدول المهام" color={D.text2} />
+                    <SectionLabel icon="📋" label="أبرز 7 مهام" color={D.text2} />
                     <div style={{ borderRadius: 12, border: `1px solid ${D.border}`, overflow: 'hidden' }}>
                       {/* Header */}
                       <div style={{ background: 'rgba(255,255,255,0.06)', borderBottom: `1px solid ${D.border}` }}>
-                        {ROW(
-                          ['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
-                            <span style={{ fontSize: 8, fontWeight: 700, color: D.text3 }}>{h}</span>
-                          )),
-                        )}
+                        {ROW(['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
+                          <span style={{ fontSize: 8, fontWeight: 700, color: D.text3 }}>{h}</span>
+                        )))}
                       </div>
                       {/* Rows */}
-                      {tasks.map((t, i) => {
+                      {top7.map((t, i) => {
                         const st = getStatus(t)
                         return (
-                          <div key={i} style={{ borderBottom: i < tasks.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none', background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                          <div key={i} style={{
+                            borderBottom: i < top7.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none',
+                            background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                          }}>
                             {ROW([
-                              <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.4 }}>{trunc(t.title, 22)}</span>,
-                              <span style={{ fontSize: 8, color: D.text3, lineHeight: 1.4 }}>{fmtDate(t.dueDate)}</span>,
-                              <span style={{ fontSize: 8, color: D.text2, lineHeight: 1.4 }}>{trunc(t.person, 9) || '—'}</span>,
-                              <span style={{ fontSize: 8, color: st.color, fontWeight: 700, lineHeight: 1.4 }}>{st.label}</span>,
+                              <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.3, display: 'block' }}>{t.title}</span>,
+                              <span style={{ fontSize: 8, color: D.text3, lineHeight: 1.3 }}>{fmtDate(t.dueDate)}</span>,
+                              <span style={{ fontSize: 8, color: D.text2, lineHeight: 1.3 }}>{trunc(t.person, 9) || '—'}</span>,
+                              <span style={{ fontSize: 8, color: st.color, fontWeight: 700, lineHeight: 1.3 }}>{st.label}</span>,
                             ])}
                           </div>
                         )
