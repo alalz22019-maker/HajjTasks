@@ -55,7 +55,7 @@ export default function VisualSummary({ tasks, apiKey }) {
       if (!result) throw new Error('لم يتم إنشاء الملخص')
       setSummary(result)
     } catch (e) {
-      setError(e.message || 'حدث خطأ')
+      setError(e.message || 'حدث خطأ غير متوقع')
     } finally {
       setLoading(false)
     }

@@ -185,7 +185,6 @@ export const VISUAL_SUMMARY_SYSTEM = `أنت مساعد ذكي لإنشاء مل
 أرجع JSON فقط بدون \`\`\`json`
 
 export async function generateVisualSummary(apiKey, tasks) {
-  // Send only essential fields to keep token count low
   const slim = tasks.map(t => ({
     t: t.title,
     p: t.priority,
@@ -194,10 +193,12 @@ export async function generateVisualSummary(apiKey, tasks) {
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
   }))
-  const text = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim))
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim))
+  // Strip markdown code fences if Claude wraps the JSON
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
   try {
     return JSON.parse(text)
   } catch {
-    return null
+    throw new Error('الرد غير صالح: ' + text.slice(0, 80))
   }
 }
