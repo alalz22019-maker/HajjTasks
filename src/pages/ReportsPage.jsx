@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { loadData, saveData } from '../utils/storage'
 import PullToRefresh from '../components/PullToRefresh'
+import VisualSummary from '../components/VisualSummary'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -164,7 +165,7 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── Main Page ───────────────────────────────────────────── */
-export default function ReportsPage({ tasks, showToast }) {
+export default function ReportsPage({ tasks, showToast, apiKey }) {
   const [tab, setTab] = useState('dashboard')
   const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
   const [notifEnabled, setNotifEnabled] = useState(() => loadData('mytasks_notif') || false)
@@ -283,7 +284,11 @@ export default function ReportsPage({ tasks, showToast }) {
         <button
           className={`report-tab${tab === 'executive' ? ' active' : ''}`}
           onClick={() => setTab('executive')}
-        >التقرير التنفيذي</button>
+        >التنفيذي</button>
+        <button
+          className={`report-tab${tab === 'visual' ? ' active' : ''}`}
+          onClick={() => setTab('visual')}
+        >🎨 بصري</button>
       </div>
 
       {/* ── Dashboard ── */}
@@ -559,6 +564,11 @@ export default function ReportsPage({ tasks, showToast }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Visual Summary ── */}
+      {tab === 'visual' && (
+        <VisualSummary tasks={tasks} apiKey={apiKey} />
       )}
     </PullToRefresh>
   )

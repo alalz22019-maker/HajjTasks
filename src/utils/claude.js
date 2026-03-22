@@ -160,3 +160,44 @@ export async function analyzeTaskWithAI(apiKey, taskTitle) {
     return null
   }
 }
+
+export const VISUAL_SUMMARY_SYSTEM = `أنت مساعد ذكي لإنشاء ملخص بصري احترافي للمهام في بيئة حكومية سعودية (وزارة الصحة).
+
+حلل قائمة المهام وأرجع JSON بهذا الشكل بالضبط (بدون أي نص إضافي):
+{
+  "sections": [
+    { "id": "urgent",   "title": "المهام العاجلة",  "icon": "🔴", "items": ["نص قصير", "نص قصير"] },
+    { "id": "projects", "title": "أبرز المشاريع",   "icon": "📁", "items": ["اسم المشروع", "اسم المشروع"] },
+    { "id": "people",   "title": "فريق العمل",      "icon": "👥", "items": ["الاسم (عدد مهام)", "الاسم (عدد مهام)"] },
+    { "id": "done",     "title": "أبرز الإنجازات",  "icon": "✅", "items": ["إنجاز محدد", "إنجاز محدد"] },
+    { "id": "recs",     "title": "التوصيات",        "icon": "💡", "items": ["توصية قصيرة", "توصية قصيرة", "توصية قصيرة"] }
+  ]
+}
+
+قواعد مهمة:
+- كل عنصر في items لا يتجاوز 35 حرف (للتناسب مع الصورة)
+- كل قسم: من 2 إلى 4 عناصر فقط
+- urgent: المهام العاجلة وغير المنجزة فقط (أعطِ عناوين المهام مختصرة)
+- projects: استنتج أسماء المشاريع من عناوين المهام (مثل: التحول الرقمي، عيني، الفحوصات)
+- people: من لديه أكثر من مهمة، اكتب "الاسم (عدد المهام)"
+- done: المهام المنجزة الأبرز — إذا لا توجد اكتب توصيات بدلاً منها
+- recs: توصيات عملية بناءً على حالة المهام (متأخرة؟ كثيرة؟ أصحاب عمل أكثر؟)
+أرجع JSON فقط بدون \`\`\`json`
+
+export async function generateVisualSummary(apiKey, tasks) {
+  // Send only essential fields to keep token count low
+  const slim = tasks.map(t => ({
+    t: t.title,
+    p: t.priority,
+    c: t.category,
+    w: t.person || '',
+    d: t.done ? 1 : 0,
+    due: t.dueDate || '',
+  }))
+  const text = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim))
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
