@@ -30,17 +30,28 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [extracting, setExtracting] = useState(false)
   const [extractedTasks, setExtractedTasks] = useState([])
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [viewMode, setViewMode] = useState('list') // list | compact | grouped
+  const [viewMode, setViewMode] = useState('list') // list | compact | grouped | kanban | bubbles
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set())
 
   const VIEW_MODES = [
     { id: 'list',    icon: '▤', label: 'قائمة' },
     { id: 'compact', icon: '☰', label: 'مضغوط' },
     { id: 'grouped', icon: '👥', label: 'حسب الشخص' },
+    { id: 'kanban',  icon: '⬛', label: 'كانبان' },
+    { id: 'bubbles', icon: '◉', label: 'فقاعات' },
   ]
   function cycleView() {
     setViewMode(cur => {
       const idx = VIEW_MODES.findIndex(v => v.id === cur)
       return VIEW_MODES[(idx + 1) % VIEW_MODES.length].id
+    })
+  }
+
+  function toggleCollapse(id) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
   }
 
@@ -56,6 +67,39 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       return true
     })
   }, [tasks, filter])
+
+  // Parent→children map from ALL tasks
+  const childrenMap = useMemo(() => {
+    const map = {}
+    tasks.forEach(t => {
+      if (t.parentId) {
+        if (!map[t.parentId]) map[t.parentId] = []
+        map[t.parentId].push(t)
+      }
+    })
+    return map
+  }, [tasks])
+
+  // Top-level task groups with their children (for list view hierarchy)
+  const taskGroups = useMemo(() => {
+    return filtered
+      .filter(t => !t.parentId)
+      .map(t => ({ task: t, children: childrenMap[t.id] || [] }))
+  }, [filtered, childrenMap])
+
+  // Kanban columns
+  const kanbanColumns = useMemo(() => [
+    { id: 'urgent', label: 'عاجل 🔴', tasks: filtered.filter(t => t.priority === 'urgent' && !t.done) },
+    { id: 'active', label: 'قيد التنفيذ 🔵', tasks: filtered.filter(t => t.priority !== 'urgent' && !t.done) },
+    { id: 'done',   label: 'مكتملة ✅', tasks: filtered.filter(t => t.done) },
+  ], [filtered])
+
+  // Bubbles: group by priority
+  const bubbleGroups = useMemo(() => [
+    { id: 'urgent', label: 'عاجل', color: 'var(--red)',    tasks: filtered.filter(t => t.priority === 'urgent') },
+    { id: 'medium', label: 'متوسطة', color: 'var(--orange)', tasks: filtered.filter(t => t.priority === 'medium') },
+    { id: 'low',    label: 'منخفضة', color: 'var(--green)',  tasks: filtered.filter(t => t.priority === 'low') },
+  ], [filtered])
 
   const stats = useMemo(() => {
     const total = tasks.length
@@ -281,23 +325,44 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           <div className="empty-text">لا توجد مهام</div>
           <div className="empty-sub">اضغط + لإضافة مهمة جديدة</div>
         </div>
+
       ) : viewMode === 'list' ? (
         <div className="task-list">
-          {filtered.map(t => (
-            <TaskCard
-              key={t.id}
-              task={t}
-              onToggle={toggleTask}
-              onEdit={setEditTask}
-              onDelete={id => setDeleteConfirm(id)}
-              showToast={showToast}
-            />
+          {taskGroups.map(({ task, children }) => (
+            <div key={task.id} className="task-group">
+              <TaskCard
+                task={task}
+                onToggle={toggleTask}
+                onEdit={setEditTask}
+                onDelete={id => setDeleteConfirm(id)}
+                showToast={showToast}
+                childCount={children.length}
+                isCollapsed={collapsedGroups.has(task.id)}
+                onToggleCollapse={() => toggleCollapse(task.id)}
+              />
+              {children.length > 0 && !collapsedGroups.has(task.id) && (
+                <div className="subtask-group">
+                  {children.map(c => (
+                    <TaskCard
+                      key={c.id}
+                      task={c}
+                      onToggle={toggleTask}
+                      onEdit={setEditTask}
+                      onDelete={id => setDeleteConfirm(id)}
+                      showToast={showToast}
+                      isSubtask
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
+
       ) : viewMode === 'compact' ? (
         <div className="compact-list">
           {filtered.map(task => (
-            <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
+            <div key={task.id} className={`compact-row${task.done ? ' done' : ''}${task.parentId ? ' is-subtask' : ''}`}>
               <button
                 className={`task-check${task.done ? ' done' : ''}`}
                 style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }}
@@ -310,7 +375,8 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             </div>
           ))}
         </div>
-      ) : (
+
+      ) : viewMode === 'grouped' ? (
         <div className="grouped-list">
           {groupedByPerson.map(([person, personTasks]) => (
             <div key={person} className="person-group">
@@ -337,7 +403,69 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             </div>
           ))}
         </div>
-      )}
+
+      ) : viewMode === 'kanban' ? (
+        <div className="kanban-board">
+          {kanbanColumns.map(col => (
+            <div key={col.id} className={`kanban-col kanban-col-${col.id}`}>
+              <div className="kanban-col-header">
+                <span className="kanban-col-label">{col.label}</span>
+                <span className="kanban-col-count">{col.tasks.length}</span>
+              </div>
+              <div className="kanban-cards">
+                {col.tasks.map(task => (
+                  <div key={task.id} className="kanban-card" onClick={() => setEditTask(task)}>
+                    <div className="kanban-card-title">{task.title}</div>
+                    {task.person && <div className="kanban-card-person">👤 {task.person}</div>}
+                    {task.dueDate && <div className="kanban-card-date">📅 {task.dueDate}</div>}
+                  </div>
+                ))}
+                {col.tasks.length === 0 && (
+                  <div className="kanban-empty">لا توجد مهام</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+      ) : viewMode === 'bubbles' ? (
+        <div className="bubbles-view">
+          {bubbleGroups.map(group => (
+            <div key={group.id} className="bubble-group">
+              <div className="bubble-group-header" style={{ color: group.color }}>
+                <span className="bubble-group-label">{group.label}</span>
+                <span className="bubble-group-count" style={{ background: group.color }}>{group.tasks.length}</span>
+              </div>
+              <div className="bubble-list">
+                {group.tasks.map(task => (
+                  <div
+                    key={task.id}
+                    className={`bubble-card${task.done ? ' done' : ''}`}
+                    style={{ borderColor: group.color + '50' }}
+                    onClick={() => setEditTask(task)}
+                  >
+                    <button
+                      className={`task-check${task.done ? ' done' : ''}`}
+                      style={{ flexShrink: 0, width: 20, height: 20, fontSize: 11 }}
+                      onClick={e => { e.stopPropagation(); toggleTask(task.id) }}
+                    >
+                      {task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className={`bubble-title${task.done ? ' done' : ''}`}>{task.title}</div>
+                      {task.person && <div className="bubble-person">👤 {task.person}</div>}
+                    </div>
+                    <span className="bubble-dot" style={{ background: group.color }} />
+                  </div>
+                ))}
+                {group.tasks.length === 0 && (
+                  <div className="bubble-empty">لا توجد مهام</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* FAB Add */}
       <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة">
