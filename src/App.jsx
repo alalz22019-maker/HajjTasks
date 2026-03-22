@@ -91,7 +91,7 @@ function App() {
           <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
         )}
         {page === 'reports' && (
-          <ReportsPage tasks={tasks} showToast={showToast} />
+          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} />
         )}
       </div>
 
