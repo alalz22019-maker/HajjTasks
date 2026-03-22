@@ -46,7 +46,7 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-export async function callClaude(apiKey, systemPrompt, userContent) {
+export async function callClaude(apiKey, systemPrompt, userContent, model = 'claude-haiku-4-5-20251001') {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -56,7 +56,7 @@ export async function callClaude(apiKey, systemPrompt, userContent) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 2048,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
@@ -230,7 +230,7 @@ export async function generateVisualSummary(apiKey, tasks) {
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
   }))
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim))
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim), 'claude-sonnet-4-6')
   // Strip markdown code fences if Claude wraps the JSON
   const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
   try {
