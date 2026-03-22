@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import { deduplicateTasks } from '../utils/dedup'
 import PullToRefresh from '../components/PullToRefresh'
 
 function genId() {
@@ -30,7 +31,7 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   function addAll() {
-    const newTasks = extracted.map(t => ({
+    const allNew = extracted.map(t => ({
       ...t,
       id: genId(),
       done: false,
@@ -39,10 +40,16 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
       recurrence: t.recurrence || '',
       reminderTime: '',
     }))
+    const newTasks = deduplicateTasks(allNew, tasks)
+    const skipped = allNew.length - newTasks.length
     setTasks([...newTasks, ...tasks])
     setExtracted([])
     setText('')
-    showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
+    if (newTasks.length === 0) {
+      showToast('⚠️ جميع المهام موجودة مسبقاً')
+    } else {
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+    }
   }
 
   return (

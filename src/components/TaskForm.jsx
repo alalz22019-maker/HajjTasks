@@ -51,6 +51,7 @@ const DEFAULT_TASK = {
 
 export default function TaskForm({ task, onSave, onClose, apiKey }) {
   const [form, setForm] = useState(task ? { ...task, projectName: task.projectName || '' } : { ...DEFAULT_TASK })
+  const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [aiReason, setAiReason] = useState('')
   const [subTasks, setSubTasks] = useState([])
@@ -104,7 +105,8 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   }
 
   function handleSubmit() {
-    if (!form.title.trim()) return
+    if (!form.title.trim() || saving) return
+    setSaving(true)
     onSave(form, selectedSubTasks)
   }
 
@@ -267,7 +269,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           </div>
         )}
 
-        <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim()}>
+        <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
           {task
             ? 'حفظ التغييرات'
             : selectedSubTasks.length > 0

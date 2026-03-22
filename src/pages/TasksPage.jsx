@@ -3,6 +3,7 @@ import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
+import { deduplicateTasks, isDuplicateTask } from '../utils/dedup'
 
 const MY_NAMES = ['علي الزهراني', 'ali alzahrani', 'ali', 'علي']
 
@@ -110,6 +111,11 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }, [tasks])
 
   function addTask(form, subTaskTitles = []) {
+    if (isDuplicateTask(form.title, tasks)) {
+      showToast('⚠️ المهمة موجودة مسبقاً')
+      setShowForm(false)
+      return
+    }
     const parentId = genId()
     const newTask = { ...form, id: parentId, createdAt: Date.now() }
 
@@ -186,7 +192,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   function addExtractedTasks() {
-    const newTasks = extractedTasks.map(t => ({
+    const allNew = extractedTasks.map(t => ({
       ...t,
       id: genId(),
       done: false,
@@ -195,11 +201,17 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       recurrence: t.recurrence || '',
       reminderTime: '',
     }))
+    const newTasks = deduplicateTasks(allNew, tasks)
+    const skipped = allNew.length - newTasks.length
     setTasks([...newTasks, ...tasks])
     setExtractedTasks([])
     setWaText('')
     setShowWaExtract(false)
-    showToast(`✅ تمت إضافة ${newTasks.length} مهمة`)
+    if (newTasks.length === 0) {
+      showToast('⚠️ جميع المهام موجودة مسبقاً')
+    } else {
+      showToast(`✅ تمت إضافة ${newTasks.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+    }
   }
 
   // Grouped by person (for grouped view)
