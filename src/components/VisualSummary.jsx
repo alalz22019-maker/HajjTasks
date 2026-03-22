@@ -8,57 +8,69 @@ function formatArabicDate() {
   })
 }
 
-// All styles are inline (hardcoded hex) so html-to-image can capture them correctly
-const C = {
-  bg:       '#ffffff',
-  bg2:      '#f4f6fb',
-  border:   '#e2e8f0',
-  text:     '#1a1a2e',
-  text2:    '#4a5568',
-  text3:    '#718096',
-  blue:     '#3b82f6',
-  purple:   '#7c3aed',
-  green:    '#10b981',
-  red:      '#ef4444',
-  orange:   '#f59e0b',
-  gradient: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+// Dark-mode color palette (hardcoded hex for html-to-image compatibility)
+const D = {
+  bg:       '#0f172a',
+  bg2:      '#1e293b',
+  bg3:      '#0d1624',
+  border:   'rgba(148,163,184,0.15)',
+  text:     '#f1f5f9',
+  text2:    '#94a3b8',
+  text3:    '#475569',
+  green:    '#10b981', greenBg:  'rgba(16,185,129,0.1)',
+  red:      '#ef4444', redBg:    'rgba(239,68,68,0.1)',
+  blue:     '#3b82f6', blueBg:   'rgba(59,130,246,0.1)',
+  yellow:   '#f59e0b', yellowBg: 'rgba(245,158,11,0.1)',
+  gray:     '#94a3b8', grayBg:   'rgba(148,163,184,0.08)',
+  purple:   '#a78bfa', purpleBg: 'rgba(167,139,250,0.1)',
 }
 
-const SECTION_COLORS = {
-  urgent:   { border: '#ef4444', bg: '#fff5f5', text: '#ef4444' },
-  projects: { border: '#3b82f6', bg: '#eff6ff', text: '#3b82f6' },
-  people:   { border: '#7c3aed', bg: '#f5f3ff', text: '#7c3aed' },
-  done:     { border: '#10b981', bg: '#f0fdf4', text: '#10b981' },
-  recs:     { border: '#f59e0b', bg: '#fffbeb', text: '#f59e0b' },
+const KPI_PALETTE = {
+  green:  { color: D.green,  bg: D.greenBg,  glow: 'rgba(16,185,129,0.18)'  },
+  red:    { color: D.red,    bg: D.redBg,    glow: 'rgba(239,68,68,0.18)'   },
+  blue:   { color: D.blue,   bg: D.blueBg,   glow: 'rgba(59,130,246,0.18)'  },
+  gray:   { color: D.gray,   bg: D.grayBg,   glow: 'rgba(148,163,184,0.12)' },
+  yellow: { color: D.yellow, bg: D.yellowBg, glow: 'rgba(245,158,11,0.18)'  },
+}
+
+const MATRIX_CFG = [
+  { key: 'urgentImportant',    label: 'عاجل ومهم',      icon: '🔴', color: D.red,    bg: D.redBg    },
+  { key: 'importantNotUrgent', label: 'مهم وغير عاجل',  icon: '📌', color: D.blue,   bg: D.blueBg   },
+  { key: 'urgentNotImportant', label: 'عاجل وغير مهم',  icon: '⚡', color: D.yellow, bg: D.yellowBg },
+  { key: 'other',              label: 'أخرى',            icon: '📋', color: D.gray,   bg: D.grayBg   },
+]
+
+const CARD = {
+  background: '#1e293b',
+  borderRadius: 14,
+  border: 'rgba(148,163,184,0.15)',
+  padding: '14px 16px',
 }
 
 export default function VisualSummary({ tasks, apiKey }) {
-  const [summary, setSummary]   = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [summary, setSummary]     = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
   const [exporting, setExporting] = useState(false)
   const cardRef = useRef(null)
 
-  const total   = tasks.length
-  const done    = tasks.filter(t => t.done).length
-  const urgent  = tasks.filter(t => t.priority === 'urgent' && !t.done).length
-  const overdue = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
-  const pct     = total ? Math.round((done / total) * 100) : 0
+  const total      = tasks.length
+  const doneCnt    = tasks.filter(t => t.done).length
+  const urgentCnt  = tasks.filter(t => t.priority === 'urgent' && !t.done).length
+  const pendingCnt = tasks.filter(t => !t.done && t.priority !== 'urgent').length
+  const overdue    = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
+  const pct        = total ? Math.round((doneCnt / total) * 100) : 0
 
   async function handleGenerate() {
     if (!apiKey) { setError('أضف مفتاح API أولاً'); return }
-    setLoading(true)
-    setError('')
-    setSummary(null)
+    setLoading(true); setError(''); setSummary(null)
     try {
       const result = await generateVisualSummary(apiKey, tasks)
-      if (!result) throw new Error('لم يتم إنشاء الملخص')
+      if (!result) throw new Error('لم يتج إنشاء اللوحة')
       setSummary(result)
     } catch (e) {
       setError(e.message || 'حدث خطأ غير متوقع')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   async function handleDownload() {
@@ -67,14 +79,10 @@ export default function VisualSummary({ tasks, apiKey }) {
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
       const link = document.createElement('a')
-      link.download = `ملخص-المهام-${new Date().toISOString().slice(0,10)}.png`
-      link.href = dataUrl
-      link.click()
-    } catch {
-      setError('تعذّر تحميل الصورة')
-    } finally {
-      setExporting(false)
-    }
+      link.download = `لوحة-المهام-${new Date().toISOString().slice(0,10)}.png`
+      link.href = dataUrl; link.click()
+    } catch { setError('تعذّر تحميل الصورة') }
+    finally { setExporting(false) }
   }
 
   async function handleShare() {
@@ -82,61 +90,71 @@ export default function VisualSummary({ tasks, apiKey }) {
     setExporting(true)
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
-      const res     = await fetch(dataUrl)
-      const blob    = await res.blob()
-      const file    = new File([blob], 'ملخص-المهام.png', { type: 'image/png' })
+      const blob = await (await fetch(dataUrl)).blob()
+      const file = new File([blob], 'لوحة-المهام.png', { type: 'image/png' })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'ملخص المهام' })
+        await navigator.share({ files: [file], title: 'لوحة إدارة المهام' })
       } else {
-        // Fallback: download
         const link = document.createElement('a')
-        link.download = 'ملخص-المهام.png'
-        link.href = dataUrl
-        link.click()
+        link.download = 'لوحة-المهام.png'
+        link.href = dataUrl; link.click()
       }
-    } catch {
-      setError('تعذّرت المشاركة')
-    } finally {
-      setExporting(false)
-    }
+    } catch { setError('تعذّرت المشاركة') }
+    finally { setExporting(false) }
+  }
+
+  // Fallback KPIs computed locally when Claude doesn't return them
+  const fallbackKPIs = [
+    { label: 'المهام المنجزة', value: doneCnt,    icon: '✅', color: 'green' },
+    { label: 'المهام العاجلة', value: urgentCnt,  icon: '🚨', color: 'red'   },
+    { label: 'قيد الانتظار',  value: pendingCnt, icon: '⏳', color: 'gray'  },
+    { label: 'نسبة الإنجاز',  value: `${pct}%`,  icon: '📈', color: 'blue'  },
+  ]
+
+  const kpis = summary?.kpis?.length ? summary.kpis : fallbackKPIs
+
+  // Section divider label
+  function SectionLabel({ icon, label, color }) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: color || D.text2 }}>{label}</span>
+      </div>
+    )
   }
 
   return (
     <div style={{ padding: '16px', direction: 'rtl' }}>
 
-      {/* Generate button */}
+      {/* ── Generate prompt ── */}
       {!summary && !loading && (
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e8f0', marginBottom: 8 }}>
-            الملخص البصري
+            لوحة المهام البصرية
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 24 }}>
-            ينشئ لك Claude صورة احترافية بجميع أبرز مهامك
+            ينشئ لك Claude لوحة تحكم احترافية بجميع أبرز مهامك
           </div>
           <button onClick={handleGenerate} style={{
             background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
             color: '#fff', border: 'none', borderRadius: 14,
             padding: '14px 32px', fontSize: 16, fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit'
-          }}>
-            ✨ إنشاء ملخص
-          </button>
-          {error && (
-            <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>
-          )}
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>✨ إنشاء اللوحة</button>
+          {error && <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>}
         </div>
       )}
 
-      {/* Loading */}
+      {/* ── Loading ── */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '48px 16px', color: '#9090a8' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
-          <div>Claude يحلل مهامك...</div>
+          <div>Claude يحلل مهامك ويبني اللوحة...</div>
         </div>
       )}
 
-      {/* Infographic */}
+      {/* ── Dashboard ── */}
       {summary && (
         <>
           {/* Action buttons */}
@@ -144,162 +162,318 @@ export default function VisualSummary({ tasks, apiKey }) {
             <button onClick={handleDownload} disabled={exporting} style={{
               flex: 1, background: '#3b82f6', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1
-            }}>
-              ⬇️ تحميل PNG
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+            }}>⬇️ تحميل PNG</button>
             <button onClick={handleShare} disabled={exporting} style={{
               flex: 1, background: '#10b981', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1
-            }}>
-              📤 مشاركة
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+            }}>📤 مشاركة</button>
             <button onClick={() => setSummary(null)} style={{
               background: 'rgba(255,255,255,0.08)', color: '#9090a8', border: 'none',
               borderRadius: 10, padding: '10px 14px', fontSize: 14,
-              cursor: 'pointer', fontFamily: 'inherit'
-            }}>
-              🔄
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>🔄</button>
           </div>
-          {error && (
-            <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>
-          )}
+          {error && <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>}
 
-          {/* THE INFOGRAPHIC — captured by html-to-image */}
+          {/* ════════════════════════════════
+              THE INFOGRAPHIC (html-to-image)
+              ════════════════════════════════ */}
           <div ref={cardRef} style={{
             width: 390, maxWidth: '100%',
-            background: C.bg, borderRadius: 20,
+            background: D.bg,
+            borderRadius: 20,
             fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
-            direction: 'rtl', overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+            direction: 'rtl',
+            overflow: 'hidden',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
           }}>
 
-            {/* Header */}
+            {/* ── HEADER ── */}
             <div style={{
-              background: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)',
+              borderBottom: '1px solid rgba(139,92,246,0.25)',
               padding: '18px 20px 14px',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <span style={{ fontSize: 24 }}>🏥</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
-                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>
-                    ملخص المهام
+                  <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
+                    {summary.title || 'لوحة إدارة المهام'}
                   </div>
-                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>
-                    علي الزهراني • PMO وزارة الصحة
-                  </div>
+                  <div style={{ color: D.text2, fontSize: 10 }}>PMO • وزارة الصحة السعودية</div>
                 </div>
-                <div style={{ marginRight: 'auto', textAlign: 'left', color: 'rgba(255,255,255,0.85)', fontSize: 11 }}>
-                  {formatArabicDate()}
+                {/* Decorative UI chips */}
+                <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <div style={{
+                    background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.35)',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.blue,
+                  }}>API</div>
+                  <div style={{
+                    background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.text2,
+                  }}>☰</div>
                 </div>
               </div>
-            </div>
-
-            {/* Stats Row */}
-            <div style={{
-              display: 'flex', background: C.bg2,
-              borderBottom: `1px solid ${C.border}`,
-            }}>
-              {[
-                { num: total,   label: 'إجمالي',  color: C.blue   },
-                { num: done,    label: 'منجزة',   color: C.green  },
-                { num: urgent,  label: 'عاجلة',   color: C.red    },
-                { num: overdue, label: 'متأخرة',  color: C.orange },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  flex: 1, textAlign: 'center', padding: '10px 4px',
-                  borderLeft: i < 3 ? `1px solid ${C.border}` : 'none',
-                }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>
-                    {s.num}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.text3, marginTop: 2 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Progress bar */}
-            <div style={{ padding: '8px 16px 4px', background: C.bg2, borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: C.text3 }}>نسبة الإنجاز</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>{pct}%</span>
-              </div>
-              <div style={{ height: 6, background: C.border, borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <div style={{
-                  height: '100%', width: `${pct}%`,
-                  background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-                  borderRadius: 99,
+                  width: 6, height: 6, borderRadius: '50%', background: D.green,
+                  boxShadow: `0 0 6px ${D.green}`,
                 }} />
+                <span style={{ color: D.text3, fontSize: 10 }}>آخر تحديث: {formatArabicDate()}</span>
               </div>
             </div>
 
-            {/* Sections Grid — first 4 sections in 2×2 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.border }}>
-              {summary.sections.slice(0, 4).map(sec => {
-                const col = SECTION_COLORS[sec.id] || SECTION_COLORS.recs
-                return (
-                  <div key={sec.id} style={{
-                    background: col.bg, padding: '12px 14px',
-                  }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      marginBottom: 8,
-                    }}>
-                      <span style={{ fontSize: 14 }}>{sec.icon}</span>
-                      <span style={{
-                        fontSize: 12, fontWeight: 700, color: col.text,
-                      }}>{sec.title}</span>
-                    </div>
-                    {sec.items.map((item, i) => (
-                      <div key={i} style={{
-                        fontSize: 11, color: C.text, marginBottom: 4,
-                        display: 'flex', alignItems: 'flex-start', gap: 4,
-                      }}>
-                        <span style={{ color: col.text, flexShrink: 0, marginTop: 1 }}>•</span>
-                        <span style={{ lineHeight: 1.4 }}>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Recommendations — full width */}
-            {summary.sections.find(s => s.id === 'recs') && (() => {
-              const sec = summary.sections.find(s => s.id === 'recs')
-              const col = SECTION_COLORS.recs
-              return (
-                <div style={{ background: col.bg, padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{ fontSize: 14 }}>{sec.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: col.text }}>{sec.title}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {sec.items.map((item, i) => (
-                      <div key={i} style={{
-                        background: '#fff', border: `1px solid ${C.orange}22`,
-                        borderRadius: 20, padding: '4px 10px',
-                        fontSize: 11, color: C.text,
+              {/* ── KPI CARDS ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {kpis.map((kpi, i) => {
+                  const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
+                  return (
+                    <div key={i} style={{
+                      background: col.bg,
+                      border: `1px solid ${col.color}30`,
+                      borderRadius: 14, padding: '12px 13px',
+                      boxShadow: `0 4px 16px ${col.glow}`,
+                      display: 'flex', alignItems: 'center', gap: 10,
+                    }}>
+                      <div style={{
+                        width: 38, height: 38, borderRadius: 10,
+                        background: `${col.color}18`,
+                        border: `1px solid ${col.color}30`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 18, flexShrink: 0,
+                      }}>{kpi.icon}</div>
+                      <div>
+                        <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>
+                          {kpi.value}
+                        </div>
+                        <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>{kpi.label}</div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ── PROGRESS BAR ── */}
+              <div style={{
+                background: CARD.background, borderRadius: CARD.borderRadius,
+                border: `1px solid ${CARD.border}`, padding: CARD.padding,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <SectionLabel icon="📊" label="تقدم المشروع" color={D.blue} />
+                  <span style={{
+                    fontSize: 13, fontWeight: 800,
+                    color: pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red,
+                  }}>{pct}%</span>
+                </div>
+                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%', width: `${pct}%`, borderRadius: 99,
+                    background: pct >= 70
+                      ? 'linear-gradient(90deg,#10b981,#34d399)'
+                      : pct >= 40
+                      ? 'linear-gradient(90deg,#f59e0b,#fbbf24)'
+                      : 'linear-gradient(90deg,#ef4444,#f87171)',
+                    boxShadow: pct >= 70 ? '0 0 8px rgba(16,185,129,0.45)' : undefined,
+                  }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  {[
+                    { n: doneCnt,   label: 'منجزة',   c: D.green  },
+                    { n: urgentCnt, label: 'عاجلة',   c: D.red    },
+                    { n: overdue,   label: 'متأخرة',  c: D.yellow },
+                    { n: total,     label: 'إجمالي',  c: D.text2  },
+                  ].map((s, i) => (
+                    <div key={i} style={{ textAlign: 'center', flex: 1 }}>
+                      <div style={{ fontSize: 17, fontWeight: 900, color: s.c }}>{s.n}</div>
+                      <div style={{ fontSize: 9, color: D.text3 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── EISENHOWER MATRIX ── */}
+              <div>
+                <SectionLabel icon="⊞" label="مصفوفة تصنيف المهام (الأهمية × العجلة)" color={D.purple} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, position: 'relative' }}>
+                  {MATRIX_CFG.map(q => {
+                    const data = summary.matrix?.[q.key] || { count: 0, items: [] }
+                    return (
+                      <div key={q.key} style={{
+                        background: q.bg,
+                        border: `1px solid ${q.color}28`,
+                        borderRadius: 12, padding: '10px 12px', minHeight: 85,
                       }}>
-                        {item}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <span style={{ fontSize: 12 }}>{q.icon}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: q.color }}>{q.label}</span>
+                          </div>
+                          <div style={{
+                            background: `${q.color}20`, border: `1px solid ${q.color}40`,
+                            borderRadius: 20, padding: '1px 7px',
+                            fontSize: 12, fontWeight: 900, color: q.color,
+                          }}>{data.count}</div>
+                        </div>
+                        {(data.items || []).slice(0, 3).map((item, i) => (
+                          <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'flex-start' }}>
+                            <span style={{ color: q.color, fontSize: 10, flexShrink: 0, lineHeight: 1.4 }}>›</span>
+                            <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  {/* Center crosshair */}
+                  <div style={{
+                    position: 'absolute', top: '50%', left: '50%',
+                    transform: 'translate(-50%,-50%)',
+                    width: 22, height: 22, borderRadius: '50%',
+                    background: D.bg3, border: `2px solid ${D.border}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 9, color: D.text3,
+                  }}>+</div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, padding: '0 2px' }}>
+                  <span style={{ fontSize: 8, color: D.text3 }}>← غير عاجل</span>
+                  <span style={{ fontSize: 8, color: D.text3 }}>عاجل →</span>
+                </div>
+              </div>
+
+              {/* ── OVERVIEW ── */}
+              {summary.overview?.length > 0 && (
+                <div style={{
+                  background: CARD.background, borderRadius: CARD.borderRadius,
+                  border: `1px solid ${D.border}`, padding: CARD.padding,
+                }}>
+                  <SectionLabel icon="🎯" label="نظرة عامة" color={D.blue} />
+                  {summary.overview.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: 5, height: 5, borderRadius: '50%', background: D.blue,
+                        flexShrink: 0, marginTop: 6,
+                      }} />
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── CHALLENGES ── */}
+              {summary.challenges?.length > 0 && (
+                <div style={{
+                  background: 'rgba(239,68,68,0.06)',
+                  border: `1px solid ${D.red}20`,
+                  borderRadius: 14, padding: '14px 16px',
+                }}>
+                  <SectionLabel icon="⚠️" label="التحديات والعقبات" color={D.red} />
+                  {summary.challenges.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
+                      <span style={{ color: D.red, fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>!</span>
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── INSIGHTS ── */}
+              {summary.insights?.length > 0 && (
+                <div>
+                  <SectionLabel icon="📊" label="إحصائيات وبيانات" color={D.purple} />
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {summary.insights.map((ins, i) => (
+                      <div key={i} style={{
+                        background: CARD.background,
+                        border: `1px solid ${D.border}`,
+                        borderRadius: 12, padding: '11px 14px',
+                        flex: '1 1 calc(33% - 6px)',
+                        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                        textAlign: 'center',
+                      }}>
+                        <div style={{ fontSize: 17, fontWeight: 900, color: D.purple }}>{ins.value}</div>
+                        <div style={{ fontSize: 9, color: D.text3, marginTop: 3 }}>{ins.label}</div>
                       </div>
                     ))}
                   </div>
                 </div>
-              )
-            })()}
+              )}
 
-            {/* Footer */}
-            <div style={{
-              background: C.bg2, borderTop: `1px solid ${C.border}`,
-              padding: '8px 16px', display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <span style={{ fontSize: 10, color: C.text3 }}>مهامي Pro • وزارة الصحة السعودية</span>
-              <span style={{ fontSize: 10, color: C.text3 }}>تم إنشاؤه بواسطة Claude AI</span>
+              {/* ── ACTION ITEMS ── */}
+              {summary.actionItems?.length > 0 && (
+                <div style={{
+                  background: CARD.background, borderRadius: CARD.borderRadius,
+                  border: `1px solid ${D.border}`, padding: CARD.padding,
+                }}>
+                  <SectionLabel icon="⚡" label="الإجراءات ذات الأولوية" color={D.yellow} />
+                  {summary.actionItems.map((item, i) => {
+                    const hi = item.priority === 'high'
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', gap: 8, alignItems: 'center',
+                        marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
+                        padding: '7px 10px', borderRadius: 9,
+                        background: hi ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)',
+                        border: `1px solid ${hi ? D.red + '22' : D.border}`,
+                      }}>
+                        <div style={{
+                          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                          background: hi ? D.redBg : D.grayBg,
+                          border: `1px solid ${hi ? D.red + '40' : D.border}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 10,
+                        }}>{hi ? '🔴' : '🔵'}</div>
+                        <span style={{ fontSize: 11, color: D.text, lineHeight: 1.4, flex: 1 }}>{item.text}</span>
+                        {hi && (
+                          <div style={{
+                            background: D.redBg, border: `1px solid ${D.red}40`,
+                            borderRadius: 20, padding: '2px 7px',
+                            fontSize: 8, color: D.red, flexShrink: 0,
+                          }}>عاجل</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* ── RECOMMENDATIONS ── */}
+              {summary.recommendations?.length > 0 && (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.07), rgba(167,139,250,0.07))',
+                  border: `1px solid rgba(167,139,250,0.2)`,
+                  borderRadius: 14, padding: '14px 16px',
+                }}>
+                  <SectionLabel icon="💡" label="التوصيات الاستراتيجية" color={D.purple} />
+                  {summary.recommendations.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: 19, height: 19, borderRadius: 6, flexShrink: 0,
+                        background: D.purpleBg, border: `1px solid rgba(167,139,250,0.3)`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 9, color: D.purple, fontWeight: 800,
+                      }}>{i + 1}</div>
+                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
             </div>
+
+            {/* ── FOOTER ── */}
+            <div style={{
+              background: D.bg3,
+              borderTop: `1px solid ${D.border}`,
+              padding: '9px 18px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 9, color: D.text3 }}>مهامي Pro • وزارة الصحة السعودية</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>Claude AI ✦</span>
+            </div>
+
           </div>
         </>
       )}

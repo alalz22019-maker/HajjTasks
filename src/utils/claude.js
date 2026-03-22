@@ -46,7 +46,7 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-export async function callClaude(apiKey, systemPrompt, userContent) {
+export async function callClaude(apiKey, systemPrompt, userContent, model = 'claude-haiku-4-5-20251001') {
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
@@ -56,7 +56,7 @@ export async function callClaude(apiKey, systemPrompt, userContent) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model,
       max_tokens: 2048,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
@@ -161,27 +161,64 @@ export async function analyzeTaskWithAI(apiKey, taskTitle) {
   }
 }
 
-export const VISUAL_SUMMARY_SYSTEM = `أنت مساعد ذكي لإنشاء ملخص بصري احترافي للمهام في بيئة حكومية سعودية (وزارة الصحة).
+export const VISUAL_SUMMARY_SYSTEM = `أنت مساعد ذكي متخصص في إنشاء لوحات معلومات بصرية احترافية للمهام في بيئة حكومية سعودية (PMO وزارة الصحة).
 
-حلل قائمة المهام وأرجع JSON بهذا الشكل بالضبط (بدون أي نص إضافي):
+حلل قائمة المهام وأرجع JSON بهذا الشكل الدقيق فقط (بدون أي نص خارج JSON):
 {
-  "sections": [
-    { "id": "urgent",   "title": "المهام العاجلة",  "icon": "🔴", "items": ["نص قصير", "نص قصير"] },
-    { "id": "projects", "title": "أبرز المشاريع",   "icon": "📁", "items": ["اسم المشروع", "اسم المشروع"] },
-    { "id": "people",   "title": "فريق العمل",      "icon": "👥", "items": ["الاسم (عدد مهام)", "الاسم (عدد مهام)"] },
-    { "id": "done",     "title": "أبرز الإنجازات",  "icon": "✅", "items": ["إنجاز محدد", "إنجاز محدد"] },
-    { "id": "recs",     "title": "التوصيات",        "icon": "💡", "items": ["توصية قصيرة", "توصية قصيرة", "توصية قصيرة"] }
+  "title": "لوحة إدارة المهام",
+  "kpis": [
+    { "label": "المهام المنجزة", "value": 7,     "icon": "✅", "color": "green" },
+    { "label": "المهام العاجلة", "value": 3,     "icon": "🚨", "color": "red"   },
+    { "label": "قيد الانتظار",  "value": 5,     "icon": "⏳", "color": "gray"  },
+    { "label": "نسبة الإنجاز",  "value": "47%", "icon": "📈", "color": "blue"  }
+  ],
+  "matrix": {
+    "urgentImportant":    { "count": 3, "items": ["عنوان مهمة مختصر", "عنوان آخر"] },
+    "importantNotUrgent": { "count": 2, "items": ["عنوان مهمة"] },
+    "urgentNotImportant": { "count": 1, "items": ["عنوان مهمة"] },
+    "other":              { "count": 4, "items": ["عنوان مهمة"] }
+  },
+  "overview": [
+    "جملة أولى موجزة تلخص الوضع العام للمهام",
+    "جملة ثانية عن الهدف أو الأولوية الرئيسية"
+  ],
+  "challenges": [
+    "تحدٍّ ملموس مستنتج من البيانات",
+    "تحدٍّ ثانٍ",
+    "تحدٍّ ثالث"
+  ],
+  "insights": [
+    { "label": "المهام المتأخرة",  "value": "٢"        },
+    { "label": "الأكثر إسناداً",  "value": "علي (٥)"  },
+    { "label": "الفئة الأكثر",   "value": "إداري"     }
+  ],
+  "actionItems": [
+    { "text": "إجراء عاجل لا يتجاوز ثلاثين حرفاً", "priority": "high"   },
+    { "text": "إجراء آخر واضح ومحدد",               "priority": "medium" }
+  ],
+  "recommendations": [
+    "توصية استراتيجية أولى واضحة ومباشرة",
+    "توصية ثانية",
+    "توصية ثالثة"
   ]
 }
 
-قواعد مهمة:
-- كل عنصر في items لا يتجاوز 35 حرف (للتناسب مع الصورة)
-- كل قسم: من 2 إلى 4 عناصر فقط
-- urgent: المهام العاجلة وغير المنجزة فقط (أعطِ عناوين المهام مختصرة)
-- projects: استنتج أسماء المشاريع من عناوين المهام (مثل: التحول الرقمي، عيني، الفحوصات)
-- people: من لديه أكثر من مهمة، اكتب "الاسم (عدد المهام)"
-- done: المهام المنجزة الأبرز — إذا لا توجد اكتب توصيات بدلاً منها
-- recs: توصيات عملية بناءً على حالة المهام (متأخرة؟ كثيرة؟ أصحاب عمل أكثر؟)
+قواعد صارمة للحساب والمحتوى:
+- kpis[0].value = عدد المهام التي d=1 (منجزة)
+- kpis[1].value = عدد المهام التي p=urgent وd=0 (عاجلة ومعلقة)
+- kpis[2].value = عدد المهام التي d=0 وp≠urgent (معلقة وغير عاجلة)
+- kpis[3].value = نسبة الإنجاز كنص "XX%"
+- matrix.urgentImportant    = المهام ذات p=urgent وd=0
+- matrix.importantNotUrgent = المهام ذات p=high أو p=medium وغير عاجلة
+- matrix.urgentNotImportant = المهام ذات p=normal ومرتبطة بمواعيد قريبة
+- matrix.other              = الباقي
+- items في matrix: أقصر العناوين (≤25 حرف)، 2-3 عناصر فقط لكل ربع
+- overview: جملتان فصيحتان تلخصان الواقع الفعلي للمهام
+- challenges: ثلاثة تحديات حقيقية مستنتجة من البيانات، لا عامة
+- insights: ثلاثة إحصائيات بأرقام حقيقية من البيانات
+- actionItems: 3-4 إجراءات محددة، priority إما "high" أو "medium"
+- recommendations: ثلاث توصيات استراتيجية قصيرة ومفيدة
+- جميع النصوص بالعربية الفصحى الواضحة، تجنّب العامية
 أرجع JSON فقط بدون \`\`\`json`
 
 export async function generateVisualSummary(apiKey, tasks) {
@@ -193,7 +230,7 @@ export async function generateVisualSummary(apiKey, tasks) {
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
   }))
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim))
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim), 'claude-sonnet-4-6')
   // Strip markdown code fences if Claude wraps the JSON
   const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
   try {
