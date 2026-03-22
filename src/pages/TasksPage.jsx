@@ -228,8 +228,8 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const circumference = 2 * Math.PI * 40
 
   return (
-    <div className="page">
-      {/* Header */}
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      {/* Header — outside the scroll container to avoid iOS sticky-in-overflow bug */}
       <div className="header">
         <div className="header-row">
           <div>
@@ -275,6 +275,9 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           </div>
         </div>
       </div>
+
+      {/* Scrollable content — separate from header to prevent iOS scroll freeze */}
+      <div className="page">
 
       {/* Stats */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12 }}>
@@ -571,6 +574,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           </div>
         </div>
       )}
+      </div>{/* end .page */}
     </div>
   )
 }
