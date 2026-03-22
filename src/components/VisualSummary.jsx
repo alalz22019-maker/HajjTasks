@@ -78,9 +78,16 @@ export default function VisualSummary({ tasks, apiKey }) {
     setExporting(true)
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
-      const link = document.createElement('a')
-      link.download = `لوحة-المهام-${new Date().toISOString().slice(0,10)}.png`
-      link.href = dataUrl; link.click()
+      const blob = await (await fetch(dataUrl)).blob()
+      const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: 'الملخص التنفيذي' })
+      } else {
+        const link = document.createElement('a')
+        link.download = `الملخص-التنفيذي-${new Date().toISOString().slice(0,10)}.png`
+        link.href = dataUrl; link.click()
+      }
     } catch { setError('تعذّر تحميل الصورة') }
     finally { setExporting(false) }
   }
@@ -105,10 +112,10 @@ export default function VisualSummary({ tasks, apiKey }) {
 
   // Fallback KPIs computed locally when Claude doesn't return them
   const fallbackKPIs = [
-    { label: 'المهام المنجزة', value: doneCnt,    icon: '✅', color: 'green' },
-    { label: 'المهام العاجلة', value: urgentCnt,  icon: '🚨', color: 'red'   },
-    { label: 'قيد الانتظار',  value: pendingCnt, icon: '⏳', color: 'gray'  },
-    { label: 'نسبة الإنجاز',  value: `${pct}%`,  icon: '📈', color: 'blue'  },
+    { label: 'نسبة الإنجاز',     value: `${pct}%`,  icon: '📈', color: 'blue'   },
+    { label: 'تحتاج قراراً',     value: urgentCnt,  icon: '⚡', color: 'red'    },
+    { label: 'مهام متأخرة',      value: overdue,    icon: '⚠️', color: 'yellow' },
+    { label: 'على المسار',       value: doneCnt,    icon: '✅', color: 'green'  },
   ]
 
   const kpis = summary?.kpis?.length ? summary.kpis : fallbackKPIs
@@ -131,10 +138,10 @@ export default function VisualSummary({ tasks, apiKey }) {
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e8f0', marginBottom: 8 }}>
-            لوحة المهام البصرية
+            الملخص التنفيذي
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 24 }}>
-            ينشئ لك Claude لوحة تحكم احترافية بجميع أبرز مهامك
+            ينشئ Claude ملخصاً تنفيذياً يساعدك على اتخاذ القرارات الصحيحة
           </div>
           <button onClick={handleGenerate} style={{
             background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
@@ -150,7 +157,7 @@ export default function VisualSummary({ tasks, apiKey }) {
       {loading && (
         <div style={{ textAlign: 'center', padding: '48px 16px', color: '#9090a8' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
-          <div>Claude يحلل مهامك ويبني اللوحة...</div>
+          <div>Claude يحلل المهام ويعد الملخص التنفيذي...</div>
         </div>
       )}
 
@@ -163,7 +170,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               flex: 1, background: '#3b82f6', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
-            }}>⬇️ تحميل PNG</button>
+            }}>{/iPad|iPhone|iPod/.test(navigator.userAgent) ? '🖼️ حفظ في الصور' : '⬇️ تحميل PNG'}</button>
             <button onClick={handleShare} disabled={exporting} style={{
               flex: 1, background: '#10b981', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
@@ -199,9 +206,9 @@ export default function VisualSummary({ tasks, apiKey }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
                 <div>
                   <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
-                    {summary.title || 'لوحة إدارة المهام'}
+                    {summary.title || 'الملخص التنفيذي'}
                   </div>
-                  <div style={{ color: D.text2, fontSize: 10 }}>PMO • وزارة الصحة السعودية</div>
+                  <div style={{ color: D.text2, fontSize: 10 }}>تقرير القيادة • وزارة الصحة السعودية</div>
                 </div>
                 {/* Decorative UI chips */}
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -263,7 +270,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                 boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <SectionLabel icon="📊" label="تقدم المشروع" color={D.blue} />
+                  <SectionLabel icon="📊" label="تقدم الإنجاز" color={D.blue} />
                   <span style={{
                     fontSize: 13, fontWeight: 800,
                     color: pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red,
@@ -349,7 +356,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   background: CARD.background, borderRadius: CARD.borderRadius,
                   border: `1px solid ${D.border}`, padding: CARD.padding,
                 }}>
-                  <SectionLabel icon="🎯" label="نظرة عامة" color={D.blue} />
+                  <SectionLabel icon="🎯" label="الملخص التنفيذي" color={D.blue} />
                   {summary.overview.map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
                       <div style={{
@@ -369,7 +376,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   border: `1px solid ${D.red}20`,
                   borderRadius: 14, padding: '14px 16px',
                 }}>
-                  <SectionLabel icon="⚠️" label="التحديات والعقبات" color={D.red} />
+                  <SectionLabel icon="⚠️" label="عوائق تحتاج تدخلاً" color={D.red} />
                   {summary.challenges.map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
                       <span style={{ color: D.red, fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>!</span>
@@ -382,7 +389,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               {/* ── INSIGHTS ── */}
               {summary.insights?.length > 0 && (
                 <div>
-                  <SectionLabel icon="📊" label="إحصائيات وبيانات" color={D.purple} />
+                  <SectionLabel icon="📊" label="مؤشرات القيادة" color={D.purple} />
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     {summary.insights.map((ins, i) => (
                       <div key={i} style={{
@@ -407,7 +414,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   background: CARD.background, borderRadius: CARD.borderRadius,
                   border: `1px solid ${D.border}`, padding: CARD.padding,
                 }}>
-                  <SectionLabel icon="⚡" label="الإجراءات ذات الأولوية" color={D.yellow} />
+                  <SectionLabel icon="⚡" label="قرارات تحتاج موافقتك" color={D.yellow} />
                   {summary.actionItems.map((item, i) => {
                     const hi = item.priority === 'high'
                     return (
@@ -470,7 +477,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               padding: '9px 18px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 9, color: D.text3 }}>مهامي Pro • وزارة الصحة السعودية</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>تقرير القيادة • وزارة الصحة السعودية</span>
               <span style={{ fontSize: 9, color: D.text3 }}>Claude AI ✦</span>
             </div>
 
