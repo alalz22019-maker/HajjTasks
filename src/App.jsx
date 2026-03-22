@@ -5,6 +5,7 @@ import UploadPage from './pages/UploadPage'
 import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
 import { loadData, saveData } from './utils/storage'
+import { deduplicateTasks } from './utils/dedup'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 
@@ -26,7 +27,14 @@ function App() {
     const storedTasks = loadData('mytasks_tasks') || []
     const storedKey = loadData('mytasks_apikey') || ''
     const key = HARDCODED_API_KEY || storedKey
-    setTasks(storedTasks)
+    // One-time deduplicate: keep first occurrence of each title
+    const unique = storedTasks.filter((t, i, arr) =>
+      arr.findIndex(x => x.title.trim().toLowerCase() === t.title.trim().toLowerCase()) === i
+    )
+    if (unique.length !== storedTasks.length) {
+      saveData('mytasks_tasks', unique)
+    }
+    setTasks(unique)
     setApiKey(key)
   }, [])
 
