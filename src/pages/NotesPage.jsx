@@ -20,8 +20,9 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
     setLoading(true)
     setExtracted([])
     try {
-      const result = await callClaude(apiKey, EXTRACT_SYSTEM, text)
-      const parsed = JSON.parse(result)
+      const raw = await callClaude(apiKey, EXTRACT_SYSTEM, text)
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+      const parsed = JSON.parse(cleaned)
       setExtracted(Array.isArray(parsed) ? parsed : [])
     } catch (e) {
       showToast('❌ ' + e.message)
