@@ -77,7 +77,11 @@ export default function VisualSummary({ tasks, apiKey }) {
     if (!cardRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
+      const el = cardRef.current
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2, cacheBust: true,
+        width: el.scrollWidth, height: el.scrollHeight,
+      })
       const blob = await (await fetch(dataUrl)).blob()
       const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -96,14 +100,18 @@ export default function VisualSummary({ tasks, apiKey }) {
     if (!cardRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
+      const el = cardRef.current
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2, cacheBust: true,
+        width: el.scrollWidth, height: el.scrollHeight,
+      })
       const blob = await (await fetch(dataUrl)).blob()
-      const file = new File([blob], 'لوحة-المهام.png', { type: 'image/png' })
+      const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'لوحة إدارة المهام' })
+        await navigator.share({ files: [file], title: 'الملخص التنفيذي' })
       } else {
         const link = document.createElement('a')
-        link.download = 'لوحة-المهام.png'
+        link.download = 'الملخص-التنفيذي.png'
         link.href = dataUrl; link.click()
       }
     } catch { setError('تعذّرت المشاركة') }
@@ -518,37 +526,43 @@ export default function VisualSummary({ tasks, apiKey }) {
                 const getStatus = (t) => {
                   if (t.done) return { label: 'منجزة', color: D.green }
                   if (t.dueDate && new Date(t.dueDate) < today) return { label: 'متأخرة', color: D.red }
-                  if (t.priority === 'urgent') return { label: 'عاجلة', color: '#f97316' }
-                  return { label: 'معلقة', color: D.text3 }
+                  if (t.priority === 'urgent') return { label: 'عاجل', color: '#f97316' }
+                  return { label: 'معلق', color: D.text3 }
                 }
+                // Fixed % widths — reliable in html-to-image (no fr units)
+                const COL = ['42%', '18%', '22%', '18%']
+                const ROW = (cells, bg) => (
+                  <div style={{ display: 'flex', flexDirection: 'row-reverse', background: bg || 'transparent' }}>
+                    {cells.map((cell, ci) => (
+                      <div key={ci} style={{ width: COL[ci], padding: '5px 6px', boxSizing: 'border-box', textAlign: ci === 0 ? 'right' : 'center', borderRight: ci > 0 ? `1px solid rgba(255,255,255,0.05)` : 'none' }}>
+                        {cell}
+                      </div>
+                    ))}
+                  </div>
+                )
                 return (
                   <div>
                     <SectionLabel icon="📋" label="جدول المهام" color={D.text2} />
                     <div style={{ borderRadius: 12, border: `1px solid ${D.border}`, overflow: 'hidden' }}>
                       {/* Header */}
-                      <div style={{
-                        display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.6fr',
-                        background: 'rgba(255,255,255,0.05)',
-                        padding: '6px 10px', borderBottom: `1px solid ${D.border}`,
-                      }}>
-                        {['المهمة', 'الحالة', 'المالك', 'الموعد'].map((h, i) => (
-                          <span key={i} style={{ fontSize: 8, fontWeight: 700, color: D.text3, textAlign: i > 0 ? 'center' : 'right' }}>{h}</span>
-                        ))}
+                      <div style={{ background: 'rgba(255,255,255,0.06)', borderBottom: `1px solid ${D.border}` }}>
+                        {ROW(
+                          ['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
+                            <span style={{ fontSize: 8, fontWeight: 700, color: D.text3 }}>{h}</span>
+                          )),
+                        )}
                       </div>
                       {/* Rows */}
                       {tasks.map((t, i) => {
                         const st = getStatus(t)
                         return (
-                          <div key={i} style={{
-                            display: 'grid', gridTemplateColumns: '2fr 0.9fr 0.9fr 0.6fr',
-                            padding: '5px 10px',
-                            borderBottom: i < tasks.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none',
-                            background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                          }}>
-                            <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.4 }}>{trunc(t.title, 20)}</span>
-                            <span style={{ fontSize: 8, color: st.color, textAlign: 'center', lineHeight: 1.4, fontWeight: 600 }}>{st.label}</span>
-                            <span style={{ fontSize: 8, color: D.text2, textAlign: 'center', lineHeight: 1.4 }}>{trunc(t.person, 7)}</span>
-                            <span style={{ fontSize: 8, color: D.text3, textAlign: 'center', lineHeight: 1.4 }}>{fmtDate(t.dueDate)}</span>
+                          <div key={i} style={{ borderBottom: i < tasks.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none', background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                            {ROW([
+                              <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.4 }}>{trunc(t.title, 22)}</span>,
+                              <span style={{ fontSize: 8, color: D.text3, lineHeight: 1.4 }}>{fmtDate(t.dueDate)}</span>,
+                              <span style={{ fontSize: 8, color: D.text2, lineHeight: 1.4 }}>{trunc(t.person, 9) || '—'}</span>,
+                              <span style={{ fontSize: 8, color: st.color, fontWeight: 700, lineHeight: 1.4 }}>{st.label}</span>,
+                            ])}
                           </div>
                         )
                       })}
