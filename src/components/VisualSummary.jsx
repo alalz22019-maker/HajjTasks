@@ -77,7 +77,11 @@ export default function VisualSummary({ tasks, apiKey }) {
     if (!cardRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
+      const el = cardRef.current
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2, cacheBust: true,
+        width: el.scrollWidth, height: el.scrollHeight,
+      })
       const blob = await (await fetch(dataUrl)).blob()
       const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
       const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -96,14 +100,18 @@ export default function VisualSummary({ tasks, apiKey }) {
     if (!cardRef.current) return
     setExporting(true)
     try {
-      const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
+      const el = cardRef.current
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2, cacheBust: true,
+        width: el.scrollWidth, height: el.scrollHeight,
+      })
       const blob = await (await fetch(dataUrl)).blob()
-      const file = new File([blob], 'لوحة-المهام.png', { type: 'image/png' })
+      const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'لوحة إدارة المهام' })
+        await navigator.share({ files: [file], title: 'الملخص التنفيذي' })
       } else {
         const link = document.createElement('a')
-        link.download = 'لوحة-المهام.png'
+        link.download = 'الملخص-التنفيذي.png'
         link.href = dataUrl; link.click()
       }
     } catch { setError('تعذّرت المشاركة') }
@@ -208,7 +216,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
                     {summary.title || 'الملخص التنفيذي'}
                   </div>
-                  <div style={{ color: D.text2, fontSize: 10 }}>تقرير القيادة • وزارة الصحة السعودية</div>
+                  <div style={{ color: D.text2, fontSize: 10 }}>مكتب إدارة المشاريع • مركز عمليات المختبرات</div>
                 </div>
                 {/* Decorative UI chips */}
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -287,19 +295,6 @@ export default function VisualSummary({ tasks, apiKey }) {
                     boxShadow: pct >= 70 ? '0 0 8px rgba(16,185,129,0.45)' : undefined,
                   }} />
                 </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  {[
-                    { n: doneCnt,   label: 'منجزة',   c: D.green  },
-                    { n: urgentCnt, label: 'عاجلة',   c: D.red    },
-                    { n: overdue,   label: 'متأخرة',  c: D.yellow },
-                    { n: total,     label: 'إجمالي',  c: D.text2  },
-                  ].map((s, i) => (
-                    <div key={i} style={{ textAlign: 'center', flex: 1 }}>
-                      <div style={{ fontSize: 17, fontWeight: 900, color: s.c }}>{s.n}</div>
-                      <div style={{ fontSize: 9, color: D.text3 }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               {/* ── EISENHOWER MATRIX ── */}
@@ -369,42 +364,83 @@ export default function VisualSummary({ tasks, apiKey }) {
                 </div>
               )}
 
-              {/* ── CHALLENGES ── */}
-              {summary.challenges?.length > 0 && (
+              {/* ── PEOPLE STATUS ── */}
+              {summary.peopleStatus?.length > 0 && (
                 <div style={{
-                  background: 'rgba(239,68,68,0.06)',
+                  background: 'rgba(239,68,68,0.05)',
                   border: `1px solid ${D.red}20`,
                   borderRadius: 14, padding: '14px 16px',
                 }}>
-                  <SectionLabel icon="⚠️" label="عوائق تحتاج تدخلاً" color={D.red} />
-                  {summary.challenges.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
-                      <span style={{ color: D.red, fontSize: 13, flexShrink: 0, lineHeight: 1.3 }}>!</span>
-                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                  <SectionLabel icon="👥" label="حالة الفريق — المهام المعلقة" color={D.red} />
+                  {summary.peopleStatus.map((person, i) => (
+                    <div key={i} style={{ marginBottom: i < summary.peopleStatus.length - 1 ? 10 : 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{
+                            width: 22, height: 22, borderRadius: '50%',
+                            background: D.redBg, border: `1px solid ${D.red}40`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, flexShrink: 0,
+                          }}>👤</div>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <span style={{ fontSize: 9, color: D.text2, background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '2px 7px' }}>
+                            {person.pending?.length || 0} معلقة
+                          </span>
+                          {person.overdueCount > 0 && (
+                            <span style={{ fontSize: 9, color: D.red, background: D.redBg, borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.red}30` }}>
+                              {person.overdueCount} متأخرة
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {(person.pending || []).map((t, j) => (
+                        <div key={j} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
+                          <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
+                          <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* ── INSIGHTS ── */}
-              {summary.insights?.length > 0 && (
+              {/* ── PROJECT BREAKDOWN ── */}
+              {summary.projectBreakdown?.length > 0 && (
                 <div>
-                  <SectionLabel icon="📊" label="مؤشرات القيادة" color={D.purple} />
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {summary.insights.map((ins, i) => (
+                  <SectionLabel icon="📁" label="حالة الفئات والمشاريع" color={D.blue} />
+                  {summary.projectBreakdown.map((proj, i) => {
+                    const projPct = proj.total ? Math.round((proj.done / proj.total) * 100) : 0
+                    const barColor = projPct === 100 ? D.green : projPct >= 50 ? D.yellow : D.red
+                    return (
                       <div key={i} style={{
-                        background: CARD.background,
-                        border: `1px solid ${D.border}`,
-                        borderRadius: 12, padding: '11px 14px',
-                        flex: '1 1 calc(33% - 6px)',
-                        boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                        textAlign: 'center',
+                        background: CARD.background, borderRadius: 12,
+                        border: `1px solid ${D.border}`, padding: '10px 12px',
+                        marginBottom: i < summary.projectBreakdown.length - 1 ? 8 : 0,
                       }}>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: D.purple }}>{ins.value}</div>
-                        <div style={{ fontSize: 9, color: D.text3, marginTop: 3 }}>{ins.label}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: D.text }}>{proj.category}</span>
+                          <span style={{ fontSize: 12, fontWeight: 900, color: barColor }}>{proj.done}/{proj.total}</span>
+                        </div>
+                        <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
+                          <div style={{ height: '100%', width: `${projPct}%`, borderRadius: 99, background: barColor }} />
+                        </div>
+                        {proj.completed?.slice(0, 3).map((t, j) => (
+                          <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
+                            <span style={{ color: D.green, fontSize: 9, flexShrink: 0 }}>✓</span>
+                            <span style={{ fontSize: 9, color: D.text3 }}>{t}</span>
+                          </div>
+                        ))}
+                        {proj.pending?.slice(0, 3).map((t, j) => (
+                          <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
+                            <span style={{ color: D.yellow, fontSize: 9, flexShrink: 0 }}>○</span>
+                            <span style={{ fontSize: 9, color: D.text2 }}>{t}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })}
                 </div>
               )}
 
@@ -414,31 +450,28 @@ export default function VisualSummary({ tasks, apiKey }) {
                   background: CARD.background, borderRadius: CARD.borderRadius,
                   border: `1px solid ${D.border}`, padding: CARD.padding,
                 }}>
-                  <SectionLabel icon="⚡" label="قرارات تحتاج موافقتك" color={D.yellow} />
+                  <SectionLabel icon="⚡" label="مهام بحاجة إلى قرار" color={D.yellow} />
                   {summary.actionItems.map((item, i) => {
                     const hi = item.priority === 'high'
+                    const label = item.task || item.text || ''
                     return (
                       <div key={i} style={{
-                        display: 'flex', gap: 8, alignItems: 'center',
                         marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
-                        padding: '7px 10px', borderRadius: 9,
+                        padding: '8px 10px', borderRadius: 9,
                         background: hi ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)',
                         border: `1px solid ${hi ? D.red + '22' : D.border}`,
                       }}>
-                        <div style={{
-                          width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                          background: hi ? D.redBg : D.grayBg,
-                          border: `1px solid ${hi ? D.red + '40' : D.border}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10,
-                        }}>{hi ? '🔴' : '🔵'}</div>
-                        <span style={{ fontSize: 11, color: D.text, lineHeight: 1.4, flex: 1 }}>{item.text}</span>
-                        {hi && (
-                          <div style={{
-                            background: D.redBg, border: `1px solid ${D.red}40`,
-                            borderRadius: 20, padding: '2px 7px',
-                            fontSize: 8, color: D.red, flexShrink: 0,
-                          }}>عاجل</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: item.reason ? 3 : 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10 }}>{hi ? '🔴' : '🔵'}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: hi ? D.red : D.text }}>{label}</span>
+                          </div>
+                          {item.owner && (
+                            <span style={{ fontSize: 9, color: D.text2, background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '2px 7px', flexShrink: 0 }}>{item.owner}</span>
+                          )}
+                        </div>
+                        {item.reason && (
+                          <span style={{ fontSize: 9, color: D.text2, paddingRight: 16, display: 'block', lineHeight: 1.4 }}>{item.reason}</span>
                         )}
                       </div>
                     )
@@ -468,7 +501,64 @@ export default function VisualSummary({ tasks, apiKey }) {
                 </div>
               )}
 
-            </div>
+              {/* ── TASK TABLE ── */}
+              {tasks.length > 0 && (() => {
+                const today = new Date()
+                const fmtDate = (d) => {
+                  if (!d) return '—'
+                  const dt = new Date(d)
+                  return `${dt.getDate()}/${dt.getMonth() + 1}`
+                }
+                const trunc = (s, n) => s && s.length > n ? s.slice(0, n) + '…' : (s || '—')
+                const getStatus = (t) => {
+                  if (t.done) return { label: 'منجزة', color: D.green }
+                  if (t.dueDate && new Date(t.dueDate) < today) return { label: 'متأخرة', color: D.red }
+                  if (t.priority === 'urgent') return { label: 'عاجل', color: '#f97316' }
+                  return { label: 'معلق', color: D.text3 }
+                }
+                // Fixed % widths — reliable in html-to-image (no fr units)
+                const COL = ['42%', '18%', '22%', '18%']
+                const ROW = (cells, bg) => (
+                  <div style={{ display: 'flex', flexDirection: 'row-reverse', background: bg || 'transparent' }}>
+                    {cells.map((cell, ci) => (
+                      <div key={ci} style={{ width: COL[ci], padding: '5px 6px', boxSizing: 'border-box', textAlign: ci === 0 ? 'right' : 'center', borderRight: ci > 0 ? `1px solid rgba(255,255,255,0.05)` : 'none' }}>
+                        {cell}
+                      </div>
+                    ))}
+                  </div>
+                )
+                return (
+                  <div>
+                    <SectionLabel icon="📋" label="جدول المهام" color={D.text2} />
+                    <div style={{ borderRadius: 12, border: `1px solid ${D.border}`, overflow: 'hidden' }}>
+                      {/* Header */}
+                      <div style={{ background: 'rgba(255,255,255,0.06)', borderBottom: `1px solid ${D.border}` }}>
+                        {ROW(
+                          ['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
+                            <span style={{ fontSize: 8, fontWeight: 700, color: D.text3 }}>{h}</span>
+                          )),
+                        )}
+                      </div>
+                      {/* Rows */}
+                      {tasks.map((t, i) => {
+                        const st = getStatus(t)
+                        return (
+                          <div key={i} style={{ borderBottom: i < tasks.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none', background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent' }}>
+                            {ROW([
+                              <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.4 }}>{trunc(t.title, 22)}</span>,
+                              <span style={{ fontSize: 8, color: D.text3, lineHeight: 1.4 }}>{fmtDate(t.dueDate)}</span>,
+                              <span style={{ fontSize: 8, color: D.text2, lineHeight: 1.4 }}>{trunc(t.person, 9) || '—'}</span>,
+                              <span style={{ fontSize: 8, color: st.color, fontWeight: 700, lineHeight: 1.4 }}>{st.label}</span>,
+                            ])}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
+
+            </div>{/* end main content */}
 
             {/* ── FOOTER ── */}
             <div style={{
@@ -477,8 +567,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               padding: '9px 18px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 9, color: D.text3 }}>تقرير القيادة • وزارة الصحة السعودية</span>
-              <span style={{ fontSize: 9, color: D.text3 }}>Claude AI ✦</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>تقرير مكتب إدارة المشاريع • مركز عمليات المختبرات</span>
             </div>
 
           </div>
