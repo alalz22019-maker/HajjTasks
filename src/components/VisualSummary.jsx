@@ -216,7 +216,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
                     {summary.title || 'الملخص التنفيذي'}
                   </div>
-                  <div style={{ color: D.text2, fontSize: 10 }}>تقرير القيادة • وزارة الصحة السعودية</div>
+                  <div style={{ color: D.text2, fontSize: 10 }}>مكتب إدارة المشاريع • مركز عمليات المختبرات</div>
                 </div>
                 {/* Decorative UI chips */}
                 <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
@@ -294,19 +294,6 @@ export default function VisualSummary({ tasks, apiKey }) {
                       : 'linear-gradient(90deg,#ef4444,#f87171)',
                     boxShadow: pct >= 70 ? '0 0 8px rgba(16,185,129,0.45)' : undefined,
                   }} />
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  {[
-                    { n: doneCnt,   label: 'منجزة',   c: D.green  },
-                    { n: urgentCnt, label: 'عاجلة',   c: D.red    },
-                    { n: overdue,   label: 'متأخرة',  c: D.yellow },
-                    { n: total,     label: 'إجمالي',  c: D.text2  },
-                  ].map((s, i) => (
-                    <div key={i} style={{ textAlign: 'center', flex: 1 }}>
-                      <div style={{ fontSize: 17, fontWeight: 900, color: s.c }}>{s.n}</div>
-                      <div style={{ fontSize: 9, color: D.text3 }}>{s.label}</div>
-                    </div>
-                  ))}
                 </div>
               </div>
 
@@ -463,7 +450,7 @@ export default function VisualSummary({ tasks, apiKey }) {
                   background: CARD.background, borderRadius: CARD.borderRadius,
                   border: `1px solid ${D.border}`, padding: CARD.padding,
                 }}>
-                  <SectionLabel icon="⚡" label="قرارات تحتاج موافقتك" color={D.yellow} />
+                  <SectionLabel icon="⚡" label="مهام بحاجة إلى قرار" color={D.yellow} />
                   {summary.actionItems.map((item, i) => {
                     const hi = item.priority === 'high'
                     const label = item.task || item.text || ''
@@ -580,8 +567,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               padding: '9px 18px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 9, color: D.text3 }}>تقرير القيادة • وزارة الصحة السعودية</span>
-              <span style={{ fontSize: 9, color: D.text3 }}>Claude AI ✦</span>
+              <span style={{ fontSize: 9, color: D.text3 }}>تقرير مكتب إدارة المشاريع • مركز عمليات المختبرات</span>
             </div>
 
           </div>
