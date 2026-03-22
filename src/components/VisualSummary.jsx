@@ -8,57 +8,55 @@ function formatArabicDate() {
   })
 }
 
-// All styles are inline (hardcoded hex) so html-to-image can capture them correctly
-const C = {
-  bg:       '#ffffff',
-  bg2:      '#f4f6fb',
-  border:   '#e2e8f0',
-  text:     '#1a1a2e',
-  text2:    '#4a5568',
-  text3:    '#718096',
-  blue:     '#3b82f6',
-  purple:   '#7c3aed',
-  green:    '#10b981',
-  red:      '#ef4444',
-  orange:   '#f59e0b',
-  gradient: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
+// Section header colors (bold solid color bars like in the screenshot)
+const SC = {
+  urgent:   '#e63946',
+  projects: '#457b9d',
+  people:   '#6a4c93',
+  done:     '#2d6a4f',
+  recs:     '#b45309',
 }
 
-const SECTION_COLORS = {
-  urgent:   { border: '#ef4444', bg: '#fff5f5', text: '#ef4444' },
-  projects: { border: '#3b82f6', bg: '#eff6ff', text: '#3b82f6' },
-  people:   { border: '#7c3aed', bg: '#f5f3ff', text: '#7c3aed' },
-  done:     { border: '#10b981', bg: '#f0fdf4', text: '#10b981' },
-  recs:     { border: '#f59e0b', bg: '#fffbeb', text: '#f59e0b' },
-}
+// Mind-map area dimensions
+const W       = 390   // card width
+const H       = 360   // mind-map area height
+const CX      = W / 2 // center x
+const CY      = H / 2 // center y
+const HUB_R   = 52    // hub radius
+const CARD_W  = 138   // section card width
+const CARD_H  = 115   // approx card height (for arrow anchoring)
+
+// Quadratic Bézier curves: from card inner corner → hub edge, through CX,CY as control point
+const ARROWS = [
+  { id: 'urgent',   x1: W-5-CARD_W, y1: 12+CARD_H,   x2: CX+HUB_R*0.7, y2: CY-HUB_R*0.7 },
+  { id: 'projects', x1: 5+CARD_W,   y1: 12+CARD_H,   x2: CX-HUB_R*0.7, y2: CY-HUB_R*0.7 },
+  { id: 'people',   x1: W-5-CARD_W, y1: H-12-CARD_H, x2: CX+HUB_R*0.7, y2: CY+HUB_R*0.7 },
+  { id: 'done',     x1: 5+CARD_W,   y1: H-12-CARD_H, x2: CX-HUB_R*0.7, y2: CY+HUB_R*0.7 },
+]
 
 export default function VisualSummary({ tasks, apiKey }) {
-  const [summary, setSummary]   = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState('')
+  const [summary, setSummary]     = useState(null)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState('')
   const [exporting, setExporting] = useState(false)
   const cardRef = useRef(null)
 
-  const total   = tasks.length
-  const done    = tasks.filter(t => t.done).length
-  const urgent  = tasks.filter(t => t.priority === 'urgent' && !t.done).length
-  const overdue = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
-  const pct     = total ? Math.round((done / total) * 100) : 0
+  const total     = tasks.length
+  const doneCnt   = tasks.filter(t => t.done).length
+  const urgentCnt = tasks.filter(t => t.priority === 'urgent' && !t.done).length
+  const overdue   = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
+  const pct       = total ? Math.round((doneCnt / total) * 100) : 0
 
   async function handleGenerate() {
     if (!apiKey) { setError('أضف مفتاح API أولاً'); return }
-    setLoading(true)
-    setError('')
-    setSummary(null)
+    setLoading(true); setError(''); setSummary(null)
     try {
       const result = await generateVisualSummary(apiKey, tasks)
       if (!result) throw new Error('لم يتم إنشاء الملخص')
       setSummary(result)
     } catch (e) {
       setError(e.message || 'حدث خطأ غير متوقع')
-    } finally {
-      setLoading(false)
-    }
+    } finally { setLoading(false) }
   }
 
   async function handleDownload() {
@@ -68,13 +66,9 @@ export default function VisualSummary({ tasks, apiKey }) {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
       const link = document.createElement('a')
       link.download = `ملخص-المهام-${new Date().toISOString().slice(0,10)}.png`
-      link.href = dataUrl
-      link.click()
-    } catch {
-      setError('تعذّر تحميل الصورة')
-    } finally {
-      setExporting(false)
-    }
+      link.href = dataUrl; link.click()
+    } catch { setError('تعذّر تحميل الصورة') }
+    finally { setExporting(false) }
   }
 
   async function handleShare() {
@@ -82,29 +76,63 @@ export default function VisualSummary({ tasks, apiKey }) {
     setExporting(true)
     try {
       const dataUrl = await toPng(cardRef.current, { pixelRatio: 2, cacheBust: true })
-      const res     = await fetch(dataUrl)
-      const blob    = await res.blob()
-      const file    = new File([blob], 'ملخص-المهام.png', { type: 'image/png' })
+      const blob = await (await fetch(dataUrl)).blob()
+      const file = new File([blob], 'ملخص-المهام.png', { type: 'image/png' })
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: 'ملخص المهام' })
       } else {
-        // Fallback: download
         const link = document.createElement('a')
         link.download = 'ملخص-المهام.png'
-        link.href = dataUrl
-        link.click()
+        link.href = dataUrl; link.click()
       }
-    } catch {
-      setError('تعذّرت المشاركة')
-    } finally {
-      setExporting(false)
-    }
+    } catch { setError('تعذّرت المشاركة') }
+    finally { setExporting(false) }
+  }
+
+  const getSection = id => summary?.sections.find(s => s.id === id)
+
+  // Colored-header section card, absolutely positioned inside the mind-map area
+  function SectionCard({ sec, posStyle }) {
+    if (!sec) return null
+    const color = SC[sec.id] || SC.recs
+    return (
+      <div style={{
+        position: 'absolute',
+        width: CARD_W,
+        borderRadius: 12,
+        overflow: 'hidden',
+        boxShadow: '0 3px 14px rgba(0,0,0,0.15)',
+        ...posStyle,
+      }}>
+        {/* Bold solid-color header bar */}
+        <div style={{
+          background: color,
+          padding: '7px 10px',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <span style={{ fontSize: 15 }}>{sec.icon}</span>
+          <span style={{ color: '#fff', fontSize: 11, fontWeight: 800, lineHeight: 1.2 }}>{sec.title}</span>
+        </div>
+        {/* Item list */}
+        <div style={{ background: '#fff', padding: '8px 10px' }}>
+          {sec.items.map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 5, alignItems: 'flex-start',
+              marginBottom: i < sec.items.length - 1 ? 5 : 0,
+            }}>
+              <span style={{ color, fontWeight: 900, fontSize: 11, flexShrink: 0, lineHeight: 1.3 }}>•</span>
+              <span style={{ fontSize: 10, color: '#1e293b', lineHeight: 1.4 }}>{item}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div style={{ padding: '16px', direction: 'rtl' }}>
 
-      {/* Generate button */}
+      {/* Generate prompt */}
       {!summary && !loading && (
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
@@ -118,13 +146,9 @@ export default function VisualSummary({ tasks, apiKey }) {
             background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
             color: '#fff', border: 'none', borderRadius: 14,
             padding: '14px 32px', fontSize: 16, fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit'
-          }}>
-            ✨ إنشاء ملخص
-          </button>
-          {error && (
-            <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>
-          )}
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>✨ إنشاء ملخص</button>
+          {error && <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>}
         </div>
       )}
 
@@ -144,147 +168,147 @@ export default function VisualSummary({ tasks, apiKey }) {
             <button onClick={handleDownload} disabled={exporting} style={{
               flex: 1, background: '#3b82f6', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1
-            }}>
-              ⬇️ تحميل PNG
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+            }}>⬇️ تحميل PNG</button>
             <button onClick={handleShare} disabled={exporting} style={{
               flex: 1, background: '#10b981', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1
-            }}>
-              📤 مشاركة
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+            }}>📤 مشاركة</button>
             <button onClick={() => setSummary(null)} style={{
               background: 'rgba(255,255,255,0.08)', color: '#9090a8', border: 'none',
               borderRadius: 10, padding: '10px 14px', fontSize: 14,
-              cursor: 'pointer', fontFamily: 'inherit'
-            }}>
-              🔄
-            </button>
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>🔄</button>
           </div>
           {error && (
             <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>
           )}
 
-          {/* THE INFOGRAPHIC — captured by html-to-image */}
+          {/* ── THE INFOGRAPHIC (captured by html-to-image) ── */}
           <div ref={cardRef} style={{
-            width: 390, maxWidth: '100%',
-            background: C.bg, borderRadius: 20,
+            width: W, maxWidth: '100%',
+            background: '#faf8f0',
+            borderRadius: 20,
             fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
-            direction: 'rtl', overflow: 'hidden',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+            direction: 'rtl',
+            overflow: 'hidden',
+            boxShadow: '0 4px 28px rgba(0,0,0,0.18)',
           }}>
 
             {/* Header */}
             <div style={{
-              background: 'linear-gradient(135deg, #3b82f6 0%, #7c3aed 100%)',
-              padding: '18px 20px 14px',
+              background: 'linear-gradient(135deg, #1e3a5f 0%, #4a1d96 100%)',
+              padding: '14px 18px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <span style={{ fontSize: 24 }}>🏥</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 20 }}>🏥</span>
                 <div>
-                  <div style={{ color: '#fff', fontSize: 18, fontWeight: 800, lineHeight: 1.2 }}>
-                    ملخص المهام
-                  </div>
-                  <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: 11 }}>
-                    علي الزهراني • PMO وزارة الصحة
-                  </div>
+                  <div style={{ color: '#fff', fontSize: 15, fontWeight: 800 }}>ملخص المهام البصري</div>
+                  <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: 10 }}>PMO • وزارة الصحة السعودية</div>
                 </div>
-                <div style={{ marginRight: 'auto', textAlign: 'left', color: 'rgba(255,255,255,0.85)', fontSize: 11 }}>
-                  {formatArabicDate()}
-                </div>
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10, textAlign: 'left' }}>
+                {formatArabicDate()}
               </div>
             </div>
 
-            {/* Stats Row */}
-            <div style={{
-              display: 'flex', background: C.bg2,
-              borderBottom: `1px solid ${C.border}`,
-            }}>
-              {[
-                { num: total,   label: 'إجمالي',  color: C.blue   },
-                { num: done,    label: 'منجزة',   color: C.green  },
-                { num: urgent,  label: 'عاجلة',   color: C.red    },
-                { num: overdue, label: 'متأخرة',  color: C.orange },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  flex: 1, textAlign: 'center', padding: '10px 4px',
-                  borderLeft: i < 3 ? `1px solid ${C.border}` : 'none',
-                }}>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color, lineHeight: 1 }}>
-                    {s.num}
-                  </div>
-                  <div style={{ fontSize: 10, color: C.text3, marginTop: 2 }}>{s.label}</div>
-                </div>
-              ))}
-            </div>
+            {/* Mind-Map Area */}
+            <div style={{ position: 'relative', width: '100%', height: H }}>
 
-            {/* Progress bar */}
-            <div style={{ padding: '8px 16px 4px', background: C.bg2, borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 11, color: C.text3 }}>نسبة الإنجاز</span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: C.green }}>{pct}%</span>
-              </div>
-              <div style={{ height: 6, background: C.border, borderRadius: 99, overflow: 'hidden' }}>
+              {/* Subtle dot-grid background */}
+              <div style={{
+                position: 'absolute',
+                top: 0, right: 0, bottom: 0, left: 0,
+                backgroundImage: 'radial-gradient(circle, #c4b89a 1px, transparent 1px)',
+                backgroundSize: '18px 18px',
+                opacity: 0.45,
+              }} />
+
+              {/* SVG: curved dashed connecting lines + arrowheads */}
+              <svg
+                width={W} height={H}
+                viewBox={`0 0 ${W} ${H}`}
+                style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
+              >
+                <defs>
+                  {ARROWS.map(a => (
+                    <marker key={a.id} id={`ah-${a.id}`}
+                      markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                      <path d="M0,0 L0,6 L6,3 z" fill={SC[a.id]} opacity="0.65" />
+                    </marker>
+                  ))}
+                </defs>
+                {ARROWS.map(a => (
+                  <path
+                    key={a.id}
+                    d={`M ${a.x1} ${a.y1} Q ${CX} ${CY} ${a.x2} ${a.y2}`}
+                    fill="none"
+                    stroke={SC[a.id]}
+                    strokeWidth="1.8"
+                    strokeDasharray="5,4"
+                    opacity="0.5"
+                    markerEnd={`url(#ah-${a.id})`}
+                  />
+                ))}
+              </svg>
+
+              {/* 4 Section cards at 4 quadrants */}
+              <SectionCard sec={getSection('urgent')}   posStyle={{ top: 12, right: 5 }} />
+              <SectionCard sec={getSection('projects')} posStyle={{ top: 12, left: 5 }} />
+              <SectionCard sec={getSection('people')}   posStyle={{ bottom: 12, right: 5 }} />
+              <SectionCard sec={getSection('done')}     posStyle={{ bottom: 12, left: 5 }} />
+
+              {/* Center Stats Hub */}
+              <div style={{
+                position: 'absolute',
+                width: HUB_R * 2, height: HUB_R * 2,
+                top: '50%', left: '50%',
+                transform: 'translate(-50%, -50%)',
+                borderRadius: '50%',
+                background: '#fff',
+                border: '3px solid #3b82f6',
+                boxShadow: '0 6px 24px rgba(59,130,246,0.28)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                textAlign: 'center', padding: 6,
+              }}>
+                <span style={{ fontSize: 20, lineHeight: 1 }}>📋</span>
+                <div style={{ fontSize: 22, fontWeight: 900, color: '#1e3a5f', lineHeight: 1.1, marginTop: 3 }}>
+                  {total}
+                </div>
+                <div style={{ fontSize: 9, color: '#64748b' }}>مهمة</div>
                 <div style={{
-                  height: '100%', width: `${pct}%`,
-                  background: 'linear-gradient(90deg, #3b82f6, #10b981)',
-                  borderRadius: 99,
-                }} />
+                  fontSize: 15, fontWeight: 800, marginTop: 2,
+                  color: pct >= 70 ? '#10b981' : pct >= 40 ? '#f59e0b' : '#ef4444',
+                }}>{pct}%</div>
+                <div style={{ fontSize: 8, color: '#94a3b8' }}>إنجاز</div>
+                <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
+                  {urgentCnt > 0 && <span style={{ fontSize: 8, color: '#ef4444' }}>🔴{urgentCnt}</span>}
+                  {overdue   > 0 && <span style={{ fontSize: 8, color: '#f59e0b' }}>⚠️{overdue}</span>}
+                </div>
               </div>
             </div>
 
-            {/* Sections Grid — first 4 sections in 2×2 */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.border }}>
-              {summary.sections.slice(0, 4).map(sec => {
-                const col = SECTION_COLORS[sec.id] || SECTION_COLORS.recs
-                return (
-                  <div key={sec.id} style={{
-                    background: col.bg, padding: '12px 14px',
-                  }}>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      marginBottom: 8,
-                    }}>
-                      <span style={{ fontSize: 14 }}>{sec.icon}</span>
-                      <span style={{
-                        fontSize: 12, fontWeight: 700, color: col.text,
-                      }}>{sec.title}</span>
-                    </div>
-                    {sec.items.map((item, i) => (
-                      <div key={i} style={{
-                        fontSize: 11, color: C.text, marginBottom: 4,
-                        display: 'flex', alignItems: 'flex-start', gap: 4,
-                      }}>
-                        <span style={{ color: col.text, flexShrink: 0, marginTop: 1 }}>•</span>
-                        <span style={{ lineHeight: 1.4 }}>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Recommendations — full width */}
-            {summary.sections.find(s => s.id === 'recs') && (() => {
-              const sec = summary.sections.find(s => s.id === 'recs')
-              const col = SECTION_COLORS.recs
+            {/* Recommendations (full-width, below mind-map) */}
+            {getSection('recs') && (() => {
+              const sec = getSection('recs')
               return (
-                <div style={{ background: col.bg, padding: '12px 16px', borderTop: `1px solid ${C.border}` }}>
+                <div style={{ borderTop: '2px solid #e8dcc8', padding: '12px 16px', background: '#fef3c7' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                    <span style={{ fontSize: 14 }}>{sec.icon}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: col.text }}>{sec.title}</span>
+                    <span style={{ fontSize: 16 }}>{sec.icon}</span>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#92400e' }}>{sec.title}</span>
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {sec.items.map((item, i) => (
                       <div key={i} style={{
-                        background: '#fff', border: `1px solid ${C.orange}22`,
-                        borderRadius: 20, padding: '4px 10px',
-                        fontSize: 11, color: C.text,
-                      }}>
-                        {item}
-                      </div>
+                        background: '#fff',
+                        border: '1.5px solid #fcd34d',
+                        borderRadius: 20,
+                        padding: '4px 10px',
+                        fontSize: 10, color: '#78350f',
+                      }}>{item}</div>
                     ))}
                   </div>
                 </div>
@@ -293,13 +317,14 @@ export default function VisualSummary({ tasks, apiKey }) {
 
             {/* Footer */}
             <div style={{
-              background: C.bg2, borderTop: `1px solid ${C.border}`,
-              padding: '8px 16px', display: 'flex', justifyContent: 'space-between',
-              alignItems: 'center',
+              background: '#1e3a5f',
+              padding: '8px 16px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}>
-              <span style={{ fontSize: 10, color: C.text3 }}>مهامي Pro • وزارة الصحة السعودية</span>
-              <span style={{ fontSize: 10, color: C.text3 }}>تم إنشاؤه بواسطة Claude AI</span>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>مهامي Pro • وزارة الصحة السعودية</span>
+              <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)' }}>Claude AI ✦</span>
             </div>
+
           </div>
         </>
       )}
