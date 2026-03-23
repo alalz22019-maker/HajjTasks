@@ -22,7 +22,8 @@ function genId() {
 }
 
 export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToast }) {
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter]       = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [showApiKey, setShowApiKey] = useState(false)
@@ -58,17 +59,21 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   }
 
   const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
     return tasks.filter(t => {
-      if (filter === 'all') return true
-      if (filter === 'active') return !t.done
-      if (filter === 'done') return t.done
-      if (filter === 'urgent') return t.priority === 'urgent'
-      if (filter === 'mine') return MY_NAMES.some(n => t.person?.toLowerCase().includes(n.toLowerCase()))
-      if (filter === 'work') return t.category === 'work'
-      if (filter === 'personal') return t.category === 'personal'
-      return true
+      if (filter === 'all') {}
+      else if (filter === 'active'   && t.done) return false
+      else if (filter === 'done'     && !t.done) return false
+      else if (filter === 'urgent'   && t.priority !== 'urgent') return false
+      else if (filter === 'mine'     && !MY_NAMES.some(n => t.person?.toLowerCase().includes(n.toLowerCase()))) return false
+      else if (filter === 'work'     && t.category !== 'work') return false
+      else if (filter === 'personal' && t.category !== 'personal') return false
+      if (!q) return true
+      return (t.title || '').toLowerCase().includes(q)
+          || (t.person || '').toLowerCase().includes(q)
+          || (t.projectName || '').toLowerCase().includes(q)
     })
-  }, [tasks, filter])
+  }, [tasks, filter, searchQuery])
 
   // Parent→children map from ALL tasks
   const childrenMap = useMemo(() => {
@@ -432,6 +437,42 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             <div className="stat-label">مكتملة</div>
           </div>
         </div>
+      </div>
+
+      {/* Search */}
+      <div style={{ padding: '0 16px 8px', position: 'relative' }}>
+        <span style={{
+          position: 'absolute', right: 28, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 15, pointerEvents: 'none', opacity: 0.45,
+        }}>🔍</span>
+        <input
+          type="search"
+          placeholder="ابحث في المهام..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '9px 38px 9px 12px',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: 'var(--card)',
+            color: 'var(--text)',
+            fontSize: 14,
+            fontFamily: 'inherit',
+            direction: 'rtl',
+            outline: 'none',
+          }}
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            style={{
+              position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 13, opacity: 0.5, color: 'var(--text)', padding: 2,
+            }}
+          >✕</button>
+        )}
       </div>
 
       {/* Filters */}
