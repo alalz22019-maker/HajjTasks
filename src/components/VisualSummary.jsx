@@ -48,12 +48,31 @@ const CARD = {
   padding: '14px 16px',
 }
 
+// Ministry of Health / Saudi government color palette
+const MN = {
+  bg:    '#0D1B2A',
+  bg2:   '#152236',
+  bg3:   '#1B3558',
+  gold:  '#C9A84C',
+  goldL: '#E8C97A',
+  green: '#006C35',
+  green2:'#00A651',
+  white: '#FFFFFF',
+  off:   '#CBD8E8',
+  gray:  '#6B8CAE',
+  red:   '#C0392B',
+  red2:  '#EF4444',
+  border: 'rgba(201,168,76,0.25)',
+}
+
 export default function VisualSummary({ tasks, apiKey }) {
   const [summary, setSummary]     = useState(null)
   const [loading, setLoading]     = useState(false)
   const [error, setError]         = useState('')
   const [exporting, setExporting] = useState(false)
-  const cardRef = useRef(null)
+  const cardRef  = useRef(null)
+  const slide1Ref = useRef(null)
+  const slide2Ref = useRef(null)
 
   const total      = tasks.length
   const doneCnt    = tasks.filter(t => t.done).length
@@ -98,23 +117,21 @@ export default function VisualSummary({ tasks, apiKey }) {
   }
 
   async function handleDownloadPDF() {
-    if (!cardRef.current) return
+    if (!slide1Ref.current || !slide2Ref.current) return
     setExporting(true)
     try {
-      const el = cardRef.current
-      const dataUrl = await toPng(el, {
-        pixelRatio: 2, cacheBust: true,
-        width: el.scrollWidth, height: el.scrollHeight,
-      })
-      const img = new Image()
-      img.src = dataUrl
-      await new Promise(r => { img.onload = r })
-      const imgW = img.width
-      const imgH = img.height
-      const pdf = new jsPDF({ orientation: imgH > imgW ? 'portrait' : 'landscape', unit: 'px', format: [imgW, imgH] })
-      pdf.addImage(dataUrl, 'PNG', 0, 0, imgW, imgH)
+      const W = 1280, H = 720
+      const opts = { pixelRatio: 1.5, cacheBust: true, width: W, height: H }
+      const [url1, url2] = await Promise.all([
+        toPng(slide1Ref.current, opts),
+        toPng(slide2Ref.current, opts),
+      ])
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [W, H] })
+      pdf.addImage(url1, 'PNG', 0, 0, W, H)
+      pdf.addPage([W, H], 'landscape')
+      pdf.addImage(url2, 'PNG', 0, 0, W, H)
       pdf.save(`الملخص-التنفيذي-${new Date().toISOString().slice(0, 10)}.pdf`)
-    } catch { setError('تعذّر تحميل PDF') }
+    } catch { setError('تعذّر إنشاء PDF') }
     finally { setExporting(false) }
   }
 
@@ -614,6 +631,319 @@ export default function VisualSummary({ tasks, apiKey }) {
             </div>
 
           </div>
+
+          {/* ══════════════════════════════════
+              HIDDEN PDF SLIDES (off-screen)
+              ══════════════════════════════════ */}
+          <div style={{ position: 'fixed', left: -9999, top: 0, zIndex: -1, pointerEvents: 'none' }}>
+
+            {/* ── PDF SLIDE 1: KPIs + Progress + Matrix ── */}
+            <div ref={slide1Ref} style={{
+              width: 1280, height: 720,
+              background: MN.bg,
+              fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
+              direction: 'rtl', overflow: 'hidden', position: 'relative',
+              boxSizing: 'border-box',
+            }}>
+              {/* Top gradient bar */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: `linear-gradient(90deg, ${MN.green}, ${MN.gold})` }} />
+              {/* Decorative circles */}
+              <div style={{ position: 'absolute', top: -80, left: -80, width: 280, height: 280, borderRadius: '50%', background: `radial-gradient(circle, rgba(201,168,76,0.07) 0%, transparent 70%)`, pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: `radial-gradient(circle, rgba(0,108,53,0.08) 0%, transparent 70%)`, pointerEvents: 'none' }} />
+
+              {/* Header */}
+              <div style={{
+                marginTop: 6, padding: '18px 56px 14px',
+                background: `linear-gradient(180deg, ${MN.bg2} 0%, transparent 100%)`,
+                borderBottom: `1px solid ${MN.border}`,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: MN.white }}>{summary.title || 'الملخص التنفيذي'}</div>
+                  <div style={{ fontSize: 12, color: MN.gold, marginTop: 3 }}>مكتب إدارة المشاريع • مركز عمليات المختبرات</div>
+                </div>
+                <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <div style={{ fontSize: 11, color: MN.gray }}>{formatArabicDate()}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: MN.green2, boxShadow: `0 0 6px ${MN.green2}` }} />
+                    <span style={{ fontSize: 10, color: MN.off }}>الشريحة 1 من 2</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '20px 56px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                {/* KPI row */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                  {kpis.map((kpi, i) => {
+                    const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
+                    return (
+                      <div key={i} style={{
+                        background: MN.bg3, border: `1px solid ${col.color}40`,
+                        borderRadius: 14, padding: '16px 18px',
+                        display: 'flex', alignItems: 'center', gap: 14,
+                        boxShadow: `0 4px 20px ${col.glow}`,
+                      }}>
+                        <div style={{
+                          width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                          background: `${col.color}20`, border: `1px solid ${col.color}35`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+                        }}>{kpi.icon}</div>
+                        <div>
+                          <div style={{ fontSize: 30, fontWeight: 900, color: col.color, lineHeight: 1 }}>{kpi.value}</div>
+                          <div style={{ fontSize: 12, color: MN.off, marginTop: 3 }}>{kpi.label}</div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Progress + Matrix */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 16 }}>
+
+                  {/* Progress card */}
+                  <div style={{ background: MN.bg3, borderRadius: 14, border: `1px solid ${MN.border}`, padding: '20px 24px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: MN.gold }}>📊 تقدم الإنجاز الكلي</span>
+                      <span style={{ fontSize: 28, fontWeight: 900, color: pct >= 70 ? MN.green2 : pct >= 40 ? '#F59E0B' : MN.red2 }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 12, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', width: `${pct}%`, borderRadius: 99,
+                        background: pct >= 70
+                          ? `linear-gradient(90deg,${MN.green},${MN.green2})`
+                          : pct >= 40
+                          ? 'linear-gradient(90deg,#D97706,#F59E0B)'
+                          : `linear-gradient(90deg,${MN.red},${MN.red2})`,
+                        boxShadow: pct >= 70 ? `0 0 12px rgba(0,108,53,0.5)` : undefined,
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                      {[
+                        { label: 'الإجمالي', value: total, color: MN.off },
+                        { label: 'منجزة', value: doneCnt, color: MN.green2 },
+                        { label: 'عاجلة', value: urgentCnt, color: '#F97316' },
+                        { label: 'متأخرة', value: overdue, color: MN.red2 },
+                      ].map((s, i) => (
+                        <div key={i} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 22, fontWeight: 900, color: s.color }}>{s.value}</div>
+                          <div style={{ fontSize: 10, color: MN.gray }}>{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Eisenhower matrix */}
+                  <div style={{ background: MN.bg3, borderRadius: 14, border: `1px solid ${MN.border}`, padding: '20px 24px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: MN.gold, marginBottom: 14 }}>⊞ مصفوفة أيزنهاور للأولويات</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, position: 'relative' }}>
+                      {MATRIX_CFG.map(q => {
+                        const data = summary.matrix?.[q.key] || { count: 0, items: [] }
+                        return (
+                          <div key={q.key} style={{
+                            background: `${q.color}10`, border: `1px solid ${q.color}35`,
+                            borderRadius: 10, padding: '12px 14px',
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: q.color }}>{q.icon} {q.label}</span>
+                              <span style={{ fontSize: 22, fontWeight: 900, color: q.color }}>{data.count}</span>
+                            </div>
+                            {(data.items || []).slice(0, 2).map((item, j) => (
+                              <div key={j} style={{ display: 'flex', gap: 5, alignItems: 'flex-start', marginBottom: 2 }}>
+                                <span style={{ color: q.color, fontSize: 11, flexShrink: 0 }}>›</span>
+                                <span style={{ fontSize: 10, color: MN.off, lineHeight: 1.4 }}>{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      })}
+                      <div style={{
+                        position: 'absolute', top: '50%', left: '50%',
+                        transform: 'translate(-50%,-50%)',
+                        width: 26, height: 26, borderRadius: '50%',
+                        background: MN.bg2, border: `2px solid ${MN.border}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, color: MN.gray,
+                      }}>+</div>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                      <span style={{ fontSize: 9, color: MN.gray }}>← غير عاجل</span>
+                      <span style={{ fontSize: 9, color: MN.gray }}>عاجل →</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: MN.bg2, borderTop: `1px solid ${MN.border}`,
+                padding: '9px 56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 10, color: MN.gray }}>سري — للاستخدام الداخلي فقط</span>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  <div style={{ width: 28, height: 3, borderRadius: 2, background: MN.gold }} />
+                  <div style={{ width: 28, height: 3, borderRadius: 2, background: `${MN.gray}50` }} />
+                </div>
+                <span style={{ fontSize: 10, color: MN.gray }}>مكتب إدارة المشاريع — مركز عمليات المختبرات</span>
+              </div>
+            </div>
+
+            {/* ── PDF SLIDE 2: Overview + People + Actions + Recommendations ── */}
+            <div ref={slide2Ref} style={{
+              width: 1280, height: 720,
+              background: MN.bg,
+              fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
+              direction: 'rtl', overflow: 'hidden', position: 'relative',
+              boxSizing: 'border-box',
+            }}>
+              {/* Top gradient bar */}
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: `linear-gradient(90deg, ${MN.gold}, ${MN.green})` }} />
+              <div style={{ position: 'absolute', top: -80, right: -80, width: 260, height: 260, borderRadius: '50%', background: `radial-gradient(circle, rgba(201,168,76,0.06) 0%, transparent 70%)`, pointerEvents: 'none' }} />
+              <div style={{ position: 'absolute', bottom: -60, left: -60, width: 200, height: 200, borderRadius: '50%', background: `radial-gradient(circle, rgba(0,108,53,0.07) 0%, transparent 70%)`, pointerEvents: 'none' }} />
+
+              {/* Header */}
+              <div style={{
+                marginTop: 6, padding: '18px 56px 14px',
+                background: `linear-gradient(180deg, ${MN.bg2} 0%, transparent 100%)`,
+                borderBottom: `1px solid ${MN.border}`,
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: MN.white }}>التحليل التفصيلي والتوصيات</div>
+                  <div style={{ fontSize: 12, color: MN.gold, marginTop: 3 }}>مكتب إدارة المشاريع • مركز عمليات المختبرات</div>
+                </div>
+                <div style={{ textAlign: 'left', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <div style={{ fontSize: 11, color: MN.gray }}>{formatArabicDate()}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: MN.gold, boxShadow: `0 0 6px ${MN.gold}` }} />
+                    <span style={{ fontSize: 10, color: MN.off }}>الشريحة 2 من 2</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Body — 2 columns */}
+              <div style={{ padding: '18px 56px 0', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, height: 570 }}>
+
+                {/* Right column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* Overview */}
+                  {summary.overview?.length > 0 && (
+                    <div style={{
+                      background: MN.bg3, borderRadius: 14, border: `1px solid ${MN.border}`,
+                      padding: '16px 20px', flex: summary.actionItems?.length > 0 ? 1 : 'unset',
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: MN.gold, marginBottom: 12 }}>🎯 الملخص التنفيذي</div>
+                      {summary.overview.slice(0, 4).map((item, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: MN.gold, flexShrink: 0, marginTop: 6 }} />
+                          <span style={{ fontSize: 12, color: MN.off, lineHeight: 1.6 }}>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Action Items */}
+                  {summary.actionItems?.length > 0 && (
+                    <div style={{
+                      background: `rgba(192,57,43,0.06)`, borderRadius: 14,
+                      border: `1px solid rgba(192,57,43,0.25)`, padding: '16px 20px', flex: 1,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: MN.red2, marginBottom: 12 }}>⚡ مهام تحتاج قراراً</div>
+                      {summary.actionItems.slice(0, 4).map((item, i) => {
+                        const hi = item.priority === 'high'
+                        return (
+                          <div key={i} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            marginBottom: 7, padding: '6px 10px', borderRadius: 8,
+                            background: hi ? 'rgba(239,68,68,0.09)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${hi ? 'rgba(239,68,68,0.2)' : 'transparent'}`,
+                          }}>
+                            <span style={{ fontSize: 11, color: hi ? MN.red2 : MN.off }}>{hi ? '🔴' : '🔵'} {item.task || item.text}</span>
+                            {item.owner && <span style={{ fontSize: 10, color: MN.gray, flexShrink: 0, paddingRight: 8 }}>{item.owner}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Left column */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* People Status */}
+                  {summary.peopleStatus?.length > 0 && (
+                    <div style={{
+                      background: MN.bg3, borderRadius: 14, border: `1px solid ${MN.border}`,
+                      padding: '16px 20px', flex: 1,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: MN.gold, marginBottom: 12 }}>👥 حالة الفريق</div>
+                      {summary.peopleStatus.slice(0, 5).map((person, i) => (
+                        <div key={i} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          marginBottom: 8, padding: '7px 10px', borderRadius: 8,
+                          background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                              width: 26, height: 26, borderRadius: '50%',
+                              background: `rgba(201,168,76,0.15)`, border: `1px solid ${MN.border}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
+                            }}>👤</div>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: MN.white }}>{person.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <span style={{ fontSize: 10, color: MN.gray, background: 'rgba(255,255,255,0.07)', borderRadius: 5, padding: '2px 9px' }}>{person.pending?.length || 0} معلقة</span>
+                            {person.overdueCount > 0 && (
+                              <span style={{ fontSize: 10, color: MN.red2, background: 'rgba(192,57,43,0.15)', borderRadius: 5, padding: '2px 9px' }}>{person.overdueCount} متأخرة</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Recommendations */}
+                  {summary.recommendations?.length > 0 && (
+                    <div style={{
+                      background: `linear-gradient(135deg, rgba(0,108,53,0.1), rgba(201,168,76,0.07))`,
+                      borderRadius: 14, border: `1px solid rgba(201,168,76,0.22)`,
+                      padding: '16px 20px', flex: summary.peopleStatus?.length > 0 ? 'unset' : 1,
+                    }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: MN.gold, marginBottom: 12 }}>💡 التوصيات الاستراتيجية</div>
+                      {summary.recommendations.slice(0, 3).map((item, i) => (
+                        <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'flex-start' }}>
+                          <div style={{
+                            width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+                            background: 'rgba(201,168,76,0.18)', border: `1px solid rgba(201,168,76,0.4)`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 10, color: MN.gold, fontWeight: 900,
+                          }}>{i + 1}</div>
+                          <span style={{ fontSize: 11, color: MN.off, lineHeight: 1.6 }}>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: MN.bg2, borderTop: `1px solid ${MN.border}`,
+                padding: '9px 56px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span style={{ fontSize: 10, color: MN.gray }}>سري — للاستخدام الداخلي فقط</span>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  <div style={{ width: 28, height: 3, borderRadius: 2, background: `${MN.gray}50` }} />
+                  <div style={{ width: 28, height: 3, borderRadius: 2, background: MN.gold }} />
+                </div>
+                <span style={{ fontSize: 10, color: MN.gray }}>مكتب إدارة المشاريع — مركز عمليات المختبرات</span>
+              </div>
+            </div>
+
+          </div>{/* end hidden slides */}
+
         </>
       )}
     </div>
