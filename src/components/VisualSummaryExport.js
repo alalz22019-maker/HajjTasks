@@ -1,54 +1,25 @@
-import * as htmlToImage from 'html-to-image'
+import { toPng, getFontEmbedCSS } from 'html-to-image'
 import jsPDF from 'jspdf'
 
-// Cache the embedded font CSS so we only fetch once per session
-let _fontCssCache = null
+// Pre-fetch and cache embedded font CSS (same-origin, no CORS issues)
+let _fontEmbedCSS = null
 
-async function getArabicFontCss() {
-  if (_fontCssCache !== null) return _fontCssCache
-
+async function buildFontEmbedCSS(el) {
+  if (_fontEmbedCSS !== null) return _fontEmbedCSS
   try {
-    // Fetch Google Fonts CSS (they allow CORS)
-    const cssResp = await fetch(
-      'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700;900&display=swap',
-      { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36' } }
-    )
-    let css = await cssResp.text()
-
-    // Extract all font file URLs
-    const urls = [...css.matchAll(/url\((https:\/\/fonts\.gstatic\.com[^)]+)\)/g)].map(m => m[1])
-
-    // Fetch each font file and embed as base64
-    await Promise.all(urls.map(async (url) => {
-      try {
-        const resp = await fetch(url)
-        const buf  = await resp.arrayBuffer()
-        const bytes = new Uint8Array(buf)
-        let binary = ''
-        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
-        const b64  = btoa(binary)
-        const mime = url.includes('.woff2') ? 'font/woff2' : 'font/woff'
-        css = css.replace(url, `data:${mime};base64,${b64}`)
-      } catch { /* skip this weight if it fails */ }
-    }))
-
-    _fontCssCache = css
+    _fontEmbedCSS = await getFontEmbedCSS(el)
   } catch {
-    _fontCssCache = '' // failed — fall back to whatever the browser has
+    _fontEmbedCSS = ''
   }
-
-  return _fontCssCache
+  return _fontEmbedCSS
 }
 
 async function captureDataUrl(el) {
   await document.fonts.ready
-
-  const fontEmbedCSS = await getArabicFontCss()
-
-  return htmlToImage.toPng(el, {
+  const fontEmbedCSS = await buildFontEmbedCSS(el)
+  return toPng(el, {
     pixelRatio: 2,
     cacheBust: true,
-    skipFonts: false,
     ...(fontEmbedCSS ? { fontEmbedCSS } : {}),
   })
 }
