@@ -163,27 +163,28 @@ export async function analyzeTaskWithAI(apiKey, taskTitle) {
 
 export const VISUAL_SUMMARY_SYSTEM = `أنت خبير مكتب إدارة المشاريع (PMO) متخصص في مركز عمليات المختبرات بوزارة الصحة السعودية.
 
-مهمتك: تحليل مهام مركز عمليات المختبرات وإنتاج ملخص تنفيذي مختصر ودقيق يمكّن المدير التنفيذي من اتخاذ القرارات مباشرة.
+مهمتك: تحليل مهام مركز عمليات المختبرات وإنتاج تقرير إدارة مهام مختصر ودقيق يمكّن المدير التنفيذي من اتخاذ القرارات مباشرة.
 
 CRITICAL:
 - كل بند يذكر اسم المهمة الفعلي أو اسم الشخص بالتحديد — لا عبارات عامة
 - جميع الأرقام بالأرقام الغربية (0-9) فقط — ممنوع استخدام الأرقام الشرقية (٠-٩)
 - الجمل مختصرة لا تتجاوز 15 كلمة
+- اليوم الحالي يُمرَّر في أول سطر من البيانات بصيغة today=YYYY-MM-DD
 
 أرجع JSON بهذا الشكل (بدون أي نص خارج JSON):
 {
-  "title": "الملخص التنفيذي",
+  "title": "تقرير إدارة المهام",
   "kpis": [
-    { "label": "نسبة الإنجاز",  "value": "47%", "icon": "📈", "color": "blue"   },
-    { "label": "تحتاج قراراً",  "value": 3,     "icon": "⚡", "color": "red"    },
-    { "label": "مهام متأخرة",   "value": 2,     "icon": "⚠️", "color": "yellow" },
-    { "label": "على المسار",    "value": 7,     "icon": "✅", "color": "green"  }
+    { "label": "إجمالي المهام",     "value": 25,    "icon": "📋", "color": "blue"   },
+    { "label": "متأخرة",            "value": 3,     "icon": "⚡", "color": "red"    },
+    { "label": "قاربت على التأخر", "value": 2,     "icon": "⚠️", "color": "yellow" },
+    { "label": "على المسار",        "value": 7,     "icon": "✅", "color": "green"  }
   ],
   "matrix": {
-    "urgentImportant":    { "count": 3, "items": ["اسم مهمة فعلي ≤18 حرف", "اسم ثانٍ"] },
-    "importantNotUrgent": { "count": 2, "items": ["اسم مهمة فعلي"] },
-    "urgentNotImportant": { "count": 1, "items": ["اسم مهمة فعلي"] },
-    "other":              { "count": 4, "items": ["اسم مهمة فعلي"] }
+    "urgentImportant":    { "count": 3, "items": ["3-6 كلمات من عنوان المهمة", "عنوان ثانٍ"] },
+    "importantNotUrgent": { "count": 2, "items": ["3-6 كلمات من عنوان المهمة"] },
+    "urgentNotImportant": { "count": 1, "items": ["3-6 كلمات من عنوان المهمة"] },
+    "other":              { "count": 4, "items": ["3-6 كلمات من عنوان المهمة"] }
   },
   "overview": [
     "جملة واحدة ≤15 كلمة تذكر رقماً ومهمة أو شخصاً بالاسم",
@@ -191,23 +192,25 @@ CRITICAL:
   ],
   "projectBreakdown": [
     {
-      "category": "اسم الفئة الفعلي",
+      "category": "اسم المشروع/المجلد الفعلي من حقل f",
       "total": 6,
       "done": 3,
-      "completed": ["اسم مهمة مكتملة ≤18 حرف", "اسم ثانٍ"],
-      "pending": ["اسم مهمة معلقة ≤18 حرف", "اسم ثانٍ"]
+      "completed": ["3-6 كلمات من عنوان مكتملة", "عنوان ثانٍ"],
+      "pending": ["3-6 كلمات من عنوان معلقة", "عنوان ثانٍ"]
     }
   ],
   "peopleStatus": [
     {
       "name": "اسم الشخص الفعلي",
-      "pending": ["اسم المهمة المعلقة ≤18 حرف", "اسم ثانية"],
+      "overdueTasks": ["3-6 كلمات من عنوان متأخرة"],
+      "nearDueTasks": ["3-6 كلمات من عنوان قاربت"],
+      "activeTasks":  ["3-6 كلمات من عنوان جارية"],
       "overdueCount": 1
     }
   ],
   "actionItems": [
     {
-      "task": "اسم المهمة ≤20 حرف",
+      "task": "3-6 كلمات من عنوان المهمة",
       "owner": "اسم المالك",
       "reason": "سبب محدد ≤10 كلمات",
       "priority": "high"
@@ -219,33 +222,38 @@ CRITICAL:
 }
 
 قواعد الحساب (صارمة):
-- kpis[0].value = نسبة الإنجاز "XX%"
-- kpis[1].value = عدد المهام ذات p=urgent وd=0
-- kpis[2].value = عدد المهام التي due قبل اليوم وd=0
+- kpis[0].value = إجمالي عدد المهام (مكتملة + غير مكتملة)
+- kpis[1].value = عدد المهام التي due < today وd=0
+- kpis[2].value = عدد المهام التي today ≤ due ≤ today+2 وd=0
 - kpis[3].value = عدد المهام التي d=1
-- matrix: urgentImportant(p=urgent,d=0) / importantNotUrgent(p=high|medium) / urgentNotImportant(p=normal+due قريب) / other
+- matrix: urgentImportant(p=urgent,d=0) / importantNotUrgent(p=high|medium,d=0) / urgentNotImportant(p=normal,due≤today+2,d=0) / other
 
 قواعد المحتوى (لا تخالفها):
 - overview: جملتان مختصرتان (≤15 كلمة كل منهما) بأسماء وأرقام فعلية من البيانات
-- projectBreakdown: اجمع حسب الفئة (c)، سجّل لكل فئة فيها مهمتان أو أكثر، أسماء مختصرة ≤18 حرف
-- peopleStatus: اجمع حسب المالك (w)، مهامه المعلقة بالاسم ≤18 حرف، احسب overdueCount، تجاهل w=''
-- actionItems: 3-5 مهام تحتاج قرار القيادة، اسم المهمة + المالك + سبب محدد ≤10 كلمات
-- recommendations: 3 توصيات PMO مختصرة (≤12 كلمة) مبنية على واقع مهام مركز عمليات المختبرات
-- items في matrix: اسم المهمة الفعلي ≤18 حرف، لا عبارات عامة
+- projectBreakdown: اجمع حسب حقل f (اسم المشروع)، إن كان f فارغاً استخدم c، سجّل كل مجموعة فيها مهمتان فأكثر
+- peopleStatus: اجمع حسب (w)، تجاهل w=''، رتّب الأشخاص تنازلياً حسب overdueCount
+  - overdueTasks: مهام due < today وd=0
+  - nearDueTasks: مهام today ≤ due ≤ today+2 وd=0
+  - activeTasks: مهام d=0 غير المتأخرة وغير القريبة
+- actionItems: 3-5 مهام تحتاج قرار القيادة، اسم المهمة + المالك + سبب ≤10 كلمات
+- recommendations: 3 توصيات PMO مختصرة (≤12 كلمة) مبنية على واقع المهام الفعلي
+- items في matrix وكل عناوين المهام: 3-6 كلمات فعلية من عنوان المهمة، لا عبارات عامة
 - جميع الأرقام غربية (0-9) بدون استثناء
 - جميع النصوص بالعربية الفصحى
 أرجع JSON فقط بدون \`\`\`json`
 
 export async function generateVisualSummary(apiKey, tasks) {
+  const today = new Date().toISOString().slice(0, 10)
   const slim = tasks.map(t => ({
     t: t.title,
     p: t.priority,
     c: t.category,
+    f: t.projectName || '',
     w: t.person || '',
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
   }))
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, JSON.stringify(slim), 'claude-sonnet-4-6')
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, `today=${today}\n${JSON.stringify(slim)}`, 'claude-sonnet-4-6')
   // Strip markdown code fences if Claude wraps the JSON
   const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
   try {

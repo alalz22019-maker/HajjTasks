@@ -10,16 +10,25 @@ function SectionLabel({ icon, label, color }) {
 }
 
 export default function VisualSummaryCard({ cardRef, summary, tasks }) {
-  const today   = new Date()
-  const total   = tasks.length
-  const doneCnt = tasks.filter(t => t.done).length
-  const pct     = total ? Math.round((doneCnt / total) * 100) : 0
+  const today    = new Date()
+  const todayMs  = new Date(today.toDateString()).getTime()
+  const in2Days  = todayMs + 2 * 86400000
+  const total    = tasks.length
+  const doneCnt  = tasks.filter(t => t.done).length
+  const pct      = total ? Math.round((doneCnt / total) * 100) : 0
+
+  const overdueCnt  = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate).getTime() < todayMs).length
+  const nearDueCnt  = tasks.filter(t => {
+    if (t.done || !t.dueDate) return false
+    const ms = new Date(t.dueDate).getTime()
+    return ms >= todayMs && ms <= in2Days
+  }).length
 
   const fallbackKPIs = [
-    { label: 'نسبة الإنجاز',  value: `${pct}%`,                                                       icon: '📈', color: 'blue'   },
-    { label: 'تحتاج قراراً',  value: tasks.filter(t => t.priority === 'urgent' && !t.done).length,    icon: '⚡', color: 'red'    },
-    { label: 'مهام متأخرة',   value: tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < today).length, icon: '⚠️', color: 'yellow' },
-    { label: 'على المسار',    value: doneCnt,                                                          icon: '✅', color: 'green'  },
+    { label: 'إجمالي المهام',    value: total,       icon: '📋', color: 'blue'   },
+    { label: 'متأخرة',           value: overdueCnt,  icon: '⚡', color: 'red'    },
+    { label: 'قاربت على التأخر', value: nearDueCnt,  icon: '⚠️', color: 'yellow' },
+    { label: 'على المسار',       value: doneCnt,     icon: '✅', color: 'green'  },
   ]
   const kpis = summary?.kpis?.length ? summary.kpis : fallbackKPIs
   const { hijri, gregorianEn } = formatDates()
@@ -48,7 +57,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <div>
             <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
-              {summary.title || 'الملخص التنفيذي'}
+              {summary.title || 'تقرير إدارة المهام'}
             </div>
             <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10 }}>
               مكتب إدارة المشاريع • مركز عمليات المختبرات
@@ -60,7 +69,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
             border: '1px solid rgba(255,255,255,0.3)',
             borderRadius: 8, padding: '4px 10px',
             fontSize: 10, fontWeight: 700, color: '#FFFFFF',
-          }}>HSSC</div>
+          }}>LOC</div>
         </div>
 
         {/* Divider */}
@@ -133,7 +142,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
 
         {/* ── EISENHOWER MATRIX ── */}
         <div>
-          <SectionLabel icon="⊞" label="مصفوفة تصنيف المهام (الأهمية × العجلة)" color={D.purple} />
+          <SectionLabel icon="⊞" label="مصفوفة تصنيف المهام (الأهمية × العاجلة)" color={D.purple} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, position: 'relative' }}>
             {MATRIX_CFG.map(q => {
               const data = summary.matrix?.[q.key] || { count: 0, items: [] }
@@ -205,37 +214,76 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
             borderRadius: 14, padding: '14px 16px',
           }}>
             <SectionLabel icon="👥" label="حالة الفريق — المهام المعلقة" color={D.red} />
-            {summary.peopleStatus.map((person, i) => (
-              <div key={i} style={{ marginBottom: i < summary.peopleStatus.length - 1 ? 10 : 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      background: '#FFFFFF', border: `1px solid ${D.red}40`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, flexShrink: 0,
-                    }}>👤</div>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
+            {summary.peopleStatus.map((person, i) => {
+              // Support both new format (overdueTasks/nearDueTasks/activeTasks) and old format (pending)
+              const overdue = person.overdueTasks || []
+              const nearDue = person.nearDueTasks || []
+              const active  = person.activeTasks  || []
+              const allOld  = person.pending       || []
+              const useNew  = overdue.length > 0 || nearDue.length > 0 || active.length > 0
+              const totalCount = useNew ? overdue.length + nearDue.length + active.length : allOld.length
+
+              return (
+                <div key={i} style={{ marginBottom: i < summary.peopleStatus.length - 1 ? 10 : 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: '50%',
+                        background: '#FFFFFF', border: `1px solid ${D.red}40`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, flexShrink: 0,
+                      }}>👤</div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {overdue.length > 0 && (
+                        <span style={{ fontSize: 9, color: D.red, background: '#FFFFFF', borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.red}30` }}>
+                          {overdue.length} متأخرة
+                        </span>
+                      )}
+                      {nearDue.length > 0 && (
+                        <span style={{ fontSize: 9, color: D.yellow, background: '#FFFFFF', borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.yellow}40` }}>
+                          {nearDue.length} قاربت
+                        </span>
+                      )}
+                      {!useNew && totalCount > 0 && (
+                        <span style={{ fontSize: 9, color: D.text2, background: D.bg2, borderRadius: 4, padding: '2px 7px' }}>
+                          {totalCount} معلقة
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <span style={{ fontSize: 9, color: D.text2, background: D.bg2, borderRadius: 4, padding: '2px 7px' }}>
-                      {person.pending?.length || 0} معلقة
-                    </span>
-                    {person.overdueCount > 0 && (
-                      <span style={{ fontSize: 9, color: D.red, background: '#FFFFFF', borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.red}30` }}>
-                        {person.overdueCount} متأخرة
-                      </span>
-                    )}
-                  </div>
+                  {/* متأخرة — أحمر */}
+                  {overdue.map((t, j) => (
+                    <div key={`o${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
+                      <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
+                      <span style={{ fontSize: 9, color: D.red, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                    </div>
+                  ))}
+                  {/* قاربت على التأخر — برتقالي */}
+                  {nearDue.map((t, j) => (
+                    <div key={`n${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
+                      <span style={{ color: D.yellow, fontSize: 10, flexShrink: 0 }}>○</span>
+                      <span style={{ fontSize: 9, color: D.yellow, lineHeight: 1.4 }}>{t}</span>
+                    </div>
+                  ))}
+                  {/* جارية — أخضر */}
+                  {active.map((t, j) => (
+                    <div key={`a${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
+                      <span style={{ color: D.green, fontSize: 10, flexShrink: 0 }}>○</span>
+                      <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
+                    </div>
+                  ))}
+                  {/* Fallback: old format */}
+                  {!useNew && allOld.map((t, j) => (
+                    <div key={`p${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
+                      <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
+                      <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
+                    </div>
+                  ))}
                 </div>
-                {(person.pending || []).map((t, j) => (
-                  <div key={j} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
-                    <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
-                    <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -344,28 +392,29 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
           }
           const trunc = (s, n) => s && s.length > n ? s.slice(0, n) + '…' : (s || '—')
           const getStatus = (t) => {
-            if (t.done) return { label: 'منجزة', color: D.green }
-            if (t.dueDate && new Date(t.dueDate) < today) return { label: 'متأخرة', color: D.red }
+            if (t.dueDate && new Date(t.dueDate).getTime() < todayMs) return { label: 'متأخرة', color: D.red }
+            const ms = t.dueDate ? new Date(t.dueDate).getTime() : Infinity
+            if (ms >= todayMs && ms <= in2Days) return { label: 'قاربت', color: D.yellow }
             if (t.priority === 'urgent') return { label: 'عاجل', color: '#E8621A' }
             return { label: 'معلق', color: D.text3 }
           }
-          const PRI  = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 }
-          const top7 = [...tasks].sort((a, b) => {
-            if (a.done !== b.done) return a.done ? 1 : -1
-            const aOvd = !a.done && a.dueDate && new Date(a.dueDate) < today
-            const bOvd = !b.done && b.dueDate && new Date(b.dueDate) < today
+          const PRI = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 }
+          const allIncomplete = [...tasks].filter(t => !t.done).sort((a, b) => {
+            const aOvd = a.dueDate && new Date(a.dueDate).getTime() < todayMs
+            const bOvd = b.dueDate && new Date(b.dueDate).getTime() < todayMs
             if (aOvd !== bOvd) return aOvd ? -1 : 1
             return (PRI[a.priority] ?? 3) - (PRI[b.priority] ?? 3)
-          }).slice(0, 7)
+          })
 
-          const COL = ['45%', '16%', '21%', '18%']
+          // Columns: # | المهمة | الموعد | المالك | الحالة
+          const COL = ['5%', '43%', '14%', '20%', '18%']
           const SEP = `1px solid ${D.border}`
           const ROW = (cells) => (
             <div style={{ display: 'flex', flexDirection: 'row' }}>
               {cells.map((cell, ci) => (
                 <div key={ci} style={{
-                  width: COL[ci], padding: '6px 7px', boxSizing: 'border-box',
-                  textAlign: ci === 0 ? 'right' : 'center',
+                  width: COL[ci], padding: '5px 5px', boxSizing: 'border-box',
+                  textAlign: ci === 0 ? 'center' : ci === 1 ? 'right' : 'center',
                   borderLeft: ci < cells.length - 1 ? SEP : 'none',
                 }}>
                   {cell}
@@ -375,25 +424,26 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
           )
           return (
             <div>
-              <SectionLabel icon="📋" label="أبرز 7 مهام" color={D.text2} />
+              <SectionLabel icon="📋" label="جميع المهام الغير مكتملة" color={D.text2} />
               <div style={{ borderRadius: 12, border: `1px solid ${D.border}`, overflow: 'hidden', boxShadow: CARD.boxShadow }}>
                 <div style={{ background: D.bg3, borderBottom: `1px solid ${D.border}` }}>
-                  {ROW(['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
-                    <span style={{ fontSize: 8, fontWeight: 700, color: D.green }}>{h}</span>
+                  {ROW(['#', 'المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
+                    <span style={{ fontSize: 7, fontWeight: 700, color: D.green }}>{h}</span>
                   )))}
                 </div>
-                {top7.map((t, i) => {
+                {allIncomplete.map((t, i) => {
                   const st = getStatus(t)
                   return (
                     <div key={i} style={{
-                      borderBottom: i < top7.length - 1 ? `1px solid ${D.border}` : 'none',
+                      borderBottom: i < allIncomplete.length - 1 ? `1px solid ${D.border}` : 'none',
                       background: i % 2 === 1 ? D.bg2 : D.bg,
                     }}>
                       {ROW([
-                        <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.3, display: 'block' }}>{t.title}</span>,
-                        <span style={{ fontSize: 8, color: D.text3 }}>{fmtDate(t.dueDate)}</span>,
-                        <span style={{ fontSize: 8, color: D.text2 }}>{trunc(t.person, 9) || '—'}</span>,
-                        <span style={{ fontSize: 8, color: st.color, fontWeight: 700 }}>{st.label}</span>,
+                        <span style={{ fontSize: 7, color: D.text3, fontWeight: 600 }}>{i + 1}</span>,
+                        <span style={{ fontSize: 8, color: D.text, lineHeight: 1.3, display: 'block' }}>{t.title}</span>,
+                        <span style={{ fontSize: 7, color: D.text3 }}>{fmtDate(t.dueDate)}</span>,
+                        <span style={{ fontSize: 7, color: D.text2 }}>{trunc(t.person, 9) || '—'}</span>,
+                        <span style={{ fontSize: 7, color: st.color, fontWeight: 700 }}>{st.label}</span>,
                       ])}
                     </div>
                   )
@@ -414,7 +464,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <span style={{ fontSize: 9, color: D.text3 }}>تقرير مكتب إدارة المشاريع • مركز عمليات المختبرات</span>
-        <span style={{ fontSize: 9, color: D.green, fontWeight: 700 }}>MOH</span>
+        <span style={{ fontSize: 9, color: D.green, fontWeight: 700 }}>LOC - PMO</span>
       </div>
 
     </div>
