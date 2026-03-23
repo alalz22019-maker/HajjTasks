@@ -1,23 +1,28 @@
-import { toPng } from 'html-to-image'
+import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 
 async function captureCard(el) {
-  const prev = el.style.overflow
-  el.style.overflow = 'visible'
-  try {
-    return await toPng(el, {
-      pixelRatio: 2,
-      cacheBust: true,
-      width: el.scrollWidth,
-      height: el.scrollHeight,
-    })
-  } finally {
-    el.style.overflow = prev
-  }
+  // Wait for all fonts (including IBM Plex Sans Arabic) to be fully loaded
+  await document.fonts.ready
+
+  const canvas = await html2canvas(el, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: null,
+    logging: false,
+    width: el.scrollWidth,
+    height: el.scrollHeight,
+    windowWidth: el.scrollWidth,
+    windowHeight: el.scrollHeight,
+  })
+
+  return canvas
 }
 
 export async function exportPNG(el) {
-  const dataUrl = await captureCard(el)
+  const canvas  = await captureCard(el)
+  const dataUrl = canvas.toDataURL('image/png')
   const blob    = await (await fetch(dataUrl)).blob()
   const file    = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
   const isIOS   = /iPad|iPhone|iPod/.test(navigator.userAgent)
@@ -32,9 +37,10 @@ export async function exportPNG(el) {
 }
 
 export async function exportPDF(el) {
-  const dataUrl = await captureCard(el)
-  const w = el.scrollWidth
-  const h = el.scrollHeight
+  const canvas  = await captureCard(el)
+  const dataUrl = canvas.toDataURL('image/png')
+  const w = canvas.width  / 2   // undo scale:2
+  const h = canvas.height / 2
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', format: [w, h] })
   pdf.addImage(dataUrl, 'PNG', 0, 0, w, h)
   const blob = pdf.output('blob')
@@ -52,7 +58,8 @@ export async function exportPDF(el) {
 }
 
 export async function shareImage(el) {
-  const dataUrl = await captureCard(el)
+  const canvas  = await captureCard(el)
+  const dataUrl = canvas.toDataURL('image/png')
   const blob    = await (await fetch(dataUrl)).blob()
   const file    = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
   if (navigator.share && navigator.canShare?.({ files: [file] })) {
