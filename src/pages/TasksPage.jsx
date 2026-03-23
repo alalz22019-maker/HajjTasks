@@ -33,6 +33,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewMode, setViewMode] = useState('list') // list | compact | grouped | kanban | bubbles
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const VIEW_MODES = [
     { id: 'list',    icon: '▤', label: 'قائمة' },
@@ -227,6 +228,64 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
   const circumference = 2 * Math.PI * 40
 
+  function exportJSON() {
+    const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), tasks }, null, 2)
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `مهامي-نسخة-احتياطية-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+    showToast('✅ تم تنزيل النسخة الاحتياطية')
+  }
+
+  function exportCSV() {
+    const headers = ['العنوان', 'الأولوية', 'الفئة', 'الشخص', 'تاريخ الاستحقاق', 'الحالة', 'المشروع']
+    const rows = tasks.map(t => [
+      `"${(t.title || '').replace(/"/g, '""')}"`,
+      t.priority || '',
+      t.category || '',
+      `"${(t.person || '').replace(/"/g, '""')}"`,
+      t.dueDate || '',
+      t.done ? 'مكتملة' : 'معلقة',
+      `"${(t.projectName || '').replace(/"/g, '""')}"`,
+    ])
+    const csv = '\uFEFF' + [headers, ...rows].map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `مهامي-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+    showToast('✅ تم تنزيل ملف CSV')
+  }
+
+  function handleImportJSON(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result)
+        const imported = Array.isArray(data) ? data : (data.tasks || [])
+        if (!imported.length) { showToast('❌ لا توجد مهام في الملف'); return }
+        const existing = new Set(tasks.map(t => t.title.trim().toLowerCase()))
+        const newOnes = imported.filter(t => !existing.has((t.title || '').trim().toLowerCase()))
+        setTasks([...newOnes, ...tasks])
+        showToast(`✅ استُعيد ${newOnes.length} مهمة جديدة`)
+      } catch {
+        showToast('❌ ملف JSON غير صحيح')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+    setShowExportMenu(false)
+  }
+
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {/* Header — outside the scroll container to avoid iOS sticky-in-overflow bug */}
@@ -236,7 +295,62 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             <div className="header-title">مهامي Pro</div>
             <div className="header-sub">علي الزهراني • PMO وزارة الصحة</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+            {/* Export/Import menu */}
+            <button
+              onClick={() => setShowExportMenu(s => !s)}
+              title="تصدير / استيراد"
+              style={{
+                background: 'rgba(99,102,241,0.12)',
+                color: '#818cf8',
+                border: '1px solid rgba(99,102,241,0.25)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                fontSize: 13,
+                fontFamily: 'var(--font)',
+                cursor: 'pointer',
+              }}
+            >
+              ⬇️
+            </button>
+            {showExportMenu && (
+              <div style={{
+                position: 'absolute', top: 38, right: 0, zIndex: 200,
+                background: 'var(--card)', border: '1px solid var(--border)',
+                borderRadius: 12, padding: 8, minWidth: 170,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                display: 'flex', flexDirection: 'column', gap: 4,
+              }}>
+                <button onClick={exportJSON} style={{
+                  background: 'none', border: 'none', color: 'var(--text1)', fontFamily: 'var(--font)',
+                  fontSize: 13, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                  textAlign: 'right', display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  <span>💾</span> تنزيل JSON
+                </button>
+                <button onClick={exportCSV} style={{
+                  background: 'none', border: 'none', color: 'var(--text1)', fontFamily: 'var(--font)',
+                  fontSize: 13, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                  textAlign: 'right', display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  <span>📊</span> تنزيل CSV
+                </button>
+                <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
+                <label style={{
+                  color: 'var(--text1)', fontFamily: 'var(--font)',
+                  fontSize: 13, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                  textAlign: 'right', display: 'flex', gap: 8, alignItems: 'center',
+                }}>
+                  <span>📂</span> استيراد JSON
+                  <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
+                </label>
+              </div>
+            )}
+            {showExportMenu && (
+              <div onClick={() => setShowExportMenu(false)} style={{
+                position: 'fixed', inset: 0, zIndex: 199,
+              }} />
+            )}
             <button
               onClick={cycleView}
               title={VIEW_MODES.find(v => v.id === viewMode)?.label}
