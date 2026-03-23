@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { callClaudeChat, buildSmartChatSystem } from '../utils/claude'
 
 function genId() {
@@ -106,9 +107,9 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
 
   const confirmedCount = pendingTasks.filter(t => !skipped.has(t.id)).length
 
-  return (
+  return createPortal(
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
+      position: 'fixed', inset: 0, zIndex: 9999,
       background: 'var(--bg)',
       display: 'flex', flexDirection: 'column',
       fontFamily: 'var(--font)',
@@ -330,6 +331,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
           }}
         >↑</button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
