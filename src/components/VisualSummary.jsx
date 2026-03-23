@@ -1,147 +1,41 @@
 import { useState, useRef } from 'react'
-import { toPng } from 'html-to-image'
 import { generateVisualSummary } from '../utils/claude'
-
-function formatArabicDate() {
-  return new Date().toLocaleDateString('ar-SA', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-  })
-}
-
-// Dark-mode color palette (hardcoded hex for html-to-image compatibility)
-const D = {
-  bg:       '#0f172a',
-  bg2:      '#1e293b',
-  bg3:      '#0d1624',
-  border:   'rgba(148,163,184,0.15)',
-  text:     '#f1f5f9',
-  text2:    '#94a3b8',
-  text3:    '#475569',
-  green:    '#10b981', greenBg:  'rgba(16,185,129,0.1)',
-  red:      '#ef4444', redBg:    'rgba(239,68,68,0.1)',
-  blue:     '#3b82f6', blueBg:   'rgba(59,130,246,0.1)',
-  yellow:   '#f59e0b', yellowBg: 'rgba(245,158,11,0.1)',
-  gray:     '#94a3b8', grayBg:   'rgba(148,163,184,0.08)',
-  purple:   '#a78bfa', purpleBg: 'rgba(167,139,250,0.1)',
-}
-
-const KPI_PALETTE = {
-  green:  { color: D.green,  bg: D.greenBg,  glow: 'rgba(16,185,129,0.18)'  },
-  red:    { color: D.red,    bg: D.redBg,    glow: 'rgba(239,68,68,0.18)'   },
-  blue:   { color: D.blue,   bg: D.blueBg,   glow: 'rgba(59,130,246,0.18)'  },
-  gray:   { color: D.gray,   bg: D.grayBg,   glow: 'rgba(148,163,184,0.12)' },
-  yellow: { color: D.yellow, bg: D.yellowBg, glow: 'rgba(245,158,11,0.18)'  },
-}
-
-const MATRIX_CFG = [
-  { key: 'urgentImportant',    label: 'عاجل ومهم',      icon: '🔴', color: D.red,    bg: D.redBg    },
-  { key: 'importantNotUrgent', label: 'مهم وغير عاجل',  icon: '📌', color: D.blue,   bg: D.blueBg   },
-  { key: 'urgentNotImportant', label: 'عاجل وغير مهم',  icon: '⚡', color: D.yellow, bg: D.yellowBg },
-  { key: 'other',              label: 'أخرى',            icon: '📋', color: D.gray,   bg: D.grayBg   },
-]
-
-const CARD = {
-  background: '#1e293b',
-  borderRadius: 14,
-  border: 'rgba(148,163,184,0.15)',
-  padding: '14px 16px',
-}
+import VisualSummaryCard from './VisualSummaryCard'
+import { exportPNG, exportPDF, shareImage } from './VisualSummaryExport'
 
 export default function VisualSummary({ tasks, apiKey }) {
-  const [summary, setSummary]     = useState(null)
-  const [loading, setLoading]     = useState(false)
-  const [error, setError]         = useState('')
+  const [summary,   setSummary]   = useState(null)
+  const [loading,   setLoading]   = useState(false)
+  const [error,     setError]     = useState('')
   const [exporting, setExporting] = useState(false)
   const cardRef = useRef(null)
-
-  const total      = tasks.length
-  const doneCnt    = tasks.filter(t => t.done).length
-  const urgentCnt  = tasks.filter(t => t.priority === 'urgent' && !t.done).length
-  const pendingCnt = tasks.filter(t => !t.done && t.priority !== 'urgent').length
-  const overdue    = tasks.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < new Date()).length
-  const pct        = total ? Math.round((doneCnt / total) * 100) : 0
 
   async function handleGenerate() {
     if (!apiKey) { setError('أضف مفتاح API أولاً'); return }
     setLoading(true); setError(''); setSummary(null)
     try {
       const result = await generateVisualSummary(apiKey, tasks)
-      if (!result) throw new Error('لم يتج إنشاء اللوحة')
+      if (!result) throw new Error('لم ينتج إنشاء اللوحة')
       setSummary(result)
     } catch (e) {
       setError(e.message || 'حدث خطأ غير متوقع')
     } finally { setLoading(false) }
   }
 
-  async function handleDownload() {
+  async function withExport(fn) {
     if (!cardRef.current) return
-    setExporting(true)
-    try {
-      const el = cardRef.current
-      const dataUrl = await toPng(el, {
-        pixelRatio: 2, cacheBust: true,
-        width: el.scrollWidth, height: el.scrollHeight,
-      })
-      const blob = await (await fetch(dataUrl)).blob()
-      const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-      if (isIOS && navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'الملخص التنفيذي' })
-      } else {
-        const link = document.createElement('a')
-        link.download = `الملخص-التنفيذي-${new Date().toISOString().slice(0,10)}.png`
-        link.href = dataUrl; link.click()
-      }
-    } catch { setError('تعذّر تحميل الصورة') }
+    setExporting(true); setError('')
+    try { await fn(cardRef.current) }
+    catch (e) { setError(e.message || 'تعذّر التصدير') }
     finally { setExporting(false) }
   }
 
-  async function handleShare() {
-    if (!cardRef.current) return
-    setExporting(true)
-    try {
-      const el = cardRef.current
-      const dataUrl = await toPng(el, {
-        pixelRatio: 2, cacheBust: true,
-        width: el.scrollWidth, height: el.scrollHeight,
-      })
-      const blob = await (await fetch(dataUrl)).blob()
-      const file = new File([blob], 'الملخص-التنفيذي.png', { type: 'image/png' })
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'الملخص التنفيذي' })
-      } else {
-        const link = document.createElement('a')
-        link.download = 'الملخص-التنفيذي.png'
-        link.href = dataUrl; link.click()
-      }
-    } catch { setError('تعذّرت المشاركة') }
-    finally { setExporting(false) }
-  }
-
-  // Fallback KPIs computed locally when Claude doesn't return them
-  const fallbackKPIs = [
-    { label: 'نسبة الإنجاز',     value: `${pct}%`,  icon: '📈', color: 'blue'   },
-    { label: 'تحتاج قراراً',     value: urgentCnt,  icon: '⚡', color: 'red'    },
-    { label: 'مهام متأخرة',      value: overdue,    icon: '⚠️', color: 'yellow' },
-    { label: 'على المسار',       value: doneCnt,    icon: '✅', color: 'green'  },
-  ]
-
-  const kpis = summary?.kpis?.length ? summary.kpis : fallbackKPIs
-
-  // Section divider label
-  function SectionLabel({ icon, label, color }) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-        <span style={{ fontSize: 13 }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 700, color: color || D.text2 }}>{label}</span>
-      </div>
-    )
-  }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
 
   return (
     <div style={{ padding: '16px', direction: 'rtl' }}>
 
-      {/* ── Generate prompt ── */}
+      {/* ── شاشة البداية ── */}
       {!summary && !loading && (
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
@@ -152,16 +46,16 @@ export default function VisualSummary({ tasks, apiKey }) {
             ينشئ Claude ملخصاً تنفيذياً يساعدك على اتخاذ القرارات الصحيحة
           </div>
           <button onClick={handleGenerate} style={{
-            background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
+            background: 'linear-gradient(135deg, #006B3F, #28A265)',
             color: '#fff', border: 'none', borderRadius: 14,
             padding: '14px 32px', fontSize: 16, fontWeight: 700,
             cursor: 'pointer', fontFamily: 'inherit',
           }}>✨ إنشاء اللوحة</button>
-          {error && <div style={{ marginTop: 16, color: '#ef4444', fontSize: 13 }}>{error}</div>}
+          {error && <div style={{ marginTop: 16, color: '#C0392B', fontSize: 13 }}>{error}</div>}
         </div>
       )}
 
-      {/* ── Loading ── */}
+      {/* ── تحميل ── */}
       {loading && (
         <div style={{ textAlign: 'center', padding: '48px 16px', color: '#9090a8' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>⏳</div>
@@ -169,426 +63,56 @@ export default function VisualSummary({ tasks, apiKey }) {
         </div>
       )}
 
-      {/* ── Dashboard ── */}
+      {/* ── اللوحة ── */}
       {summary && (
         <>
-          {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-            <button onClick={handleDownload} disabled={exporting} style={{
-              flex: 1, background: '#3b82f6', color: '#fff', border: 'none',
-              borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
-            }}>{/iPad|iPhone|iPod/.test(navigator.userAgent) ? '🖼️ حفظ في الصور' : '⬇️ تحميل PNG'}</button>
-            <button onClick={handleShare} disabled={exporting} style={{
-              flex: 1, background: '#10b981', color: '#fff', border: 'none',
-              borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
-              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
-            }}>📤 مشاركة</button>
-            <button onClick={() => setSummary(null)} style={{
-              background: 'rgba(255,255,255,0.08)', color: '#9090a8', border: 'none',
-              borderRadius: 10, padding: '10px 14px', fontSize: 14,
-              cursor: 'pointer', fontFamily: 'inherit',
-            }}>🔄</button>
+          {/* أزرار التصدير */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => withExport(exportPNG)}
+              disabled={exporting}
+              style={btnStyle('#0066B3', exporting)}
+            >{isIOS ? '🖼️ حفظ صورة' : '🖼️ PNG'}</button>
+
+            <button
+              onClick={() => withExport(exportPDF)}
+              disabled={exporting}
+              style={btnStyle('#006B3F', exporting)}
+            >📄 PDF</button>
+
+            <button
+              onClick={() => withExport(shareImage)}
+              disabled={exporting}
+              style={btnStyle('#5B4FB8', exporting)}
+            >📤 مشاركة</button>
+
+            <button
+              onClick={() => setSummary(null)}
+              style={btnStyle('rgba(255,255,255,0.1)', false, '#9090a8')}
+            >🔄</button>
           </div>
-          {error && <div style={{ marginBottom: 12, color: '#ef4444', fontSize: 13, textAlign: 'center' }}>{error}</div>}
 
-          {/* ════════════════════════════════
-              THE INFOGRAPHIC (html-to-image)
-              ════════════════════════════════ */}
-          <div ref={cardRef} style={{
-            width: 390, maxWidth: '100%',
-            background: D.bg,
-            borderRadius: 20,
-            fontFamily: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, sans-serif",
-            direction: 'rtl',
-            overflow: 'hidden',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-          }}>
-
-            {/* ── HEADER ── */}
-            <div style={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%)',
-              borderBottom: '1px solid rgba(139,92,246,0.25)',
-              padding: '18px 20px 14px',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                <div>
-                  <div style={{ color: D.text, fontSize: 16, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
-                    {summary.title || 'الملخص التنفيذي'}
-                  </div>
-                  <div style={{ color: D.text2, fontSize: 10 }}>مكتب إدارة المشاريع • مركز عمليات المختبرات</div>
-                </div>
-                {/* Decorative UI chips */}
-                <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                  <div style={{
-                    background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.35)',
-                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.blue,
-                  }}>API</div>
-                  <div style={{
-                    background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)',
-                    borderRadius: 6, padding: '3px 8px', fontSize: 9, color: D.text2,
-                  }}>☰</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{
-                  width: 6, height: 6, borderRadius: '50%', background: D.green,
-                  boxShadow: `0 0 6px ${D.green}`,
-                }} />
-                <span style={{ color: D.text3, fontSize: 10 }}>آخر تحديث: {formatArabicDate()}</span>
-              </div>
+          {error && (
+            <div style={{ marginBottom: 12, color: '#C0392B', fontSize: 13, textAlign: 'center' }}>
+              {error}
             </div>
+          )}
 
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {/* ── KPI CARDS ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {kpis.map((kpi, i) => {
-                  const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
-                  return (
-                    <div key={i} style={{
-                      background: col.bg,
-                      border: `1px solid ${col.color}30`,
-                      borderRadius: 14, padding: '12px 13px',
-                      boxShadow: `0 4px 16px ${col.glow}`,
-                      display: 'flex', alignItems: 'center', gap: 10,
-                    }}>
-                      <div style={{
-                        width: 38, height: 38, borderRadius: 10,
-                        background: `${col.color}18`,
-                        border: `1px solid ${col.color}30`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 18, flexShrink: 0,
-                      }}>{kpi.icon}</div>
-                      <div>
-                        <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>
-                          {kpi.value}
-                        </div>
-                        <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>{kpi.label}</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* ── PROGRESS BAR ── */}
-              <div style={{
-                background: CARD.background, borderRadius: CARD.borderRadius,
-                border: `1px solid ${CARD.border}`, padding: CARD.padding,
-                boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <SectionLabel icon="📊" label="تقدم الإنجاز" color={D.blue} />
-                  <span style={{
-                    fontSize: 13, fontWeight: 800,
-                    color: pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red,
-                  }}>{pct}%</span>
-                </div>
-                <div style={{ height: 8, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', width: `${pct}%`, borderRadius: 99,
-                    background: pct >= 70
-                      ? 'linear-gradient(90deg,#10b981,#34d399)'
-                      : pct >= 40
-                      ? 'linear-gradient(90deg,#f59e0b,#fbbf24)'
-                      : 'linear-gradient(90deg,#ef4444,#f87171)',
-                    boxShadow: pct >= 70 ? '0 0 8px rgba(16,185,129,0.45)' : undefined,
-                  }} />
-                </div>
-              </div>
-
-              {/* ── EISENHOWER MATRIX ── */}
-              <div>
-                <SectionLabel icon="⊞" label="مصفوفة تصنيف المهام (الأهمية × العجلة)" color={D.purple} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, position: 'relative' }}>
-                  {MATRIX_CFG.map(q => {
-                    const data = summary.matrix?.[q.key] || { count: 0, items: [] }
-                    return (
-                      <div key={q.key} style={{
-                        background: q.bg,
-                        border: `1px solid ${q.color}28`,
-                        borderRadius: 12, padding: '10px 12px', minHeight: 85,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ fontSize: 12 }}>{q.icon}</span>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: q.color }}>{q.label}</span>
-                          </div>
-                          <div style={{
-                            background: `${q.color}20`, border: `1px solid ${q.color}40`,
-                            borderRadius: 20, padding: '1px 7px',
-                            fontSize: 12, fontWeight: 900, color: q.color,
-                          }}>{data.count}</div>
-                        </div>
-                        {(data.items || []).slice(0, 3).map((item, i) => (
-                          <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'flex-start' }}>
-                            <span style={{ color: q.color, fontSize: 10, flexShrink: 0, lineHeight: 1.4 }}>›</span>
-                            <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{item}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                  {/* Center crosshair */}
-                  <div style={{
-                    position: 'absolute', top: '50%', left: '50%',
-                    transform: 'translate(-50%,-50%)',
-                    width: 22, height: 22, borderRadius: '50%',
-                    background: D.bg3, border: `2px solid ${D.border}`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 9, color: D.text3,
-                  }}>+</div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, padding: '0 2px' }}>
-                  <span style={{ fontSize: 8, color: D.text3 }}>← غير عاجل</span>
-                  <span style={{ fontSize: 8, color: D.text3 }}>عاجل →</span>
-                </div>
-              </div>
-
-              {/* ── OVERVIEW ── */}
-              {summary.overview?.length > 0 && (
-                <div style={{
-                  background: CARD.background, borderRadius: CARD.borderRadius,
-                  border: `1px solid ${D.border}`, padding: CARD.padding,
-                }}>
-                  <SectionLabel icon="🎯" label="الملخص التنفيذي" color={D.blue} />
-                  {summary.overview.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
-                      <div style={{
-                        width: 5, height: 5, borderRadius: '50%', background: D.blue,
-                        flexShrink: 0, marginTop: 6,
-                      }} />
-                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── PEOPLE STATUS ── */}
-              {summary.peopleStatus?.length > 0 && (
-                <div style={{
-                  background: 'rgba(239,68,68,0.05)',
-                  border: `1px solid ${D.red}20`,
-                  borderRadius: 14, padding: '14px 16px',
-                }}>
-                  <SectionLabel icon="👥" label="حالة الفريق — المهام المعلقة" color={D.red} />
-                  {summary.peopleStatus.map((person, i) => (
-                    <div key={i} style={{ marginBottom: i < summary.peopleStatus.length - 1 ? 10 : 0 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{
-                            width: 22, height: 22, borderRadius: '50%',
-                            background: D.redBg, border: `1px solid ${D.red}40`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, flexShrink: 0,
-                          }}>👤</div>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <span style={{ fontSize: 9, color: D.text2, background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '2px 7px' }}>
-                            {person.pending?.length || 0} معلقة
-                          </span>
-                          {person.overdueCount > 0 && (
-                            <span style={{ fontSize: 9, color: D.red, background: D.redBg, borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.red}30` }}>
-                              {person.overdueCount} متأخرة
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {(person.pending || []).map((t, j) => (
-                        <div key={j} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
-                          <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
-                          <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── PROJECT BREAKDOWN ── */}
-              {summary.projectBreakdown?.length > 0 && (
-                <div>
-                  <SectionLabel icon="📁" label="حالة الفئات والمشاريع" color={D.blue} />
-                  {summary.projectBreakdown.map((proj, i) => {
-                    const projPct = proj.total ? Math.round((proj.done / proj.total) * 100) : 0
-                    const barColor = projPct === 100 ? D.green : projPct >= 50 ? D.yellow : D.red
-                    return (
-                      <div key={i} style={{
-                        background: CARD.background, borderRadius: 12,
-                        border: `1px solid ${D.border}`, padding: '10px 12px',
-                        marginBottom: i < summary.projectBreakdown.length - 1 ? 8 : 0,
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: D.text }}>{proj.category}</span>
-                          <span style={{ fontSize: 12, fontWeight: 900, color: barColor }}>{proj.done}/{proj.total}</span>
-                        </div>
-                        <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
-                          <div style={{ height: '100%', width: `${projPct}%`, borderRadius: 99, background: barColor }} />
-                        </div>
-                        {proj.completed?.slice(0, 3).map((t, j) => (
-                          <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
-                            <span style={{ color: D.green, fontSize: 9, flexShrink: 0 }}>✓</span>
-                            <span style={{ fontSize: 9, color: D.text3 }}>{t}</span>
-                          </div>
-                        ))}
-                        {proj.pending?.slice(0, 3).map((t, j) => (
-                          <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
-                            <span style={{ color: D.yellow, fontSize: 9, flexShrink: 0 }}>○</span>
-                            <span style={{ fontSize: 9, color: D.text2 }}>{t}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* ── ACTION ITEMS ── */}
-              {summary.actionItems?.length > 0 && (
-                <div style={{
-                  background: CARD.background, borderRadius: CARD.borderRadius,
-                  border: `1px solid ${D.border}`, padding: CARD.padding,
-                }}>
-                  <SectionLabel icon="⚡" label="مهام بحاجة إلى قرار" color={D.yellow} />
-                  {summary.actionItems.map((item, i) => {
-                    const hi = item.priority === 'high'
-                    const label = item.task || item.text || ''
-                    return (
-                      <div key={i} style={{
-                        marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
-                        padding: '8px 10px', borderRadius: 9,
-                        background: hi ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)',
-                        border: `1px solid ${hi ? D.red + '22' : D.border}`,
-                      }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: item.reason ? 3 : 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 10 }}>{hi ? '🔴' : '🔵'}</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: hi ? D.red : D.text }}>{label}</span>
-                          </div>
-                          {item.owner && (
-                            <span style={{ fontSize: 9, color: D.text2, background: 'rgba(255,255,255,0.06)', borderRadius: 4, padding: '2px 7px', flexShrink: 0 }}>{item.owner}</span>
-                          )}
-                        </div>
-                        {item.reason && (
-                          <span style={{ fontSize: 9, color: D.text2, paddingRight: 16, display: 'block', lineHeight: 1.4 }}>{item.reason}</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* ── RECOMMENDATIONS ── */}
-              {summary.recommendations?.length > 0 && (
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(59,130,246,0.07), rgba(167,139,250,0.07))',
-                  border: `1px solid rgba(167,139,250,0.2)`,
-                  borderRadius: 14, padding: '14px 16px',
-                }}>
-                  <SectionLabel icon="💡" label="التوصيات الاستراتيجية" color={D.purple} />
-                  {summary.recommendations.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
-                      <div style={{
-                        width: 19, height: 19, borderRadius: 6, flexShrink: 0,
-                        background: D.purpleBg, border: `1px solid rgba(167,139,250,0.3)`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, color: D.purple, fontWeight: 800,
-                      }}>{i + 1}</div>
-                      <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* ── TASK TABLE ── */}
-              {tasks.length > 0 && (() => {
-                const today = new Date()
-                const fmtDate = (d) => {
-                  if (!d) return '—'
-                  const dt = new Date(d)
-                  return `${dt.getDate()}/${dt.getMonth() + 1}`
-                }
-                const trunc = (s, n) => s && s.length > n ? s.slice(0, n) + '…' : (s || '—')
-                const getStatus = (t) => {
-                  if (t.done) return { label: 'منجزة', color: D.green }
-                  if (t.dueDate && new Date(t.dueDate) < today) return { label: 'متأخرة', color: D.red }
-                  if (t.priority === 'urgent') return { label: 'عاجل', color: '#f97316' }
-                  return { label: 'معلق', color: D.text3 }
-                }
-                // Sort: urgent → overdue → high → medium → done last; take top 7
-                const PRI = { urgent: 0, high: 1, medium: 2, normal: 3, low: 4 }
-                const top7 = [...tasks].sort((a, b) => {
-                  if (a.done !== b.done) return a.done ? 1 : -1
-                  const aOvd = !a.done && a.dueDate && new Date(a.dueDate) < today
-                  const bOvd = !b.done && b.dueDate && new Date(b.dueDate) < today
-                  if (aOvd !== bOvd) return aOvd ? -1 : 1
-                  return (PRI[a.priority] ?? 3) - (PRI[b.priority] ?? 3)
-                }).slice(0, 7)
-
-                // RTL flex row: first item (المهمة) renders on the RIGHT
-                const COL = ['45%', '16%', '21%', '18%']
-                const SEP = `1px solid rgba(255,255,255,0.06)`
-                const ROW = (cells) => (
-                  <div style={{ display: 'flex', flexDirection: 'row' }}>
-                    {cells.map((cell, ci) => (
-                      <div key={ci} style={{
-                        width: COL[ci], padding: '6px 7px', boxSizing: 'border-box',
-                        textAlign: ci === 0 ? 'right' : 'center',
-                        borderLeft: ci < cells.length - 1 ? SEP : 'none',
-                      }}>
-                        {cell}
-                      </div>
-                    ))}
-                  </div>
-                )
-                return (
-                  <div>
-                    <SectionLabel icon="📋" label="أبرز 7 مهام" color={D.text2} />
-                    <div style={{ borderRadius: 12, border: `1px solid ${D.border}`, overflow: 'hidden' }}>
-                      {/* Header */}
-                      <div style={{ background: 'rgba(255,255,255,0.06)', borderBottom: `1px solid ${D.border}` }}>
-                        {ROW(['المهمة', 'الموعد', 'المالك', 'الحالة'].map(h => (
-                          <span style={{ fontSize: 8, fontWeight: 700, color: D.text3 }}>{h}</span>
-                        )))}
-                      </div>
-                      {/* Rows */}
-                      {top7.map((t, i) => {
-                        const st = getStatus(t)
-                        return (
-                          <div key={i} style={{
-                            borderBottom: i < top7.length - 1 ? `1px solid rgba(255,255,255,0.04)` : 'none',
-                            background: i % 2 === 1 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                          }}>
-                            {ROW([
-                              <span style={{ fontSize: 9, color: t.done ? D.text3 : D.text, lineHeight: 1.3, display: 'block' }}>{t.title}</span>,
-                              <span style={{ fontSize: 8, color: D.text3, lineHeight: 1.3 }}>{fmtDate(t.dueDate)}</span>,
-                              <span style={{ fontSize: 8, color: D.text2, lineHeight: 1.3 }}>{trunc(t.person, 9) || '—'}</span>,
-                              <span style={{ fontSize: 8, color: st.color, fontWeight: 700, lineHeight: 1.3 }}>{st.label}</span>,
-                            ])}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })()}
-
-            </div>{/* end main content */}
-
-            {/* ── FOOTER ── */}
-            <div style={{
-              background: D.bg3,
-              borderTop: `1px solid ${D.border}`,
-              padding: '9px 18px',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}>
-              <span style={{ fontSize: 9, color: D.text3 }}>تقرير مكتب إدارة المشاريع • مركز عمليات المختبرات</span>
-            </div>
-
-          </div>
+          <VisualSummaryCard cardRef={cardRef} summary={summary} tasks={tasks} />
         </>
       )}
     </div>
   )
+}
+
+function btnStyle(bg, disabled, color = '#fff') {
+  return {
+    flex: 1, minWidth: 70,
+    background: bg, color, border: 'none',
+    borderRadius: 10, padding: '10px 8px',
+    fontSize: 13, fontWeight: 600,
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'inherit',
+    opacity: disabled ? 0.6 : 1,
+  }
 }
