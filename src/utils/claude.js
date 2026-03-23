@@ -46,6 +46,85 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
+export async function callClaudeChat(apiKey, systemPrompt, messages) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2048,
+      system: systemPrompt,
+      messages,
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.error?.message || `API error ${res.status}`)
+  }
+  const data = await res.json()
+  return data.content?.[0]?.text || ''
+}
+
+export function buildSmartChatSystem(activeTasks) {
+  const summary = activeTasks.length
+    ? activeTasks.map(t =>
+        `- ${t.title}${t.projectName ? ` [${t.projectName}]` : ''}${t.person ? ` (${t.person})` : ''}`
+      ).join('\n')
+    : 'لا توجد مهام نشطة'
+
+  return `أنت مساعد ذكي لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
+
+المهام النشطة الموجودة حالياً (للمقارنة ومنع التكرار):
+${summary}
+
+مهمتك في كل رسالة:
+1. استخرج المهام من النص واقترح صياغتها بوضوح
+2. قارن كل مهمة مع المهام الموجودة — قارن المعنى والقصد وليس النص الحرفي
+3. إذا وجدت تشابهاً في المعنى → ضعها في duplicates مع خيارات للمستخدم
+4. إذا كانت مهمة غير واضحة → اسأل عنها في questions
+5. استمر في المحادثة حتى تكون كل المهام جاهزة للإضافة
+
+قواعد كشف التكرار الذكي:
+- قارن القصد والهدف وليس الكلمات فقط
+- "تذكير عبير بالتقرير" = "إرسال تنبيه لعبير عن التقرير" → تكرار
+- نفس الشخص + نفس المشروع + نفس الهدف → تكرار حتى لو الصياغة مختلفة
+- مهمة أشمل من الموجودة → ليست تكرار، نبّه المستخدم
+
+أرجع دائماً JSON فقط بهذا الشكل الدقيق (بدون أي نص خارجه):
+{
+  "message": "رسالة موجزة للمستخدم بالعربية",
+  "tasks": [
+    {
+      "id": "t1",
+      "title": "عنوان المهمة",
+      "priority": "urgent|medium|low",
+      "category": "work|personal|health",
+      "subcategory": "leaders|team|other",
+      "person": "اسم أو فارغ",
+      "dueDate": "YYYY-MM-DD أو فارغ",
+      "projectName": "اسم المشروع أو فارغ"
+    }
+  ],
+  "questions": [
+    { "taskId": "t1", "text": "سؤال عن المهمة" }
+  ],
+  "duplicates": [
+    {
+      "taskId": "t1",
+      "existingTitle": "عنوان المهمة الموجودة",
+      "reason": "سبب التشابه",
+      "options": ["إضافة كجديدة", "إضافة كفرع", "تجاهل"]
+    }
+  ],
+  "ready": false
+}`
+}
+
 export async function callClaude(apiKey, systemPrompt, userContent, model = 'claude-haiku-4-5-20251001') {
   const res = await fetch(API_URL, {
     method: 'POST',

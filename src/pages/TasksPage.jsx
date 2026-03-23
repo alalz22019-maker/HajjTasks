@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
+import SmartChat from '../components/SmartChat'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { deduplicateTasks, isDuplicateTask } from '../utils/dedup'
 
@@ -27,10 +28,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [showForm, setShowForm] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [showApiKey, setShowApiKey] = useState(false)
-  const [showWaExtract, setShowWaExtract] = useState(false)
-  const [waText, setWaText] = useState('')
-  const [extracting, setExtracting] = useState(false)
-  const [extractedTasks, setExtractedTasks] = useState([])
+  const [showSmartChat, setShowSmartChat] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewMode, setViewMode] = useState('list') // list | compact | grouped | kanban | bubbles
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
@@ -181,42 +179,14 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
     showToast('🗑 تم حذف المهمة')
   }
 
-  async function extractFromWa() {
-    if (!waText.trim()) return
-    if (!apiKey) { setShowApiKey(true); return }
-    setExtracting(true)
-    try {
-      const result = await callClaude(apiKey, EXTRACT_SYSTEM, waText)
-      const parsed = JSON.parse(result)
-      setExtractedTasks(Array.isArray(parsed) ? parsed : [])
-    } catch (e) {
-      showToast('❌ تعذّر الاستخراج: ' + e.message)
-      setExtractedTasks([])
-    } finally {
-      setExtracting(false)
-    }
-  }
-
-  function addExtractedTasks() {
-    const allNew = extractedTasks.map(t => ({
-      ...t,
-      id: genId(),
-      done: false,
-      createdAt: Date.now(),
-      subcategory: t.subcategory || 'other',
-      recurrence: t.recurrence || '',
-      reminderTime: '',
-    }))
-    const newTasks = deduplicateTasks(allNew, tasks)
-    const skipped = allNew.length - newTasks.length
-    setTasks([...newTasks, ...tasks])
-    setExtractedTasks([])
-    setWaText('')
-    setShowWaExtract(false)
-    if (newTasks.length === 0) {
+  function handleSmartChatAdd(newTasks) {
+    const deduped = deduplicateTasks(newTasks, tasks)
+    const skippedCount = newTasks.length - deduped.length
+    setTasks([...deduped, ...tasks])
+    if (deduped.length === 0) {
       showToast('⚠️ جميع المهام موجودة مسبقاً')
     } else {
-      showToast(`✅ تمت إضافة ${newTasks.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+      showToast(`✅ تمت إضافة ${deduped.length} مهمة${skippedCount ? ` (تجاهل ${skippedCount} مكررة)` : ''}`)
     }
   }
 
@@ -642,9 +612,9 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         +
       </button>
 
-      {/* FAB Extract */}
-      <button className="extract-fab" onClick={() => setShowWaExtract(true)}>
-        ⚡ استخراج سريع
+      {/* FAB Smart Chat */}
+      <button className="extract-fab" onClick={() => setShowSmartChat(true)}>
+        💬 محادثة ذكية
       </button>
 
       {/* Modals */}
@@ -658,58 +628,14 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />
       )}
 
-      {/* WhatsApp Extract Modal */}
-      {showWaExtract && (
-        <div className="modal-overlay" onClick={() => { setShowWaExtract(false); setExtractedTasks([]) }}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-handle" />
-            <h2 className="modal-title">⚡ استخراج من واتساب</h2>
-            <p style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 14 }}>
-              الصق نص محادثة واتساب وسيتم استخراج المهام تلقائياً
-            </p>
-
-            <textarea
-              className="wa-extract-input"
-              value={waText}
-              onChange={e => setWaText(e.target.value)}
-              placeholder="الصق النص هنا..."
-            />
-
-            {extracting && (
-              <div className="loading-text">
-                <span className="spinner" /> جاري الاستخراج...
-              </div>
-            )}
-
-            {extractedTasks.length > 0 && (
-              <div className="ai-result">
-                <div className="ai-result-title">تم استخراج {extractedTasks.length} مهمة:</div>
-                {extractedTasks.map((t, i) => (
-                  <div key={i} className="ai-task-item">
-                    <span style={{ fontSize: 14 }}>{t.title}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text2)' }}>{t.priority === 'urgent' ? '🔴' : t.priority === 'medium' ? '🟡' : '🟢'}</span>
-                  </div>
-                ))}
-                <button className="submit-btn" onClick={addExtractedTasks}>
-                  إضافة جميع المهام
-                </button>
-              </div>
-            )}
-
-            {!extracting && extractedTasks.length === 0 && (
-              <button
-                className="submit-btn"
-                onClick={extractFromWa}
-                disabled={!waText.trim()}
-              >
-                استخراج المهام
-              </button>
-            )}
-            <button className="cancel-btn" onClick={() => { setShowWaExtract(false); setExtractedTasks([]) }}>
-              إلغاء
-            </button>
-          </div>
-        </div>
+      {/* Smart Chat */}
+      {showSmartChat && (
+        <SmartChat
+          tasks={tasks}
+          apiKey={apiKey}
+          onAddTasks={handleSmartChatAdd}
+          onClose={() => setShowSmartChat(false)}
+        />
       )}
 
       {/* Delete Confirm */}
