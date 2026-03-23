@@ -43,12 +43,13 @@ async function getArabicFontCss() {
 async function captureDataUrl(el) {
   await document.fonts.ready
 
-  const fontEmbedCss = await getArabicFontCss()
+  const fontEmbedCSS = await getArabicFontCss()
 
   return htmlToImage.toPng(el, {
     pixelRatio: 2,
     cacheBust: true,
-    ...(fontEmbedCss ? { fontEmbedCss } : {}),
+    skipFonts: false,
+    ...(fontEmbedCSS ? { fontEmbedCSS } : {}),
   })
 }
 
