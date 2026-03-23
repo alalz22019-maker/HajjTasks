@@ -40,7 +40,7 @@ export default function VisualSummary({ tasks, apiKey }) {
         <div style={{ textAlign: 'center', padding: '32px 16px' }}>
           <div style={{ fontSize: 56, marginBottom: 12 }}>🎨</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: '#e8e8f0', marginBottom: 8 }}>
-            الملخص التنفيذي
+            تقرير إدارة المهام
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 24 }}>
             ينشئ Claude ملخصاً تنفيذياً يساعدك على اتخاذ القرارات الصحيحة
