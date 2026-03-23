@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { toPng } from 'html-to-image'
+import { jsPDF } from 'jspdf'
 import { generateVisualSummary } from '../utils/claude'
 
 function formatArabicDate() {
@@ -96,6 +97,27 @@ export default function VisualSummary({ tasks, apiKey }) {
     finally { setExporting(false) }
   }
 
+  async function handleDownloadPDF() {
+    if (!cardRef.current) return
+    setExporting(true)
+    try {
+      const el = cardRef.current
+      const dataUrl = await toPng(el, {
+        pixelRatio: 2, cacheBust: true,
+        width: el.scrollWidth, height: el.scrollHeight,
+      })
+      const img = new Image()
+      img.src = dataUrl
+      await new Promise(r => { img.onload = r })
+      const imgW = img.width
+      const imgH = img.height
+      const pdf = new jsPDF({ orientation: imgH > imgW ? 'portrait' : 'landscape', unit: 'px', format: [imgW, imgH] })
+      pdf.addImage(dataUrl, 'PNG', 0, 0, imgW, imgH)
+      pdf.save(`الملخص-التنفيذي-${new Date().toISOString().slice(0, 10)}.pdf`)
+    } catch { setError('تعذّر تحميل PDF') }
+    finally { setExporting(false) }
+  }
+
   async function handleShare() {
     if (!cardRef.current) return
     setExporting(true)
@@ -173,12 +195,17 @@ export default function VisualSummary({ tasks, apiKey }) {
       {summary && (
         <>
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
             <button onClick={handleDownload} disabled={exporting} style={{
               flex: 1, background: '#3b82f6', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
             }}>{/iPad|iPhone|iPod/.test(navigator.userAgent) ? '🖼️ حفظ في الصور' : '⬇️ تحميل PNG'}</button>
+            <button onClick={handleDownloadPDF} disabled={exporting} style={{
+              flex: 1, background: '#7c3aed', color: '#fff', border: 'none',
+              borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
+              cursor: 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+            }}>📄 تحميل PDF</button>
             <button onClick={handleShare} disabled={exporting} style={{
               flex: 1, background: '#10b981', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px', fontSize: 14, fontWeight: 600,
