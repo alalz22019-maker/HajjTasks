@@ -9,7 +9,49 @@ function SectionLabel({ icon, label, color }) {
   )
 }
 
-export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, onRemovePerson, onRemoveActionItem, onRemoveRecommendation, onRemoveOverviewItem }) {
+/* ── حقل نص قابل للتعديل ── */
+function EditableText({ value, onChange, style, multiline }) {
+  if (!onChange) {
+    return multiline
+      ? <span style={style}>{value}</span>
+      : <span style={style}>{value}</span>
+  }
+  const editStyle = {
+    background: 'rgba(245,158,11,0.07)',
+    border: '1px dashed rgba(245,158,11,0.4)',
+    borderRadius: 4,
+    fontFamily: 'inherit',
+    color: style?.color || 'inherit',
+    fontSize: style?.fontSize || 'inherit',
+    fontWeight: style?.fontWeight || 'inherit',
+    lineHeight: style?.lineHeight || 'inherit',
+    padding: '1px 5px',
+    outline: 'none',
+    boxSizing: 'border-box',
+    direction: 'rtl',
+    width: '100%',
+    display: 'block',
+  }
+  if (multiline) {
+    return (
+      <textarea
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        rows={2}
+        style={{ ...editStyle, resize: 'vertical', minHeight: 34, overflow: 'hidden' }}
+      />
+    )
+  }
+  return (
+    <input
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      style={editStyle}
+    />
+  )
+}
+
+export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, onRemovePerson, onRemoveActionItem, onRemoveRecommendation, onRemoveOverviewItem, onSummaryChange }) {
   const today    = new Date()
   const todayMs  = new Date(today.toDateString()).getTime()
   const in2Days  = todayMs + 2 * 86400000
@@ -35,6 +77,17 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
 
   const barColor = pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red
 
+  /* ── تعديل عميق ── */
+  function upd(path, val) {
+    if (!onSummaryChange) return
+    const clone = JSON.parse(JSON.stringify(summary))
+    let obj = clone
+    for (let i = 0; i < path.length - 1; i++) obj = obj[path[i]]
+    obj[path[path.length - 1]] = val
+    onSummaryChange(clone)
+  }
+  const ed = editMode && !!onSummaryChange
+
   return (
     <div ref={cardRef} style={{
       width: 390,
@@ -55,9 +108,13 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
       }}>
         {/* Top row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
-              {summary.title || 'تقرير إدارة المهام'}
+              <EditableText
+                value={summary.title || 'تقرير إدارة المهام'}
+                onChange={ed ? v => upd(['title'], v) : undefined}
+                style={{ color: '#FFFFFF', fontSize: 17, fontWeight: 900, lineHeight: 1.2 }}
+              />
             </div>
             <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10 }}>
               مكتب إدارة المشاريع • مركز عمليات المختبرات
@@ -68,7 +125,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
             background: 'rgba(255,255,255,0.15)',
             border: '1px solid rgba(255,255,255,0.3)',
             borderRadius: 8, padding: '4px 10px',
-            fontSize: 10, fontWeight: 700, color: '#FFFFFF',
+            fontSize: 10, fontWeight: 700, color: '#FFFFFF', flexShrink: 0,
           }}>LOC</div>
         </div>
 
@@ -94,6 +151,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {kpis.map((kpi, i) => {
             const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
+            const edKpi = ed && summary?.kpis?.length > 0
             return (
               <div key={i} style={{
                 background: col.bg,
@@ -109,9 +167,29 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 18, flexShrink: 0,
                 }}>{kpi.icon}</div>
-                <div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>{kpi.value}</div>
-                  <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>{kpi.label}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>
+                    {edKpi ? (
+                      <input
+                        type="number"
+                        value={kpi.value}
+                        onChange={e => upd(['kpis', i, 'value'], Number(e.target.value))}
+                        style={{
+                          background: 'rgba(245,158,11,0.07)', border: '1px dashed rgba(245,158,11,0.4)',
+                          borderRadius: 4, fontFamily: 'inherit', color: col.color,
+                          fontSize: 22, fontWeight: 900, lineHeight: 1,
+                          width: 60, padding: '1px 4px', outline: 'none',
+                        }}
+                      />
+                    ) : kpi.value}
+                  </div>
+                  <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>
+                    <EditableText
+                      value={kpi.label}
+                      onChange={edKpi ? v => upd(['kpis', i, 'label'], v) : undefined}
+                      style={{ fontSize: 10, color: D.text2 }}
+                    />
+                  </div>
                 </div>
               </div>
             )
@@ -166,7 +244,11 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   {(data.items || []).slice(0, 3).map((item, i) => (
                     <div key={i} style={{ display: 'flex', gap: 4, marginBottom: 2, alignItems: 'flex-start' }}>
                       <span style={{ color: q.color, fontSize: 10, flexShrink: 0, lineHeight: 1.4 }}>›</span>
-                      <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{item}</span>
+                      <EditableText
+                        value={item}
+                        onChange={ed ? v => upd(['matrix', q.key, 'items', i], v) : undefined}
+                        style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -201,7 +283,12 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   width: 5, height: 5, borderRadius: '50%', background: D.green,
                   flexShrink: 0, marginTop: 6,
                 }} />
-                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}>{item}</span>
+                <EditableText
+                  value={item}
+                  onChange={ed ? v => upd(['overview', i], v) : undefined}
+                  style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}
+                  multiline
+                />
                 {editMode && (
                   <button onClick={() => onRemoveOverviewItem?.(i)} style={delBtnStyle}>✕</button>
                 )}
@@ -218,7 +305,6 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
           }}>
             <SectionLabel icon="👥" label="حالة الفريق — المهام المعلقة" color={D.red} />
             {summary.peopleStatus.map((person, i) => {
-              // Support both new format (overdueTasks/nearDueTasks/activeTasks) and old format (pending)
               const overdue = person.overdueTasks || []
               const nearDue = person.nearDueTasks || []
               const active  = person.activeTasks  || []
@@ -229,16 +315,20 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
               return (
                 <div key={i} style={{ marginBottom: i < summary.peopleStatus.length - 1 ? 10 : 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                       <div style={{
                         width: 22, height: 22, borderRadius: '50%',
                         background: '#FFFFFF', border: `1px solid ${D.red}40`,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 11, flexShrink: 0,
                       }}>👤</div>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
+                      <EditableText
+                        value={person.name}
+                        onChange={ed ? v => upd(['peopleStatus', i, 'name'], v) : undefined}
+                        style={{ fontSize: 12, fontWeight: 700, color: D.text }}
+                      />
                     </div>
-                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
                       {editMode && (
                         <button
                           onClick={() => onRemovePerson?.(person.name)}
@@ -271,28 +361,44 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   {overdue.map((t, j) => (
                     <div key={`o${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
                       <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
-                      <span style={{ fontSize: 9, color: D.red, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['peopleStatus', i, 'overdueTasks', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.red, fontWeight: 600, lineHeight: 1.4 }}
+                      />
                     </div>
                   ))}
                   {/* قاربت على التأخر — برتقالي */}
                   {nearDue.map((t, j) => (
                     <div key={`n${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
                       <span style={{ color: D.yellow, fontSize: 10, flexShrink: 0 }}>○</span>
-                      <span style={{ fontSize: 9, color: D.yellow, lineHeight: 1.4 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['peopleStatus', i, 'nearDueTasks', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.yellow, lineHeight: 1.4 }}
+                      />
                     </div>
                   ))}
                   {/* جارية — أخضر */}
                   {active.map((t, j) => (
                     <div key={`a${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
                       <span style={{ color: D.green, fontSize: 10, flexShrink: 0 }}>○</span>
-                      <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['peopleStatus', i, 'activeTasks', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}
+                      />
                     </div>
                   ))}
                   {/* Fallback: old format */}
                   {!useNew && allOld.map((t, j) => (
                     <div key={`p${j}`} style={{ display: 'flex', gap: 5, marginBottom: 2, alignItems: 'center', paddingRight: 28 }}>
                       <span style={{ color: D.red, fontSize: 10, flexShrink: 0 }}>○</span>
-                      <span style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['peopleStatus', i, 'pending', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.text2, lineHeight: 1.4 }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -316,8 +422,12 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   boxShadow: CARD.boxShadow,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: D.text }}>{proj.category}</span>
-                    <span style={{ fontSize: 12, fontWeight: 900, color: projColor }}>{proj.done}/{proj.total}</span>
+                    <EditableText
+                      value={proj.category}
+                      onChange={ed ? v => upd(['projectBreakdown', i, 'category'], v) : undefined}
+                      style={{ fontSize: 11, fontWeight: 700, color: D.text }}
+                    />
+                    <span style={{ fontSize: 12, fontWeight: 900, color: projColor, flexShrink: 0 }}>{proj.done}/{proj.total}</span>
                   </div>
                   <div style={{ height: 4, background: D.bg3, borderRadius: 99, overflow: 'hidden', marginBottom: 6 }}>
                     <div style={{ height: '100%', width: `${projPct}%`, borderRadius: 99, background: projColor }} />
@@ -325,13 +435,21 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   {proj.completed?.slice(0, 3).map((t, j) => (
                     <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
                       <span style={{ color: D.green, fontSize: 9, flexShrink: 0 }}>✓</span>
-                      <span style={{ fontSize: 9, color: D.text3 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['projectBreakdown', i, 'completed', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.text3 }}
+                      />
                     </div>
                   ))}
                   {proj.pending?.slice(0, 3).map((t, j) => (
                     <div key={j} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 1 }}>
                       <span style={{ color: D.yellow, fontSize: 9, flexShrink: 0 }}>○</span>
-                      <span style={{ fontSize: 9, color: D.text2 }}>{t}</span>
+                      <EditableText
+                        value={t}
+                        onChange={ed ? v => upd(['projectBreakdown', i, 'pending', j], v) : undefined}
+                        style={{ fontSize: 9, color: D.text2 }}
+                      />
                     </div>
                   ))}
                 </div>
@@ -350,7 +468,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
             {summary.actionItems.map((item, i) => {
               const hi    = item.priority === 'high'
               const label = item.task || item.text || ''
-              return ( // eslint-disable-next-line react/no-array-index-key
+              return (
                 <div key={i} style={{
                   marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
                   padding: '8px 10px', borderRadius: 9,
@@ -360,19 +478,32 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: item.reason ? 3 : 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
                       <span style={{ fontSize: 10, flexShrink: 0 }}>{hi ? '🔴' : '🔵'}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: hi ? D.red : D.text }}>{label}</span>
+                      <EditableText
+                        value={label}
+                        onChange={ed ? v => upd(['actionItems', i, item.task !== undefined ? 'task' : 'text'], v) : undefined}
+                        style={{ fontSize: 11, fontWeight: 700, color: hi ? D.red : D.text }}
+                      />
                     </div>
                     <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-                      {item.owner && (
-                        <span style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px' }}>{item.owner}</span>
+                      {item.owner !== undefined && (
+                        <EditableText
+                          value={item.owner}
+                          onChange={ed ? v => upd(['actionItems', i, 'owner'], v) : undefined}
+                          style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px' }}
+                        />
                       )}
                       {editMode && (
                         <button onClick={() => onRemoveActionItem?.(i)} style={delBtnStyle}>✕</button>
                       )}
                     </div>
                   </div>
-                  {item.reason && (
-                    <span style={{ fontSize: 9, color: D.text2, paddingRight: 16, display: 'block', lineHeight: 1.4 }}>{item.reason}</span>
+                  {item.reason !== undefined && (
+                    <EditableText
+                      value={item.reason}
+                      onChange={ed ? v => upd(['actionItems', i, 'reason'], v) : undefined}
+                      style={{ fontSize: 9, color: D.text2, paddingRight: 16, display: 'block', lineHeight: 1.4 }}
+                      multiline
+                    />
                   )}
                 </div>
               )
@@ -396,7 +527,12 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 9, color: D.green, fontWeight: 800,
                 }}>{i + 1}</div>
-                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}>{item}</span>
+                <EditableText
+                  value={item}
+                  onChange={ed ? v => upd(['recommendations', i], v) : undefined}
+                  style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}
+                  multiline
+                />
                 {editMode && (
                   <button onClick={() => onRemoveRecommendation?.(i)} style={delBtnStyle}>✕</button>
                 )}
@@ -428,7 +564,6 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
             return (PRI[a.priority] ?? 3) - (PRI[b.priority] ?? 3)
           })
 
-          // Columns: # | المهمة | الموعد | المالك | الحالة
           const COL = ['5%', '43%', '14%', '20%', '18%']
           const SEP = `1px solid ${D.border}`
           const ROW = (cells) => (
