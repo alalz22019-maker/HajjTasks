@@ -13,6 +13,11 @@ function isCompletedToday(t) {
   return c >= TODAY_START && c <= TODAY_END
 }
 
+function isCompletedLast24h(t) {
+  if (!t.done || !t.completedAt) return false
+  return Date.now() - new Date(t.completedAt).getTime() <= 24 * 60 * 60 * 1000
+}
+
 function isOverdue(t) {
   if (t.done || !t.dueDate) return false
   return new Date(t.dueDate) < TODAY_START
@@ -33,17 +38,21 @@ function formatShortDate(iso) {
 function buildBriefText(tasks) {
   const all     = tasks
   const urgent  = all.filter(t => t.priority === 'urgent' && !t.done)
-  const today   = all.filter(isCompletedToday)
+  const today   = all.filter(isCompletedLast24h)
   const overdue = all.filter(isOverdue)
-  const total   = all.length
-  const done    = all.filter(t => t.done).length
-  const pending = total - done
+  const total       = all.length
+  const done        = all.filter(t => t.done).length
+  const pendingCount = total - done
+  const pendingTasks = all.filter(t => !t.done).sort((a, b) => {
+    const order = { urgent: 0, high: 1, medium: 2, low: 3 }
+    return (order[a.priority] ?? 2) - (order[b.priority] ?? 2)
+  })
 
   const lines = []
   lines.push(`📋 *موجز اليوم*`)
   lines.push(`🗓 ${formatArabicDate()}`)
   lines.push(`──────────────`)
-  lines.push(`✅ أنجز: ${done}  ⏳ معلق: ${pending}  🔴 عاجل: ${urgent.length}${overdue.length ? `  ⚠️ متأخر: ${overdue.length}` : ''}`)
+  lines.push(`✅ أنجز: ${done}  ⏳ معلق: ${pendingCount}  🔴 عاجل: ${urgent.length}${overdue.length ? `  ⚠️ متأخر: ${overdue.length}` : ''}`)
 
   if (urgent.length) {
     lines.push(`──────────────`)
@@ -54,9 +63,19 @@ function buildBriefText(tasks) {
 
   if (today.length) {
     lines.push(`──────────────`)
-    lines.push(`✅ *أنجز اليوم (${today.length}):*`)
+    lines.push(`✅ *أنجز خلال 24 ساعة (${today.length}):*`)
     today.slice(0, 3).forEach(t => lines.push(`• ${t.title}`))
     if (today.length > 3) lines.push(`• ... و${today.length - 3} أخرى`)
+  }
+
+  if (pendingTasks.length) {
+    lines.push(`──────────────`)
+    lines.push(`📋 *قائمة المهام المعلقة (${pendingTasks.length}):*`)
+    pendingTasks.slice(0, 5).forEach((t, i) => {
+      const flag = t.priority === 'urgent' ? '🔴' : t.priority === 'high' ? '🟠' : '⬜'
+      lines.push(`${i + 1}. ${flag} ${t.title}`)
+    })
+    if (pendingTasks.length > 5) lines.push(`   ... و${pendingTasks.length - 5} مهام أخرى`)
   }
 
   lines.push(`──────────────`)
@@ -207,10 +226,18 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
   const [showSettings, setShowSettings] = useState(false)
   const notifRef = useRef(null)
 
-  const all       = tasks
-  const urgent    = useMemo(() => all.filter(t => t.priority === 'urgent' && !t.done), [all])
-  const todayDone = useMemo(() => all.filter(isCompletedToday), [all])
-  const overdue   = useMemo(() => all.filter(isOverdue), [all])
+  const all        = tasks
+  const urgent     = useMemo(() => all.filter(t => t.priority === 'urgent' && !t.done), [all])
+  const todayDone  = useMemo(() => all.filter(isCompletedToday), [all])
+  const last24Done = useMemo(() => all.filter(isCompletedLast24h), [all])
+  const overdue    = useMemo(() => all.filter(isOverdue), [all])
+  const pending    = useMemo(() => {
+    const p = all.filter(t => !t.done)
+    return p.sort((a, b) => {
+      const order = { urgent: 0, high: 1, medium: 2, low: 3 }
+      return (order[a.priority] ?? 2) - (order[b.priority] ?? 2)
+    })
+  }, [all])
   const total     = all.length
   const doneCount = all.filter(t => t.done).length
   const pct       = total ? Math.round((doneCount / total) * 100) : 0
@@ -284,7 +311,15 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
   }
 
   function printReport() {
+    document.body.classList.add('print-exec')
     window.print()
+    document.body.classList.remove('print-exec')
+  }
+
+  function printBrief() {
+    document.body.classList.add('print-brief')
+    window.print()
+    document.body.classList.remove('print-brief')
   }
 
   if (all.length === 0) {
@@ -333,7 +368,7 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
       {/* ── Daily Brief ── */}
       {tab === 'brief' && (
         <div>
-          {/* Share button */}
+          {/* Action buttons */}
           <div className="exec-actions">
             <button className="exec-btn whatsapp" onClick={() => {
               const text    = buildBriefText(tasks)
@@ -343,17 +378,20 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
                 ? `https://wa.me/${phone}?text=${encoded}`
                 : `https://wa.me/?text=${encoded}`, '_blank')
             }}>
-              <span>📤</span> إرسال الموجز
+              <span>📤</span> واتساب
+            </button>
+            <button className="exec-btn print" onClick={printBrief}>
+              <span>🖨️</span> PDF
             </button>
           </div>
 
           {/* Brief card */}
-          <div style={{
+          <div id="brief-report" style={{
             background: 'var(--card)', borderRadius: 16, overflow: 'hidden',
             boxShadow: '0 2px 12px rgba(0,0,0,0.12)', marginBottom: 16
           }}>
             {/* Card header */}
-            <div style={{
+            <div className="brief-header" style={{
               background: 'linear-gradient(135deg, #1e3a5f, #2563eb)',
               padding: '18px 16px', color: '#fff'
             }}>
@@ -372,10 +410,10 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               borderBottom: '1px solid var(--border)'
             }}>
               {[
-                { val: doneCount, label: 'أنجز', color: '#10b981', bg: '#d1fae5' },
-                { val: all.filter(t => !t.done).length, label: 'معلق', color: '#6366f1', bg: '#e0e7ff' },
-                { val: urgent.length, label: 'عاجل', color: '#ef4444', bg: '#fee2e2' },
-                { val: overdue.length, label: 'متأخر', color: '#f59e0b', bg: '#fef3c7' },
+                { val: doneCount,        label: 'أنجز',   color: '#10b981', bg: '#d1fae5' },
+                { val: pending.length,   label: 'معلق',   color: '#6366f1', bg: '#e0e7ff' },
+                { val: urgent.length,    label: 'عاجل',   color: '#ef4444', bg: '#fee2e2' },
+                { val: overdue.length,   label: 'متأخر',  color: '#f59e0b', bg: '#fef3c7' },
               ].map(({ val, label, color, bg }) => (
                 <div key={label} style={{
                   padding: '14px 8px', textAlign: 'center',
@@ -422,14 +460,12 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
                 </div>
                 {urgent.slice(0, 3).map((t, i) => (
                   <div key={t.id} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '6px 0',
+                    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0',
                     borderBottom: i < Math.min(urgent.length, 3) - 1 ? '1px solid var(--border)' : 'none'
                   }}>
                     <div style={{
                       width: 20, height: 20, borderRadius: '50%',
-                      background: '#fee2e2', color: '#dc2626',
-                      fontSize: 11, fontWeight: 700,
+                      background: '#fee2e2', color: '#dc2626', fontSize: 11, fontWeight: 700,
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                     }}>{i + 1}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -455,35 +491,78 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             )}
 
-            {/* Today done */}
+            {/* TODO list — pending tasks */}
+            {pending.length > 0 && (
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{
+                  fontSize: 12, fontWeight: 700, color: '#4338ca',
+                  marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                  📋 قائمة المهام المعلقة
+                  <span style={{
+                    background: '#e0e7ff', color: '#3730a3',
+                    borderRadius: 10, padding: '1px 7px', fontSize: 11
+                  }}>{pending.length}</span>
+                </div>
+                {pending.map((t, i) => {
+                  const flag = t.priority === 'urgent' ? { dot: '#ef4444', bg: '#fee2e2' }
+                             : t.priority === 'high'   ? { dot: '#f97316', bg: '#ffedd5' }
+                             : { dot: '#9ca3af', bg: 'var(--bg3)' }
+                  return (
+                    <div key={t.id} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 0',
+                      borderBottom: i < pending.length - 1 ? '1px solid var(--border)' : 'none'
+                    }}>
+                      <div style={{
+                        marginTop: 4, width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                        background: flag.dot, boxShadow: `0 0 0 3px ${flag.bg}`
+                      }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</div>
+                        {(t.person || t.dueDate) && (
+                          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                            {t.person && `👤 ${t.person}`}
+                            {t.person && t.dueDate && ' · '}
+                            {t.dueDate && `📅 ${formatShortDate(t.dueDate)}`}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* Last 24h completed */}
             <div style={{ padding: '12px 16px' }}>
               <div style={{
                 fontSize: 12, fontWeight: 700, color: '#059669',
                 marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6
               }}>
-                ✅ أنجز اليوم
+                ✅ أنجز خلال 24 ساعة
                 <span style={{
                   background: '#d1fae5', color: '#065f46',
                   borderRadius: 10, padding: '1px 7px', fontSize: 11
-                }}>{todayDone.length}</span>
+                }}>{last24Done.length}</span>
               </div>
-              {todayDone.length === 0
-                ? <div style={{ fontSize: 13, color: 'var(--text3)' }}>لا شيء أنجز اليوم بعد</div>
-                : todayDone.slice(0, 3).map(t => (
+              {last24Done.length === 0
+                ? <div style={{ fontSize: 13, color: 'var(--text3)' }}>لا شيء أنجز خلال آخر 24 ساعة</div>
+                : last24Done.map(t => (
                   <div key={t.id} style={{
-                    fontSize: 13, padding: '4px 0', color: 'var(--text2)',
-                    display: 'flex', alignItems: 'center', gap: 6
+                    fontSize: 13, padding: '5px 0', color: 'var(--text2)',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    borderBottom: '1px solid var(--border)'
                   }}>
-                    <span style={{ color: '#10b981' }}>✓</span>
-                    <span style={{ textDecoration: 'line-through', opacity: 0.7 }}>{t.title}</span>
+                    <span style={{ color: '#10b981', fontSize: 15, flexShrink: 0 }}>✓</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ textDecoration: 'line-through', opacity: 0.65 }}>{t.title}</div>
+                      {t.person && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>👤 {t.person}</div>
+                      )}
+                    </div>
                   </div>
                 ))
               }
-              {todayDone.length > 3 && (
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 4 }}>
-                  +{todayDone.length - 3} مهام أخرى
-                </div>
-              )}
             </div>
           </div>
         </div>

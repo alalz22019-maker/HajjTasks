@@ -1276,16 +1276,30 @@ select.form-input option {
 /* ── Print CSS ──────────────────────────────────────────── */
 @media print {
   body > * { display: none !important; }
-  #exec-report { display: block !important; }
+  #exec-report  { display: none !important; }
+  #brief-report { display: none !important; }
+
+  body.print-exec #exec-report  { display: block !important; }
+  body.print-brief #brief-report { display: block !important; }
 
   #exec-report {
-    margin: 0;
-    border: none;
-    border-radius: 0;
-    background: #fff;
-    color: #111;
-    font-family: Arial, sans-serif;
-    direction: rtl;
+    margin: 0; border: none; border-radius: 0;
+    background: #fff; color: #111;
+    font-family: Arial, sans-serif; direction: rtl;
+  }
+
+  #brief-report {
+    margin: 0; border: none; border-radius: 0;
+    background: #fff; color: #111;
+    font-family: Arial, sans-serif; direction: rtl;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .brief-header {
+    background: #1e3a5f !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .exec-report-header {
