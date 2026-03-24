@@ -56,7 +56,7 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 2048,
       system: systemPrompt,
       messages,
@@ -64,7 +64,7 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `API error ${res.status}`)
+    throw new Error(translateApiError(res.status, err?.error?.message))
   }
   const data = await res.json()
   return data.content?.[0]?.text || ''
@@ -125,6 +125,19 @@ ${summary}
 }`
 }
 
+function translateApiError(status, msg) {
+  const m = (msg || '').toLowerCase()
+  if (status === 401 || m.includes('api key') || m.includes('authentication'))
+    return 'مفتاح API غير صحيح أو منتهي الصلاحية — تحقق من المفتاح في الإعدادات'
+  if (m.includes('credit') || m.includes('balance') || status === 402)
+    return 'رصيد API منتهٍ — يرجى إعادة شحن الحساب على موقع Anthropic'
+  if (status === 429 || m.includes('rate limit'))
+    return 'تجاوزت الحد المسموح من الطلبات — انتظر قليلاً ثم أعد المحاولة'
+  if (status === 529 || m.includes('overloaded'))
+    return 'خوادم Claude مشغولة حالياً — أعد المحاولة بعد دقيقة'
+  return msg || `خطأ من API (${status})`
+}
+
 export async function callClaude(apiKey, systemPrompt, userContent, model = 'claude-haiku-4-5-20251001') {
   const res = await fetch(API_URL, {
     method: 'POST',
@@ -144,7 +157,7 @@ export async function callClaude(apiKey, systemPrompt, userContent, model = 'cla
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message || `API error ${res.status}`)
+    throw new Error(translateApiError(res.status, err?.error?.message))
   }
 
   const data = await res.json()

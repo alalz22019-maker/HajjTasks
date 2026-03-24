@@ -16,6 +16,20 @@ function saveExcluded(set) {
   saveData('mytasks_report_exclude', [...set])
 }
 
+/* ── تطبيع اسم المشروع لتجميع الأسماء المتشابهة ── */
+function normalizeProject(s) {
+  return (s || '')
+    .trim()
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/ى/g, 'ي')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*و\s*/g, ' و ')   // توحيد المسافات حول (و)
+    .toLowerCase()
+}
+
 export default function VisualSummary({ tasks, apiKey }) {
   const [summary,        setSummary]        = useState(null)
   const [loading,        setLoading]        = useState(false)
@@ -30,11 +44,26 @@ export default function VisualSummary({ tasks, apiKey }) {
   const [filterWeek,     setFilterWeek]     = useState(false)
   const cardRef = useRef(null)
 
-  /* ── مشاريع متاحة من المهام ── */
+  /* ── مشاريع متاحة من المهام (مدموجة حسب التطبيع) ── */
   const projectOptions = useMemo(() => {
-    const seen = new Set()
-    tasks.forEach(t => { if (t.projectName) seen.add(t.projectName) })
-    return [...seen].sort()
+    // key = اسم مطبَّع → { displayName: الأكثر تكراراً, count }
+    const groups = new Map()
+    tasks.forEach(t => {
+      if (!t.projectName) return
+      const norm = normalizeProject(t.projectName)
+      if (!groups.has(norm)) {
+        groups.set(norm, { displayName: t.projectName, count: 0, freq: new Map() })
+      }
+      const g = groups.get(norm)
+      g.count++
+      g.freq.set(t.projectName, (g.freq.get(t.projectName) || 0) + 1)
+      // استخدم الهجاء الأكثر ظهوراً كاسم العرض
+      const maxEntry = [...g.freq.entries()].reduce((a, b) => b[1] > a[1] ? b : a)
+      g.displayName = maxEntry[0]
+    })
+    return [...groups.entries()]
+      .map(([norm, { displayName, count }]) => ({ norm, displayName, count }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'ar'))
   }, [tasks])
 
   /* ── فلترة المهام قبل التوليد ── */
@@ -42,7 +71,7 @@ export default function VisualSummary({ tasks, apiKey }) {
     const todayMs = new Date(new Date().toDateString()).getTime()
     const weekMs  = 7 * 86400000
     return tasks.filter(t => {
-      if (filterProject !== 'all' && (t.projectName || '') !== filterProject) return false
+      if (filterProject !== 'all' && normalizeProject(t.projectName || '') !== filterProject) return false
       if (filterWeek) {
         if (t.dueDate) {
           const dueMs = new Date(t.dueDate).getTime()
@@ -154,7 +183,9 @@ export default function VisualSummary({ tasks, apiKey }) {
 
   /* ── label للفلتر النشط ── */
   const activeFilterLabel = [
-    filterProject !== 'all' ? filterProject : null,
+    filterProject !== 'all'
+      ? (projectOptions.find(p => p.norm === filterProject)?.displayName ?? filterProject)
+      : null,
     filterWeek ? 'هذا الأسبوع' : null,
   ].filter(Boolean).join(' · ')
 
@@ -195,10 +226,9 @@ export default function VisualSummary({ tasks, apiKey }) {
                 }}
               >
                 <option value="all">كل المشاريع ({tasks.length} مهمة)</option>
-                {projectOptions.map(p => {
-                  const cnt = tasks.filter(t => t.projectName === p).length
-                  return <option key={p} value={p}>{p} ({cnt})</option>
-                })}
+                {projectOptions.map(({ norm, displayName, count }) => (
+                  <option key={norm} value={norm}>{displayName} ({count})</option>
+                ))}
               </select>
             </div>
 
