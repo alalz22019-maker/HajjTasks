@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { generateVisualSummary, reviewByTaskExpert, reviewByLanguageExpert } from '../utils/claude'
+import { useState, useRef, useMemo } from 'react'
+import { generateVisualSummary, reviewByTaskExpert } from '../utils/claude'
 import { loadData, saveData } from '../utils/storage'
 import VisualSummaryCard from './VisualSummaryCard'
 import { exportPNG, exportPDF, shareImage } from './VisualSummaryExport'
@@ -7,7 +7,6 @@ import { exportPNG, exportPDF, shareImage } from './VisualSummaryExport'
 const STEPS = [
   { key: 'generate', icon: '⚙️', label: 'Claude يحلل المهام ويولّد التقرير...' },
   { key: 'task',     icon: '🔍', label: 'خبير إدارة المهام يراجع الأشخاص والأولويات...' },
-  { key: 'lang',     icon: '✍️', label: 'مدقق اللغة العربية يصحح الصياغة...' },
 ]
 
 function loadExcluded() {
@@ -27,21 +26,48 @@ export default function VisualSummary({ tasks, apiKey }) {
   const [excludedPeople, setExcludedPeople] = useState(loadExcluded)
   const [showExclude,    setShowExclude]    = useState(false)
   const [newExclude,     setNewExclude]     = useState('')
+  const [filterProject,  setFilterProject]  = useState('all')
+  const [filterWeek,     setFilterWeek]     = useState(false)
   const cardRef = useRef(null)
+
+  /* ── مشاريع متاحة من المهام ── */
+  const projectOptions = useMemo(() => {
+    const seen = new Set()
+    tasks.forEach(t => { if (t.projectName) seen.add(t.projectName) })
+    return [...seen].sort()
+  }, [tasks])
+
+  /* ── فلترة المهام قبل التوليد ── */
+  const filteredTasks = useMemo(() => {
+    const todayMs = new Date(new Date().toDateString()).getTime()
+    const weekMs  = 7 * 86400000
+    return tasks.filter(t => {
+      if (filterProject !== 'all' && (t.projectName || '') !== filterProject) return false
+      if (filterWeek) {
+        if (t.dueDate) {
+          const dueMs = new Date(t.dueDate).getTime()
+          // أبقِ المتأخرة + المستحقة خلال 7 أيام
+          if (dueMs > todayMs + weekMs) return false
+        } else if (t.done && t.completedAt) {
+          const compMs = new Date(t.completedAt).getTime()
+          if (compMs < todayMs - weekMs) return false
+        }
+        // مهام بدون تاريخ استحقاق وغير مكتملة → تُبقى
+      }
+      return true
+    })
+  }, [tasks, filterProject, filterWeek])
 
   async function handleGenerate() {
     if (!apiKey) { setError('أضف مفتاح API أولاً'); return }
     setLoading(true); setError(''); setSummary(null); setEditMode(false)
     try {
       setStep('generate')
-      let result = await generateVisualSummary(apiKey, tasks)
+      let result = await generateVisualSummary(apiKey, filteredTasks)
       if (!result) throw new Error('لم ينتج إنشاء اللوحة')
 
       setStep('task')
-      result = await reviewByTaskExpert(apiKey, result, tasks)
-
-      setStep('lang')
-      result = await reviewByLanguageExpert(apiKey, result)
+      result = await reviewByTaskExpert(apiKey, result, filteredTasks)
 
       // تطبيق قائمة الاستبعاد على قسم الفريق
       if (excludedPeople.size > 0 && result.peopleStatus) {
@@ -63,7 +89,6 @@ export default function VisualSummary({ tasks, apiKey }) {
       ...prev,
       peopleStatus: prev.peopleStatus.filter(p => p.name !== name),
     }))
-    // حفظ في قائمة الاستبعاد الدائمة تلقائياً
     setExcludedPeople(prev => {
       const next = new Set(prev)
       next.add(name)
@@ -118,7 +143,7 @@ export default function VisualSummary({ tasks, apiKey }) {
   async function withExport(fn) {
     if (!cardRef.current) return
     const wasEdit = editMode
-    setEditMode(false)          // أخفِ أزرار التعديل قبل التصدير
+    setEditMode(false)
     setExporting(true); setError('')
     try { await fn(cardRef.current) }
     catch (e) { setError(e.message || 'تعذّر التصدير') }
@@ -126,6 +151,12 @@ export default function VisualSummary({ tasks, apiKey }) {
   }
 
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+
+  /* ── label للفلتر النشط ── */
+  const activeFilterLabel = [
+    filterProject !== 'all' ? filterProject : null,
+    filterWeek ? 'هذا الأسبوع' : null,
+  ].filter(Boolean).join(' · ')
 
   return (
     <div style={{ padding: '16px', direction: 'rtl' }}>
@@ -139,6 +170,72 @@ export default function VisualSummary({ tasks, apiKey }) {
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 20 }}>
             ينشئ Claude ملخصاً تنفيذياً يساعدك على اتخاذ القرارات الصحيحة
+          </div>
+
+          {/* ── فلاتر التقرير ── */}
+          <div style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '12px 14px', marginBottom: 16, textAlign: 'right',
+          }}>
+            <div style={{ fontSize: 11, color: '#9090a8', marginBottom: 10, fontWeight: 600 }}>
+              🔍 نطاق التقرير
+            </div>
+
+            {/* فلتر المشروع */}
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, color: '#9090a8', marginBottom: 5 }}>المشروع</div>
+              <select
+                value={filterProject}
+                onChange={e => setFilterProject(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 10px',
+                  background: 'var(--bg)', border: '1px solid var(--border)',
+                  borderRadius: 8, color: '#e8e8f0', fontSize: 13,
+                  fontFamily: 'inherit', outline: 'none', direction: 'rtl',
+                }}
+              >
+                <option value="all">كل المشاريع ({tasks.length} مهمة)</option>
+                {projectOptions.map(p => {
+                  const cnt = tasks.filter(t => t.projectName === p).length
+                  return <option key={p} value={p}>{p} ({cnt})</option>
+                })}
+              </select>
+            </div>
+
+            {/* فلتر الأسبوع */}
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              cursor: 'pointer', fontSize: 12, color: filterWeek ? '#F59E0B' : '#9090a8',
+            }}>
+              <div
+                onClick={() => setFilterWeek(v => !v)}
+                style={{
+                  width: 36, height: 20, borderRadius: 10, position: 'relative',
+                  background: filterWeek ? '#F59E0B' : 'var(--border)',
+                  transition: 'background 0.2s', flexShrink: 0, cursor: 'pointer',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 2,
+                  right: filterWeek ? 2 : 16,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: '#fff', transition: 'right 0.2s',
+                }} />
+              </div>
+              هذا الأسبوع فقط (المهام المستحقة خلال 7 أيام)
+            </label>
+
+            {/* عدد المهام المفلترة */}
+            {(filterProject !== 'all' || filterWeek) && (
+              <div style={{
+                marginTop: 10, padding: '6px 10px',
+                background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                borderRadius: 8, fontSize: 11, color: '#F59E0B',
+              }}>
+                سيشمل التقرير {filteredTasks.length} مهمة
+                {activeFilterLabel ? ` · ${activeFilterLabel}` : ''}
+              </div>
+            )}
           </div>
 
           {/* ── قائمة الاستبعاد ── */}
@@ -225,7 +322,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               جارٍ إعداد التقرير...
             </div>
             <div style={{ fontSize: 12, color: '#9090a8', marginTop: 4 }}>
-              3 خبراء يعملون في الخلفية لرفع جودة التقرير
+              خبيران يعملان في الخلفية لرفع جودة التقرير
             </div>
           </div>
 
@@ -299,7 +396,7 @@ export default function VisualSummary({ tasks, apiKey }) {
           <VisualSummaryCard
             cardRef={cardRef}
             summary={summary}
-            tasks={tasks}
+            tasks={filteredTasks}
             editMode={editMode}
             onRemovePerson={removePerson}
             onRemoveActionItem={removeActionItem}

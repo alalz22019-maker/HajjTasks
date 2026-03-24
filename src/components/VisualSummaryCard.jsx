@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { D, KPI_PALETTE, MATRIX_CFG, CARD, formatDates } from './VisualSummaryColors'
 
 function SectionLabel({ icon, label, color }) {
@@ -10,7 +11,7 @@ function SectionLabel({ icon, label, color }) {
 }
 
 /* ── حقل نص قابل للتعديل ── */
-function EditableText({ value, onChange, style, multiline }) {
+const EditableText = memo(function EditableText({ value, onChange, style, multiline }) {
   if (!onChange) {
     return multiline
       ? <span style={style}>{value}</span>
@@ -49,7 +50,7 @@ function EditableText({ value, onChange, style, multiline }) {
       style={editStyle}
     />
   )
-}
+})
 
 export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, onRemovePerson, onRemoveActionItem, onRemoveRecommendation, onRemoveOverviewItem, onSummaryChange }) {
   const today    = new Date()
@@ -297,6 +298,37 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
           </div>
         )}
 
+        {/* ── ACCOMPLISHMENTS ── */}
+        {summary.accomplishments?.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(0,107,63,0.08), rgba(16,185,129,0.05))',
+            border: `1px solid rgba(0,107,63,0.22)`,
+            borderRadius: 14, padding: '14px 16px',
+          }}>
+            <SectionLabel icon="🏆" label="المنجزات" color={D.green} />
+            {summary.accomplishments.map((item, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 4, alignItems: 'flex-start' }}>
+                <span style={{ color: D.green, fontSize: 11, flexShrink: 0, lineHeight: 1.5 }}>✓</span>
+                <EditableText
+                  value={item}
+                  onChange={ed ? v => upd(['accomplishments', i], v) : undefined}
+                  style={{ fontSize: 11, color: D.text, lineHeight: 1.5, flex: 1 }}
+                />
+                {editMode && (
+                  <button
+                    onClick={() => {
+                      const clone = JSON.parse(JSON.stringify(summary))
+                      clone.accomplishments.splice(i, 1)
+                      onSummaryChange?.(clone)
+                    }}
+                    style={delBtnStyle}
+                  >✕</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── PEOPLE STATUS ── */}
         {summary.peopleStatus?.length > 0 && (
           <div style={{
@@ -327,6 +359,13 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                         onChange={ed ? v => upd(['peopleStatus', i, 'name'], v) : undefined}
                         style={{ fontSize: 12, fontWeight: 700, color: D.text }}
                       />
+                      {(person.completedCount !== undefined && person.totalCount !== undefined) && (
+                        <span style={{
+                          fontSize: 9, color: D.green, background: D.greenBg,
+                          borderRadius: 4, padding: '2px 6px', flexShrink: 0,
+                          border: `1px solid rgba(0,107,63,0.2)`, fontWeight: 600,
+                        }}>{person.completedCount}/{person.totalCount}</span>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexShrink: 0 }}>
                       {editMode && (
@@ -486,11 +525,13 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
                     </div>
                     <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
                       {item.owner !== undefined && (
-                        <EditableText
-                          value={item.owner}
-                          onChange={ed ? v => upd(['actionItems', i, 'owner'], v) : undefined}
-                          style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px' }}
-                        />
+                        <div style={{ maxWidth: 80, flexShrink: 0 }}>
+                          <EditableText
+                            value={item.owner}
+                            onChange={ed ? v => upd(['actionItems', i, 'owner'], v) : undefined}
+                            style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px' }}
+                          />
+                        </div>
                       )}
                       {editMode && (
                         <button onClick={() => onRemoveActionItem?.(i)} style={delBtnStyle}>✕</button>
@@ -518,7 +559,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, o
             border: `1px solid rgba(0,107,63,0.18)`,
             borderRadius: 14, padding: '14px 16px',
           }}>
-            <SectionLabel icon="💡" label="التوصيات الاستراتيجية" color={D.green} />
+            <SectionLabel icon="💡" label="التوصيات" color={D.green} />
             {summary.recommendations.map((item, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start' }}>
                 <div style={{
