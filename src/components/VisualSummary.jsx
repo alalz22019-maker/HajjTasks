@@ -290,7 +290,7 @@ export default function VisualSummary({ tasks, apiKey }) {
               background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)',
               borderRadius: 10, fontSize: 12, color: '#F59E0B', direction: 'rtl',
             }}>
-              ✏️ وضع التعديل — اضغط ✕ لحذف أي عنصر. إخفاء شخص يحفظه في قائمة الاستبعاد تلقائياً.
+              ✏️ وضع التعديل — اضغط على أي نص لتعديله مباشرة. اضغط ✕ لحذف العنصر. إخفاء شخص يحفظه في قائمة الاستبعاد تلقائياً.
             </div>
           )}
 
@@ -305,6 +305,7 @@ export default function VisualSummary({ tasks, apiKey }) {
             onRemoveActionItem={removeActionItem}
             onRemoveRecommendation={removeRecommendation}
             onRemoveOverviewItem={removeOverviewItem}
+            onSummaryChange={setSummary}
           />
         </>
       )}
