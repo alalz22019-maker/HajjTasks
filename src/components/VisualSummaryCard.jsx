@@ -9,7 +9,7 @@ function SectionLabel({ icon, label, color }) {
   )
 }
 
-export default function VisualSummaryCard({ cardRef, summary, tasks }) {
+export default function VisualSummaryCard({ cardRef, summary, tasks, editMode, onRemovePerson, onRemoveActionItem, onRemoveRecommendation, onRemoveOverviewItem }) {
   const today    = new Date()
   const todayMs  = new Date(today.toDateString()).getTime()
   const in2Days  = todayMs + 2 * 86400000
@@ -201,7 +201,10 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
                   width: 5, height: 5, borderRadius: '50%', background: D.green,
                   flexShrink: 0, marginTop: 6,
                 }} />
-                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}>{item}</span>
+                {editMode && (
+                  <button onClick={() => onRemoveOverviewItem?.(i)} style={delBtnStyle}>✕</button>
+                )}
               </div>
             ))}
           </div>
@@ -235,7 +238,18 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
                       }}>👤</div>
                       <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{person.name}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {editMode && (
+                        <button
+                          onClick={() => onRemovePerson?.(person.name)}
+                          title="إخفاء وحفظ في قائمة الاستبعاد"
+                          style={{
+                            background: 'rgba(192,57,43,0.12)', border: '1px solid rgba(192,57,43,0.3)',
+                            color: '#C0392B', borderRadius: 6, padding: '2px 8px',
+                            fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600,
+                          }}
+                        >🚫 إخفاء</button>
+                      )}
                       {overdue.length > 0 && (
                         <span style={{ fontSize: 9, color: D.red, background: '#FFFFFF', borderRadius: 4, padding: '2px 7px', border: `1px solid ${D.red}30` }}>
                           {overdue.length} متأخرة
@@ -336,7 +350,7 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
             {summary.actionItems.map((item, i) => {
               const hi    = item.priority === 'high'
               const label = item.task || item.text || ''
-              return (
+              return ( // eslint-disable-next-line react/no-array-index-key
                 <div key={i} style={{
                   marginBottom: i < summary.actionItems.length - 1 ? 7 : 0,
                   padding: '8px 10px', borderRadius: 9,
@@ -344,13 +358,18 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
                   border: `1px solid ${hi ? D.red + '22' : D.border}`,
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: item.reason ? 3 : 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 10 }}>{hi ? '🔴' : '🔵'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 10, flexShrink: 0 }}>{hi ? '🔴' : '🔵'}</span>
                       <span style={{ fontSize: 11, fontWeight: 700, color: hi ? D.red : D.text }}>{label}</span>
                     </div>
-                    {item.owner && (
-                      <span style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px', flexShrink: 0 }}>{item.owner}</span>
-                    )}
+                    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+                      {item.owner && (
+                        <span style={{ fontSize: 9, color: D.text2, background: D.bg3, borderRadius: 4, padding: '2px 7px' }}>{item.owner}</span>
+                      )}
+                      {editMode && (
+                        <button onClick={() => onRemoveActionItem?.(i)} style={delBtnStyle}>✕</button>
+                      )}
+                    </div>
                   </div>
                   {item.reason && (
                     <span style={{ fontSize: 9, color: D.text2, paddingRight: 16, display: 'block', lineHeight: 1.4 }}>{item.reason}</span>
@@ -377,7 +396,10 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 9, color: D.green, fontWeight: 800,
                 }}>{i + 1}</div>
-                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6 }}>{item}</span>
+                <span style={{ fontSize: 11, color: D.text, lineHeight: 1.6, flex: 1 }}>{item}</span>
+                {editMode && (
+                  <button onClick={() => onRemoveRecommendation?.(i)} style={delBtnStyle}>✕</button>
+                )}
               </div>
             ))}
           </div>
@@ -469,4 +491,10 @@ export default function VisualSummaryCard({ cardRef, summary, tasks }) {
 
     </div>
   )
+}
+
+const delBtnStyle = {
+  background: 'none', border: 'none', color: '#C0392B',
+  fontSize: 13, cursor: 'pointer', padding: '0 3px',
+  lineHeight: 1, flexShrink: 0, opacity: 0.7,
 }
