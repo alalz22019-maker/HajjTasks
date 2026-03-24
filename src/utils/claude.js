@@ -362,3 +362,59 @@ export async function generateVisualSummary(apiKey, tasks) {
     throw new Error('الرد غير صالح: ' + text.slice(0, 80))
   }
 }
+
+/* ─── خبير إدارة المهام ─────────────────────────────────────────────── */
+const TASK_EXPERT_SYSTEM = `أنت خبير متخصص في مراجعة وتدقيق تقارير إدارة المهام الحكومية.
+
+مهمتك: مراجعة التقرير المُولَّد ومقارنته بالبيانات الفعلية، وتصحيح الأخطاء دون اختراع معلومات.
+
+راجع وصحح:
+1. الأشخاص (w): تحقق أن كل اسم في peopleStatus وactionItems موجود فعلاً في البيانات
+2. الأولويات: KPIs[1] = مهام d=0 وdue < today فقط — احسب بنفسك
+3. مصفوفة الأولوية (matrix): تحقق أن كل مهمة في القسم الصحيح بناءً على (p وd وdue)
+4. الأرقام: تحقق أن count في كل قسم يطابق items.length
+5. العناوين: تحقق أن 3-6 كلمات من العنوان الفعلي في البيانات (t)
+
+قواعد صارمة:
+- لا تُضف أشخاصاً غير موجودين في البيانات
+- لا تغير الأرقام إلا إذا كانت خاطئة بناءً على حساب فعلي
+- أرجع JSON بنفس الهيكل بالضبط (بدون أي نص خارجه)`
+
+export async function reviewByTaskExpert(apiKey, reportJson, tasks) {
+  const today = new Date().toISOString().slice(0, 10)
+  const slim = tasks.map(t => ({
+    t: t.title, p: t.priority, w: t.person || '',
+    d: t.done ? 1 : 0, due: t.dueDate || '', f: t.projectName || '',
+  }))
+  const prompt = `today=${today}\nبيانات المهام:\n${JSON.stringify(slim)}\n\nالتقرير للمراجعة:\n${JSON.stringify(reportJson)}`
+  const raw  = await callClaude(apiKey, TASK_EXPERT_SYSTEM, prompt, 'claude-sonnet-4-6')
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  try { return JSON.parse(text) }
+  catch { return reportJson } // إذا فشل التحليل أرجع الأصل
+}
+
+/* ─── مدقق اللغة العربية ────────────────────────────────────────────── */
+const LANGUAGE_EXPERT_SYSTEM = `أنت خبير مدقق لغوي متخصص في العربية الفصحى الإدارية الحكومية السعودية.
+
+مهمتك: مراجعة نصوص التقرير وتصحيح الأخطاء اللغوية مع الحفاظ التام على بنية JSON والقيم الرقمية.
+
+راجع وصحح في حقول النص فقط:
+1. الأخطاء الإملائية والنحوية
+2. الصياغة: استخدم مصطلحات إدارية رسمية مناسبة
+3. الاتساق: وحّد المصطلحات عبر التقرير
+4. الإيجاز: لا تتجاوز 15 كلمة في كل جملة
+5. المصدرية: حوّل العبارات العامية أو غير الرسمية للفصحى
+
+قواعد صارمة:
+- لا تغير أي قيمة رقمية
+- لا تغير أسماء الأشخاص
+- لا تغير مفاتيح JSON
+- الأرقام الغربية (0-9) فقط
+- أرجع JSON بنفس الهيكل بالضبط (بدون أي نص خارجه)`
+
+export async function reviewByLanguageExpert(apiKey, reportJson) {
+  const raw  = await callClaude(apiKey, LANGUAGE_EXPERT_SYSTEM, JSON.stringify(reportJson), 'claude-sonnet-4-6')
+  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+  try { return JSON.parse(text) }
+  catch { return reportJson } // إذا فشل التحليل أرجع الأصل
+}
