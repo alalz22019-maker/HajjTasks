@@ -342,6 +342,19 @@ CRITICAL:
 - جميع النصوص بالعربية الفصحى
 أرجع JSON فقط بدون \`\`\`json`
 
+// أسماء صاحبة التقرير — تُحذف من المهام المشتركة حتى لا تظهر في قسم الفريق
+const REPORT_OWNER_PATTERNS = ['منار', 'د. منار', 'منار سمان', 'د. منار سمان']
+
+function stripOwnerFromPerson(personStr) {
+  if (!personStr) return ''
+  const parts = personStr.split(/[،,]/).map(p => p.trim()).filter(Boolean)
+  if (parts.length <= 1) return personStr   // شخص واحد فقط → لا تغيير
+  const filtered = parts.filter(p =>
+    !REPORT_OWNER_PATTERNS.some(pat => p.includes(pat))
+  )
+  return filtered.length > 0 ? filtered.join('، ') : personStr
+}
+
 export async function generateVisualSummary(apiKey, tasks) {
   const today = new Date().toISOString().slice(0, 10)
   const slim = tasks.map(t => ({
@@ -349,7 +362,7 @@ export async function generateVisualSummary(apiKey, tasks) {
     p: t.priority,
     c: t.category,
     f: t.projectName || '',
-    w: t.person || '',
+    w: stripOwnerFromPerson(t.person || ''),
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
   }))
@@ -383,7 +396,7 @@ const TASK_EXPERT_SYSTEM = `أنت خبير متخصص في مراجعة وتد�
 export async function reviewByTaskExpert(apiKey, reportJson, tasks) {
   const today = new Date().toISOString().slice(0, 10)
   const slim = tasks.map(t => ({
-    t: t.title, p: t.priority, w: t.person || '',
+    t: t.title, p: t.priority, w: stripOwnerFromPerson(t.person || ''),
     d: t.done ? 1 : 0, due: t.dueDate || '', f: t.projectName || '',
   }))
   const prompt = `today=${today}\nبيانات المهام:\n${JSON.stringify(slim)}\n\nالتقرير للمراجعة:\n${JSON.stringify(reportJson)}`
