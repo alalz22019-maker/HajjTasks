@@ -270,6 +270,7 @@ CRITICAL:
 - جميع الأرقام بالأرقام الغربية (0-9) فقط — ممنوع استخدام الأرقام الشرقية (٠-٩)
 - الجمل مختصرة لا تتجاوز 15 كلمة
 - اليوم الحالي يُمرَّر في أول سطر من البيانات بصيغة today=YYYY-MM-DD
+- حقل ca في البيانات = تاريخ إكمال المهمة (YYYY-MM-DD)، فارغ إذا لم تُكتمل بعد
 
 أرجع JSON بهذا الشكل (بدون أي نص خارج JSON):
 {
@@ -290,6 +291,9 @@ CRITICAL:
     "جملة واحدة ≤15 كلمة تذكر رقماً ومهمة أو شخصاً بالاسم",
     "جملة ثانية ≤15 كلمة عن أبرز خطر أو تأخير بالاسم والتاريخ"
   ],
+  "accomplishments": [
+    "3-6 كلمات من عنوان مهمة مكتملة حديثاً (d=1)"
+  ],
   "projectBreakdown": [
     {
       "category": "اسم المشروع/المجلد الفعلي من حقل f",
@@ -302,6 +306,8 @@ CRITICAL:
   "peopleStatus": [
     {
       "name": "اسم الشخص الفعلي",
+      "completedCount": 2,
+      "totalCount": 7,
       "overdueTasks": ["3-6 كلمات من عنوان متأخرة"],
       "nearDueTasks": ["3-6 كلمات من عنوان قاربت"],
       "activeTasks":  ["3-6 كلمات من عنوان جارية"],
@@ -313,11 +319,11 @@ CRITICAL:
       "task": "3-6 كلمات من عنوان المهمة",
       "owner": "اسم المالك",
       "reason": "سبب محدد ≤10 كلمات",
-      "priority": "high"
+      "priority": "urgent"
     }
   ],
   "recommendations": [
-    "توصية PMO مختصرة ≤12 كلمة مبنية على بيانات المختبرات الفعلية"
+    "توصية PMO مختصرة ≤20 كلمة مبنية على بيانات المختبرات الفعلية"
   ]
 }
 
@@ -326,17 +332,20 @@ CRITICAL:
 - kpis[1].value = عدد المهام التي due < today وd=0
 - kpis[2].value = عدد المهام التي today ≤ due ≤ today+2 وd=0
 - kpis[3].value = عدد المهام التي d=1
-- matrix: urgentImportant(p=urgent,d=0) / importantNotUrgent(p=high|medium,d=0) / urgentNotImportant(p=normal,due≤today+2,d=0) / other
+- matrix: urgentImportant(p=urgent,d=0) / importantNotUrgent(p=medium,d=0) / urgentNotImportant(p=low,due≤today+2,d=0) / other
 
 قواعد المحتوى (لا تخالفها):
 - overview: جملتان مختصرتان (≤15 كلمة كل منهما) بأسماء وأرقام فعلية من البيانات
+- accomplishments: أبرز 3-6 مهام مكتملة (d=1)، رتّبها حسب ca تنازلياً (الأحدث أولاً)، إن لم يوجد ca أدرج أي مهام مكتملة — إذا لم توجد مهام مكتملة أرجع []
 - projectBreakdown: اجمع حسب حقل f (اسم المشروع)، إن كان f فارغاً استخدم c، سجّل كل مجموعة فيها مهمتان فأكثر
 - peopleStatus: اجمع حسب (w)، تجاهل w=''، رتّب الأشخاص تنازلياً حسب overdueCount
+  - completedCount: عدد مهام الشخص التي d=1
+  - totalCount: إجمالي مهام الشخص (d=0 + d=1)
   - overdueTasks: مهام due < today وd=0
   - nearDueTasks: مهام today ≤ due ≤ today+2 وd=0
   - activeTasks: مهام d=0 غير المتأخرة وغير القريبة
-- actionItems: 3-5 مهام تحتاج قرار القيادة، اسم المهمة + المالك + سبب ≤10 كلمات
-- recommendations: 3 توصيات PMO مختصرة (≤12 كلمة) مبنية على واقع المهام الفعلي
+- actionItems: 3-5 مهام تحتاج قرار القيادة، أولويتها urgent أو medium فقط
+- recommendations: 3 توصيات PMO (≤20 كلمة) مبنية على واقع المهام الفعلي
 - items في matrix وكل عناوين المهام: 3-6 كلمات فعلية من عنوان المهمة، لا عبارات عامة
 - جميع الأرقام غربية (0-9) بدون استثناء
 - جميع النصوص بالعربية الفصحى
@@ -365,6 +374,7 @@ export async function generateVisualSummary(apiKey, tasks) {
     w: stripOwnerFromPerson(t.person || ''),
     d: t.done ? 1 : 0,
     due: t.dueDate || '',
+    ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
   const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, `today=${today}\n${JSON.stringify(slim)}`, 'claude-sonnet-4-6')
   // Strip markdown code fences if Claude wraps the JSON
@@ -398,6 +408,7 @@ export async function reviewByTaskExpert(apiKey, reportJson, tasks) {
   const slim = tasks.map(t => ({
     t: t.title, p: t.priority, w: stripOwnerFromPerson(t.person || ''),
     d: t.done ? 1 : 0, due: t.dueDate || '', f: t.projectName || '',
+    ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
   const prompt = `today=${today}\nبيانات المهام:\n${JSON.stringify(slim)}\n\nالتقرير للمراجعة:\n${JSON.stringify(reportJson)}`
   const raw  = await callClaude(apiKey, TASK_EXPERT_SYSTEM, prompt, 'claude-sonnet-4-6')

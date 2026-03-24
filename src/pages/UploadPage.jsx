@@ -75,7 +75,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
             'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
-            model: 'claude-opus-4-6',
+            model: 'claude-sonnet-4-6',
             max_tokens: 2048,
             system: UPLOAD_SYSTEM,
             messages: [{
@@ -110,7 +110,7 @@ export default function UploadPage({ tasks, setTasks, apiKey, setApiKey, showToa
             'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify({
-            model: 'claude-opus-4-6',
+            model: 'claude-sonnet-4-6',
             max_tokens: 4096,
             system: PDF_MEETING_SYSTEM,
             messages: [{
