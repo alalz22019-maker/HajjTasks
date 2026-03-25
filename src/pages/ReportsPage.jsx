@@ -228,18 +228,28 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── DailyBriefCard ──────────────────────────────────────── */
-function getTaskColor(t) {
-  if (t.priority === 'urgent') return '#ef4444'
-  if (isDueToday(t)) return '#3b82f6'
-  return '#f59e0b'
-}
-
 function DailyBriefCard({ tasks, directorPhone }) {
-  const urgentP  = tasks.filter(t => t.priority === 'urgent' && !t.done)
-  const dueT     = tasks.filter(isDueToday).filter(t => t.priority !== 'urgent')
-  const overdueT = tasks.filter(isOverdue).filter(t => t.priority !== 'urgent')
-  const done24h  = tasks.filter(isCompletedLast24h)
-  const todayAll = [...urgentP, ...dueT, ...overdueT]
+  const all       = tasks
+  const total     = all.length
+  const doneCount = all.filter(t => t.done).length
+  const pct       = total ? Math.round((doneCount / total) * 100) : 0
+  const urgentP   = all.filter(t => t.priority === 'urgent' && !t.done)
+  const dueT      = all.filter(isDueToday)
+  const overdueT  = all.filter(isOverdue)
+  const done24h   = all.filter(isCompletedLast24h)
+
+  const persons = (() => {
+    const map = {}
+    all.forEach(t => {
+      if (!t.person) return
+      t.person.split(/[،,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
+        if (!map[p]) map[p] = { total: 0, done: 0 }
+        map[p].total++
+        if (t.done) map[p].done++
+      })
+    })
+    return Object.entries(map).sort((a,b) => b[1].total - a[1].total)
+  })()
 
   function shareBrief() {
     const text    = buildBriefText(tasks)
@@ -270,77 +280,157 @@ function DailyBriefCard({ tasks, directorPhone }) {
           <div className="exec-header-bar" />
         </div>
 
-        {/* KPI Strip */}
+        {/* KPI — مجموعتان: الإجمالي + اليوم */}
         <div className="exec-kpi-strip">
-          <div className="exec-kpi-item">
-            <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
-            <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgentP.length}</div>
-            <div className="exec-kpi-label">عاجلة</div>
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, paddingRight: 2 }}>
+            الإجمالي
           </div>
-          <div className="exec-kpi-item">
-            <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
-            <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{dueT.length + urgentP.filter(isDueToday).length}</div>
-            <div className="exec-kpi-label">مستحقة اليوم</div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
+              <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{total}</div>
+              <div className="exec-kpi-label">إجمالي</div>
+            </div>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
+              <div className="exec-kpi-num" style={{ color: '#059669' }}>{pct}%</div>
+              <div className="exec-kpi-label">إنجاز</div>
+            </div>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
+              <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgentP.length}</div>
+              <div className="exec-kpi-label">عاجلة</div>
+            </div>
           </div>
-          <div className="exec-kpi-item">
-            <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
-            <div className="exec-kpi-num" style={{ color: '#059669' }}>{done24h.length}</div>
-            <div className="exec-kpi-label">أنجز (٢٤س)</div>
+
+          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, paddingRight: 2 }}>
+            اليوم
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#6366f1' }} />
+              <div className="exec-kpi-num" style={{ color: '#4338ca' }}>{dueT.length}</div>
+              <div className="exec-kpi-label">مستحقة اليوم</div>
+            </div>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#f59e0b' }} />
+              <div className="exec-kpi-num" style={{ color: '#d97706' }}>{overdueT.length}</div>
+              <div className="exec-kpi-label">متأخرة</div>
+            </div>
+            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
+              <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
+              <div className="exec-kpi-num" style={{ color: '#059669' }}>{done24h.length}</div>
+              <div className="exec-kpi-label">أنجز (٢٤س)</div>
+            </div>
           </div>
         </div>
 
-        {/* What to do today */}
-        <div className="exec-section">
-          <div className="exec-section-head">
-            <div className="exec-section-line" style={{ background: '#6366f1' }} />
-            <div className="exec-section-title" style={{ color: '#4338ca' }}>ما يجب إنجازه اليوم</div>
-            <div className="exec-section-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{todayAll.length}</div>
+        {/* Progress */}
+        <div className="exec-progress-wrap">
+          <div className="exec-progress-label">
+            <span>التقدم الكلي</span>
+            <span style={{ color: '#059669', fontWeight: 700 }}>{doneCount} / {total} مهمة</span>
           </div>
-          {todayAll.length === 0
-            ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد مهام معلقة اليوم 🎉</div>
-            : todayAll.map(t => {
-              const color = getTaskColor(t)
-              return (
-                <div key={t.id} className="exec-task-row" style={{ borderRightColor: color }}>
-                  <div className="exec-task-indicator" style={{ background: color }} />
-                  <div className="exec-task-body">
-                    <div className="exec-task-title">{t.title}</div>
-                    {t.person && (
-                      <div className="exec-chips">
-                        <span className="exec-chip exec-chip-person">{t.person}</span>
-                      </div>
-                    )}
+          <div className="exec-progress-track">
+            <div className="exec-progress-fill" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {/* مستحقة اليوم */}
+        {dueT.length > 0 && (
+          <div className="exec-section">
+            <div className="exec-section-head">
+              <div className="exec-section-line" style={{ background: '#6366f1' }} />
+              <div className="exec-section-title" style={{ color: '#4338ca' }}>مستحقة اليوم</div>
+              <div className="exec-section-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{dueT.length}</div>
+            </div>
+            {dueT.map(t => (
+              <div key={t.id} className="exec-task-row">
+                <div className="exec-task-indicator" style={{ background: '#6366f1' }} />
+                <div className="exec-task-body">
+                  <div className="exec-task-title">{t.title}</div>
+                  <div className="exec-chips">
+                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                    {t.dueDate && <span className="exec-chip exec-chip-date">{formatShortDate(t.dueDate)}</span>}
                   </div>
                 </div>
-              )
-            })
-          }
-        </div>
-
-        {/* Completed last 24h */}
-        <div className="exec-section">
-          <div className="exec-section-head">
-            <div className="exec-section-line" style={{ background: '#10b981' }} />
-            <div className="exec-section-title" style={{ color: '#059669' }}>أنجز خلال آخر ٢٤ ساعة</div>
-            <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{done24h.length}</div>
+              </div>
+            ))}
           </div>
-          {done24h.length === 0
-            ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد إنجازات خلال آخر ٢٤ ساعة</div>
-            : done24h.map(t => (
-              <div key={t.id} className="exec-task-row" style={{ borderRightColor: '#10b981' }}>
+        )}
+
+        {/* متأخرة */}
+        {overdueT.length > 0 && (
+          <div className="exec-section">
+            <div className="exec-section-head">
+              <div className="exec-section-line" style={{ background: '#f59e0b' }} />
+              <div className="exec-section-title" style={{ color: '#b45309' }}>متأخرة عن الموعد</div>
+              <div className="exec-section-badge" style={{ background: '#fef3c7', color: '#92400e' }}>{overdueT.length}</div>
+            </div>
+            {overdueT.map(t => (
+              <div key={t.id} className="exec-task-row">
+                <div className="exec-task-indicator" style={{ background: '#f59e0b' }} />
+                <div className="exec-task-body">
+                  <div className="exec-task-title">{t.title}</div>
+                  <div className="exec-chips">
+                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                    {t.dueDate && <span className="exec-chip exec-chip-date late">{formatShortDate(t.dueDate)}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* أنجز خلال آخر ٢٤ ساعة */}
+        {done24h.length > 0 && (
+          <div className="exec-section">
+            <div className="exec-section-head">
+              <div className="exec-section-line" style={{ background: '#10b981' }} />
+              <div className="exec-section-title" style={{ color: '#059669' }}>أنجز خلال آخر ٢٤ ساعة</div>
+              <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{done24h.length}</div>
+            </div>
+            {done24h.map(t => (
+              <div key={t.id} className="exec-task-row">
                 <div className="exec-task-indicator" style={{ background: '#10b981' }} />
                 <div className="exec-task-body">
                   <div className="exec-task-title done">{t.title}</div>
-                  {t.person && (
-                    <div className="exec-chips">
-                      <span className="exec-chip exec-chip-person">{t.person}</span>
-                    </div>
-                  )}
+                  <div className="exec-chips">
+                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
+                  </div>
                 </div>
               </div>
-            ))
-          }
-        </div>
+            ))}
+          </div>
+        )}
+
+        {/* الأداء حسب المسؤول */}
+        {persons.length > 0 && (
+          <div className="exec-section">
+            <div className="exec-section-head">
+              <div className="exec-section-line" style={{ background: '#6366f1' }} />
+              <div className="exec-section-title" style={{ color: '#4338ca' }}>الأداء حسب المسؤول</div>
+            </div>
+            {persons.map(([name, v]) => {
+              const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+              return (
+                <div key={name} className="exec-person-row">
+                  <div className="exec-person-name">{name}</div>
+                  <div className="exec-person-bar-wrap">
+                    <div className="exec-person-count">{v.done}/{v.total}</div>
+                    <div className="exec-person-track">
+                      <div className="exec-person-fill" style={{
+                        width: `${p}%`,
+                        background: p === 100 ? '#10b981' : '#6366f1'
+                      }} />
+                    </div>
+                    <div className="exec-person-pct">{p}%</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="exec-report-footer">
