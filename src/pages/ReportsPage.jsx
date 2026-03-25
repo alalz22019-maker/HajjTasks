@@ -6,6 +6,7 @@ import VisualSummary from '../components/VisualSummary'
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
 const TODAY_END   = (() => { const d = new Date(); d.setHours(23,59,59,999); return d })()
+const LAST_24H    = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
 function isCompletedToday(t) {
   if (!t.done || !t.completedAt) return false
@@ -13,6 +14,17 @@ function isCompletedToday(t) {
   return c >= TODAY_START && c <= TODAY_END
 }
 
+function isCompletedLast24h(t) {
+  if (!t.done || !t.completedAt) return false
+  return new Date(t.completedAt) >= LAST_24H
+}
+
+function isDueToday(t) {
+  if (t.done || !t.dueDate) return false
+  const d = new Date(t.dueDate)
+  d.setHours(0,0,0,0)
+  return d.getTime() === TODAY_START.getTime()
+}
 
 function isOverdue(t) {
   if (t.done || !t.dueDate) return false
@@ -111,6 +123,43 @@ function buildWhatsAppText(tasks) {
   return lines.join('\n')
 }
 
+/* ─── Build Daily WhatsApp text ───────────────────────────── */
+function buildDailyWhatsAppText(tasks) {
+  const dueToday   = tasks.filter(isDueToday)
+  const done24h    = tasks.filter(isCompletedLast24h)
+  const sep = '━━━━━━━━━━━━━━━━'
+  const lines = []
+
+  lines.push(`📅 *التقرير اليومي الموجز*`)
+  lines.push(`🗓 ${formatArabicDate()}`)
+  lines.push(sep)
+
+  lines.push(`📌 *مستحقة اليوم* (${dueToday.length})`)
+  if (dueToday.length === 0) {
+    lines.push(`• لا توجد مهام مستحقة اليوم`)
+  } else {
+    dueToday.forEach((t, i) => {
+      lines.push(`${i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+  }
+
+  lines.push(sep)
+  lines.push(`✅ *أنجز خلال آخر ٢٤ ساعة* (${done24h.length})`)
+  if (done24h.length === 0) {
+    lines.push(`• لا توجد مهام مكتملة`)
+  } else {
+    done24h.forEach(t => {
+      lines.push(`✓ ${t.title}`)
+      if (t.person) lines.push(`  👤 ${t.person}`)
+    })
+  }
+
+  lines.push(sep)
+  lines.push(`_تم إصداره عبر مهامي Pro_`)
+  return lines.join('\n')
+}
+
 /* ─── StatCard ────────────────────────────────────────────── */
 function StatCard({ value, label, color }) {
   return (
@@ -178,6 +227,8 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
   const urgent    = useMemo(() => all.filter(t => t.priority === 'urgent' && !t.done), [all])
   const todayDone = useMemo(() => all.filter(isCompletedToday), [all])
   const overdue   = useMemo(() => all.filter(isOverdue), [all])
+  const dueToday  = useMemo(() => all.filter(isDueToday), [all])
+  const done24h   = useMemo(() => all.filter(isCompletedLast24h), [all])
   const total     = all.length
   const doneCount = all.filter(t => t.done).length
   const pct       = total ? Math.round((doneCount / total) * 100) : 0
@@ -250,6 +301,15 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
       : `https://wa.me/?text=${encoded}`, '_blank')
   }
 
+  function shareDailyWhatsApp() {
+    const text    = buildDailyWhatsAppText(tasks)
+    const encoded = encodeURIComponent(text)
+    const phone   = directorPhone.replace(/\D/g, '')
+    window.open(phone
+      ? `https://wa.me/${phone}?text=${encoded}`
+      : `https://wa.me/?text=${encoded}`, '_blank')
+  }
+
   function printReport() {
     document.body.classList.add('print-exec')
     window.print()
@@ -286,6 +346,10 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
           className={`report-tab${tab === 'dashboard' ? ' active' : ''}`}
           onClick={() => setTab('dashboard')}
         >الإحصائيات</button>
+        <button
+          className={`report-tab${tab === 'daily' ? ' active' : ''}`}
+          onClick={() => setTab('daily')}
+        >📅 يومي</button>
         <button
           className={`report-tab${tab === 'executive' ? ' active' : ''}`}
           onClick={() => setTab('executive')}
@@ -567,6 +631,109 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
                 {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {formatArabicDate()}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Daily Report ── */}
+      {tab === 'daily' && (
+        <div>
+          {/* Share button */}
+          <div className="exec-actions">
+            <button className="exec-btn whatsapp" onClick={shareDailyWhatsApp}>
+              <span>📤</span> واتساب
+            </button>
+          </div>
+
+          <div id="daily-report" className="exec-report-card">
+
+            {/* Header */}
+            <div className="exec-report-header">
+              <div className="exec-header-top">
+                <div className="exec-report-logo">مهامي <span>Pro</span></div>
+                <div className="exec-header-badge">التقرير اليومي</div>
+              </div>
+              <div className="exec-report-date">{formatArabicDate()}</div>
+              <div className="exec-header-bar" />
+            </div>
+
+            {/* KPI Strip */}
+            <div className="exec-kpi-strip">
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
+                <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{dueToday.length}</div>
+                <div className="exec-kpi-label">مستحقة اليوم</div>
+              </div>
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
+                <div className="exec-kpi-num" style={{ color: '#059669' }}>{done24h.length}</div>
+                <div className="exec-kpi-label">أنجز (٢٤ س)</div>
+              </div>
+              <div className="exec-kpi-item">
+                <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
+                <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgent.length}</div>
+                <div className="exec-kpi-label">عاجلة</div>
+              </div>
+            </div>
+
+            {/* Due Today */}
+            <div className="exec-section">
+              <div className="exec-section-head">
+                <div className="exec-section-line" style={{ background: '#3b82f6' }} />
+                <div className="exec-section-title" style={{ color: '#1d4ed8' }}>المهام المستحقة اليوم</div>
+                <div className="exec-section-badge" style={{ background: '#dbeafe', color: '#1e40af' }}>{dueToday.length}</div>
+              </div>
+              {dueToday.length === 0
+                ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد مهام مستحقة اليوم</div>
+                : dueToday.map(t => (
+                  <div key={t.id} className="exec-task-row">
+                    <div className="exec-task-indicator" style={{ background: '#3b82f6' }} />
+                    <div className="exec-task-body">
+                      <div className="exec-task-title">{t.title}</div>
+                      {t.person && (
+                        <div className="exec-chips">
+                          <span className="exec-chip exec-chip-person">{t.person}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+
+            {/* Completed last 24h */}
+            <div className="exec-section">
+              <div className="exec-section-head">
+                <div className="exec-section-line" style={{ background: '#10b981' }} />
+                <div className="exec-section-title" style={{ color: '#059669' }}>أنجز خلال آخر ٢٤ ساعة</div>
+                <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{done24h.length}</div>
+              </div>
+              {done24h.length === 0
+                ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد مهام مكتملة خلال آخر ٢٤ ساعة</div>
+                : done24h.map(t => (
+                  <div key={t.id} className="exec-task-row">
+                    <div className="exec-task-indicator" style={{ background: '#10b981' }} />
+                    <div className="exec-task-body">
+                      <div className="exec-task-title done">{t.title}</div>
+                      {t.person && (
+                        <div className="exec-chips">
+                          <span className="exec-chip exec-chip-person">{t.person}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+
+            {/* Footer */}
+            <div className="exec-report-footer">
+              <div className="exec-foot-brand">مهامي Pro</div>
+              <div className="exec-foot-time">
+                {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {formatArabicDate()}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
