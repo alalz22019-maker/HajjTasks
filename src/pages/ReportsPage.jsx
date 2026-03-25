@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { loadData, saveData } from '../utils/storage'
 import PullToRefresh from '../components/PullToRefresh'
 import VisualSummary from '../components/VisualSummary'
+import { D, KPI_PALETTE, CARD, formatDates } from '../components/VisualSummaryColors'
+import { exportPNG, exportPDF, shareImage } from '../components/VisualSummaryExport'
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -229,6 +231,9 @@ function PersonRow({ name, total, done }) {
 
 /* ─── DailyBriefCard ──────────────────────────────────────── */
 function DailyBriefCard({ tasks, directorPhone }) {
+  const cardRef   = useRef(null)
+  const [exporting, setExporting] = useState(false)
+
   const all       = tasks
   const total     = all.length
   const doneCount = all.filter(t => t.done).length
@@ -251,6 +256,26 @@ function DailyBriefCard({ tasks, directorPhone }) {
     return Object.entries(map).sort((a,b) => b[1].total - a[1].total)
   })()
 
+  const { hijri, gregorianEn } = formatDates()
+  const barColor = pct >= 70 ? D.green : pct >= 40 ? D.yellow : D.red
+
+  const kpis = [
+    { label: 'إجمالي المهام',       value: total,          icon: '📋', color: 'blue'   },
+    { label: 'متأخرة',              value: overdueT.length, icon: '⚡', color: 'red'    },
+    { label: 'مستحقة اليوم',        value: dueT.length,    icon: '📅', color: 'yellow' },
+    { label: 'أنجز آخر ٢٤ ساعة',   value: done24h.length, icon: '✅', color: 'green'  },
+    { label: 'عاجلة معلقة',         value: urgentP.length, icon: '🔴', color: 'red'    },
+    { label: 'نسبة الإنجاز',        value: `${pct}%`,      icon: '📊', color: 'blue'   },
+  ]
+
+  async function withExport(fn) {
+    if (!cardRef.current) return
+    setExporting(true)
+    try { await fn(cardRef.current) }
+    catch (e) { console.error(e) }
+    finally { setExporting(false) }
+  }
+
   function shareBrief() {
     const text    = buildBriefText(tasks)
     const encoded = encodeURIComponent(text)
@@ -260,186 +285,237 @@ function DailyBriefCard({ tasks, directorPhone }) {
       : `https://wa.me/?text=${encoded}`, '_blank')
   }
 
+  /* ── helper: task row ── */
+  function TaskItem({ t, accent }) {
+    const col = KPI_PALETTE[accent] || KPI_PALETTE.gray
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'flex-start', gap: 10,
+        padding: '10px 12px', marginBottom: 6,
+        background: col.bg, borderRadius: 10,
+        border: `1px solid ${col.color}20`,
+      }}>
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          background: col.color, flexShrink: 0, marginTop: 5,
+        }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5 }}>{t.title}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+            {t.person && (
+              <span style={{ fontSize: 10, color: D.text2 }}>👤 {t.person}</span>
+            )}
+            {t.dueDate && (
+              <span style={{ fontSize: 10, color: col.color }}>📅 {formatShortDate(t.dueDate)}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  /* ── helper: section header ── */
+  function SectionHead({ icon, label, count, color }) {
+    const col = KPI_PALETTE[color] || KPI_PALETTE.gray
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: col.color, flex: 1 }}>{label}</span>
+        <div style={{
+          background: col.bg, border: `1px solid ${col.color}40`,
+          borderRadius: 20, padding: '1px 8px',
+          fontSize: 11, fontWeight: 700, color: col.color,
+        }}>{count}</div>
+      </div>
+    )
+  }
+
   return (
-    <div>
-      <div className="exec-actions">
-        <button className="exec-btn whatsapp" onClick={shareBrief}>
-          <span>📤</span> واتساب
-        </button>
+    <div style={{ padding: '0 16px 32px', direction: 'rtl' }}>
+
+      {/* أزرار التصدير */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button onClick={() => withExport(exportPDF)} disabled={exporting} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: D.green, color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: exporting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+        }}>📄 PDF</button>
+        <button onClick={() => withExport(exportPNG)} disabled={exporting} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: D.blue, color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: exporting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+        }}>🖼️ صورة</button>
+        <button onClick={shareBrief} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>📤 واتساب</button>
       </div>
 
-      <div className="exec-report-card">
+      {/* البطاقة */}
+      <div ref={cardRef} style={{
+        background: D.bg, borderRadius: 20,
+        fontFamily: "'IBM Plex Sans Arabic','Segoe UI',system-ui,sans-serif",
+        boxShadow: '0 4px 24px rgba(0,107,63,0.13)',
+        border: `1px solid ${D.border}`,
+      }}>
 
         {/* Header */}
-        <div className="exec-report-header">
-          <div className="exec-header-top">
-            <div className="exec-report-logo">مهامي <span>Pro</span></div>
-            <div className="exec-header-badge">الموجز اليومي</div>
+        <div style={{
+          background: 'linear-gradient(135deg, #004D2C 0%, #006B3F 100%)',
+          borderRadius: '20px 20px 0 0', padding: '18px 20px 16px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div>
+              <div style={{ color: '#fff', fontSize: 17, fontWeight: 900, lineHeight: 1.2, marginBottom: 3 }}>
+                الموجز اليومي
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 10 }}>
+                مهامي Pro
+              </div>
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: 8, padding: '4px 10px',
+              fontSize: 10, fontWeight: 700, color: '#fff',
+            }}>⚡ يومي</div>
           </div>
-          <div className="exec-report-date">{formatArabicDate()}</div>
-          <div className="exec-header-bar" />
-        </div>
-
-        {/* KPI — مجموعتان: الإجمالي + اليوم */}
-        <div className="exec-kpi-strip">
-          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, paddingRight: 2 }}>
-            الإجمالي
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
-              <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{total}</div>
-              <div className="exec-kpi-label">إجمالي</div>
+          <div style={{ height: 1, background: 'rgba(255,255,255,0.2)', marginBottom: 10 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)' }}>📅</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>{hijri}</span>
             </div>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
-              <div className="exec-kpi-num" style={{ color: '#059669' }}>{pct}%</div>
-              <div className="exec-kpi-label">إنجاز</div>
-            </div>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
-              <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgentP.length}</div>
-              <div className="exec-kpi-label">عاجلة</div>
-            </div>
-          </div>
-
-          <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6, paddingRight: 2 }}>
-            اليوم
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#6366f1' }} />
-              <div className="exec-kpi-num" style={{ color: '#4338ca' }}>{dueT.length}</div>
-              <div className="exec-kpi-label">مستحقة اليوم</div>
-            </div>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#f59e0b' }} />
-              <div className="exec-kpi-num" style={{ color: '#d97706' }}>{overdueT.length}</div>
-              <div className="exec-kpi-label">متأخرة</div>
-            </div>
-            <div className="exec-kpi-item" style={{ flex: 1, textAlign: 'center' }}>
-              <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
-              <div className="exec-kpi-num" style={{ color: '#059669' }}>{done24h.length}</div>
-              <div className="exec-kpi-label">أنجز (٢٤س)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>📆</span>
+              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', direction: 'ltr' }}>{gregorianEn}</span>
             </div>
           </div>
         </div>
 
-        {/* Progress */}
-        <div className="exec-progress-wrap">
-          <div className="exec-progress-label">
-            <span>التقدم الكلي</span>
-            <span style={{ color: '#059669', fontWeight: 700 }}>{doneCount} / {total} مهمة</span>
-          </div>
-          <div className="exec-progress-track">
-            <div className="exec-progress-fill" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* مستحقة اليوم */}
-        {dueT.length > 0 && (
-          <div className="exec-section">
-            <div className="exec-section-head">
-              <div className="exec-section-line" style={{ background: '#6366f1' }} />
-              <div className="exec-section-title" style={{ color: '#4338ca' }}>مستحقة اليوم</div>
-              <div className="exec-section-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{dueT.length}</div>
-            </div>
-            {dueT.map(t => (
-              <div key={t.id} className="exec-task-row">
-                <div className="exec-task-indicator" style={{ background: '#6366f1' }} />
-                <div className="exec-task-body">
-                  <div className="exec-task-title">{t.title}</div>
-                  <div className="exec-chips">
-                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
-                    {t.dueDate && <span className="exec-chip exec-chip-date">{formatShortDate(t.dueDate)}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* متأخرة */}
-        {overdueT.length > 0 && (
-          <div className="exec-section">
-            <div className="exec-section-head">
-              <div className="exec-section-line" style={{ background: '#f59e0b' }} />
-              <div className="exec-section-title" style={{ color: '#b45309' }}>متأخرة عن الموعد</div>
-              <div className="exec-section-badge" style={{ background: '#fef3c7', color: '#92400e' }}>{overdueT.length}</div>
-            </div>
-            {overdueT.map(t => (
-              <div key={t.id} className="exec-task-row">
-                <div className="exec-task-indicator" style={{ background: '#f59e0b' }} />
-                <div className="exec-task-body">
-                  <div className="exec-task-title">{t.title}</div>
-                  <div className="exec-chips">
-                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
-                    {t.dueDate && <span className="exec-chip exec-chip-date late">{formatShortDate(t.dueDate)}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* أنجز خلال آخر ٢٤ ساعة */}
-        {done24h.length > 0 && (
-          <div className="exec-section">
-            <div className="exec-section-head">
-              <div className="exec-section-line" style={{ background: '#10b981' }} />
-              <div className="exec-section-title" style={{ color: '#059669' }}>أنجز خلال آخر ٢٤ ساعة</div>
-              <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{done24h.length}</div>
-            </div>
-            {done24h.map(t => (
-              <div key={t.id} className="exec-task-row">
-                <div className="exec-task-indicator" style={{ background: '#10b981' }} />
-                <div className="exec-task-body">
-                  <div className="exec-task-title done">{t.title}</div>
-                  <div className="exec-chips">
-                    {t.person && <span className="exec-chip exec-chip-person">{t.person}</span>}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* الأداء حسب المسؤول */}
-        {persons.length > 0 && (
-          <div className="exec-section">
-            <div className="exec-section-head">
-              <div className="exec-section-line" style={{ background: '#6366f1' }} />
-              <div className="exec-section-title" style={{ color: '#4338ca' }}>الأداء حسب المسؤول</div>
-            </div>
-            {persons.map(([name, v]) => {
-              const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+          {/* KPI Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {kpis.map((kpi, i) => {
+              const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
               return (
-                <div key={name} className="exec-person-row">
-                  <div className="exec-person-name">{name}</div>
-                  <div className="exec-person-bar-wrap">
-                    <div className="exec-person-count">{v.done}/{v.total}</div>
-                    <div className="exec-person-track">
-                      <div className="exec-person-fill" style={{
-                        width: `${p}%`,
-                        background: p === 100 ? '#10b981' : '#6366f1'
-                      }} />
-                    </div>
-                    <div className="exec-person-pct">{p}%</div>
+                <div key={i} style={{
+                  background: col.bg, border: `1px solid ${col.color}30`,
+                  borderRadius: 14, padding: '12px 13px',
+                  boxShadow: `0 2px 10px ${col.glow}`,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 10,
+                    background: `${col.color}15`, border: `1px solid ${col.color}25`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 18, flexShrink: 0,
+                  }}>{kpi.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: col.color, lineHeight: 1 }}>{kpi.value}</div>
+                    <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>{kpi.label}</div>
                   </div>
                 </div>
               )
             })}
           </div>
-        )}
 
-        {/* Footer */}
-        <div className="exec-report-footer">
-          <div className="exec-foot-brand">مهامي Pro</div>
-          <div className="exec-foot-time">
-            {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {formatArabicDate()}
+          {/* Progress Bar */}
+          <div style={{
+            background: CARD.background, borderRadius: CARD.borderRadius,
+            border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13 }}>📊</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: D.blue }}>تقدم الإنجاز</span>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 800, color: barColor }}>{pct}%</span>
+            </div>
+            <div style={{ height: 8, background: D.bg3, borderRadius: 99, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${pct}%`, borderRadius: 99,
+                background: pct >= 70
+                  ? 'linear-gradient(90deg,#006B3F,#28A265)'
+                  : pct >= 40
+                  ? 'linear-gradient(90deg,#D4770A,#F59E0B)'
+                  : 'linear-gradient(90deg,#C0392B,#E74C3C)',
+              }} />
+            </div>
           </div>
-        </div>
 
+          {/* مستحقة اليوم */}
+          {dueT.length > 0 && (
+            <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
+              <SectionHead icon="📅" label="مستحقة اليوم" count={dueT.length} color="yellow" />
+              {dueT.map(t => <TaskItem key={t.id} t={t} accent="yellow" />)}
+            </div>
+          )}
+
+          {/* متأخرة */}
+          {overdueT.length > 0 && (
+            <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
+              <SectionHead icon="⚡" label="متأخرة عن الموعد" count={overdueT.length} color="red" />
+              {overdueT.map(t => <TaskItem key={t.id} t={t} accent="red" />)}
+            </div>
+          )}
+
+          {/* أنجز خلال ٢٤ ساعة */}
+          {done24h.length > 0 && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(0,107,63,0.08), rgba(16,185,129,0.05))',
+              border: `1px solid rgba(0,107,63,0.22)`,
+              borderRadius: 14, padding: '14px 16px',
+            }}>
+              <SectionHead icon="✅" label="أنجز خلال آخر ٢٤ ساعة" count={done24h.length} color="green" />
+              {done24h.map(t => (
+                <div key={t.id} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
+                  <span style={{ color: D.green, fontSize: 11, flexShrink: 0, lineHeight: 1.5 }}>✓</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5, textDecoration: 'line-through', textDecorationColor: D.green }}>{t.title}</div>
+                    {t.person && <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>👤 {t.person}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* الأداء حسب المسؤول */}
+          {persons.length > 0 && (
+            <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <span style={{ fontSize: 13 }}>👥</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: D.purple }}>الأداء حسب المسؤول</span>
+              </div>
+              {persons.map(([name, v]) => {
+                const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+                const pc = p === 100 ? KPI_PALETTE.green : p >= 50 ? KPI_PALETTE.blue : KPI_PALETTE.yellow
+                return (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 500, color: D.text, flex: 1, minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                      <span style={{ fontSize: 11, color: D.text2 }}>{v.done}/{v.total}</span>
+                      <div style={{ width: 60, height: 6, background: D.bg3, borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${p}%`, background: pc.color, borderRadius: 3 }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: pc.color, fontWeight: 700, width: 30, textAlign: 'left' }}>{p}%</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div style={{ textAlign: 'center', paddingTop: 4 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: D.green }}>مهامي Pro</div>
+            <div style={{ fontSize: 10, color: D.text3, marginTop: 2 }}>
+              {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {hijri}
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   )
