@@ -19,6 +19,19 @@ function isOverdue(t) {
   return new Date(t.dueDate) < TODAY_START
 }
 
+const LAST_24H = new Date(Date.now() - 24 * 60 * 60 * 1000)
+
+function isCompletedLast24h(t) {
+  if (!t.done || !t.completedAt) return false
+  return new Date(t.completedAt) >= LAST_24H
+}
+
+function isDueToday(t) {
+  if (t.done || !t.dueDate) return false
+  const d = new Date(t.dueDate); d.setHours(0,0,0,0)
+  return d.getTime() === TODAY_START.getTime()
+}
+
 function formatArabicDate(date = new Date()) {
   return date.toLocaleDateString('ar-SA', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
@@ -111,6 +124,54 @@ function buildWhatsAppText(tasks) {
   return lines.join('\n')
 }
 
+/* ─── Build Brief WhatsApp text ──────────────────────────── */
+function buildBriefText(tasks) {
+  const urgentP  = tasks.filter(t => t.priority === 'urgent' && !t.done)
+  const dueT     = tasks.filter(isDueToday).filter(t => t.priority !== 'urgent')
+  const overdueT = tasks.filter(isOverdue).filter(t => t.priority !== 'urgent')
+  const done24h  = tasks.filter(isCompletedLast24h)
+  const sep = '━━━━━━━━━━━━━━━━'
+  const lines = []
+
+  lines.push(`⚡ *الموجز اليومي*`)
+  lines.push(`🗓 ${formatArabicDate()}`)
+  lines.push(sep)
+
+  const totalToday = urgentP.length + dueT.length + overdueT.length
+  lines.push(`📌 *ما يجب إنجازه اليوم* (${totalToday})`)
+  if (totalToday === 0) {
+    lines.push(`• لا توجد مهام معلقة`)
+  } else {
+    urgentP.forEach((t, i) => {
+      lines.push(`🔴 ${i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+    dueT.forEach((t, i) => {
+      lines.push(`🔵 ${urgentP.length + i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+    overdueT.forEach((t, i) => {
+      lines.push(`⚠️ ${urgentP.length + dueT.length + i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+  }
+
+  lines.push(sep)
+  lines.push(`✅ *أنجز خلال آخر ٢٤ ساعة* (${done24h.length})`)
+  if (done24h.length === 0) {
+    lines.push(`• لا توجد إنجازات`)
+  } else {
+    done24h.forEach(t => {
+      lines.push(`✓ ${t.title}`)
+      if (t.person) lines.push(`  👤 ${t.person}`)
+    })
+  }
+
+  lines.push(sep)
+  lines.push(`_تم إصداره عبر مهامي Pro_`)
+  return lines.join('\n')
+}
+
 /* ─── StatCard ────────────────────────────────────────────── */
 function StatCard({ value, label, color }) {
   return (
@@ -166,9 +227,138 @@ function PersonRow({ name, total, done }) {
   )
 }
 
+/* ─── DailyBriefCard ──────────────────────────────────────── */
+function getTaskColor(t) {
+  if (t.priority === 'urgent') return '#ef4444'
+  if (isDueToday(t)) return '#3b82f6'
+  return '#f59e0b'
+}
+
+function DailyBriefCard({ tasks, directorPhone }) {
+  const urgentP  = tasks.filter(t => t.priority === 'urgent' && !t.done)
+  const dueT     = tasks.filter(isDueToday).filter(t => t.priority !== 'urgent')
+  const overdueT = tasks.filter(isOverdue).filter(t => t.priority !== 'urgent')
+  const done24h  = tasks.filter(isCompletedLast24h)
+  const todayAll = [...urgentP, ...dueT, ...overdueT]
+
+  function shareBrief() {
+    const text    = buildBriefText(tasks)
+    const encoded = encodeURIComponent(text)
+    const phone   = (directorPhone || '').replace(/\D/g, '')
+    window.open(phone
+      ? `https://wa.me/${phone}?text=${encoded}`
+      : `https://wa.me/?text=${encoded}`, '_blank')
+  }
+
+  return (
+    <div>
+      <div className="exec-actions">
+        <button className="exec-btn whatsapp" onClick={shareBrief}>
+          <span>📤</span> واتساب
+        </button>
+      </div>
+
+      <div className="exec-report-card">
+
+        {/* Header */}
+        <div className="exec-report-header">
+          <div className="exec-header-top">
+            <div className="exec-report-logo">مهامي <span>Pro</span></div>
+            <div className="exec-header-badge">الموجز اليومي</div>
+          </div>
+          <div className="exec-report-date">{formatArabicDate()}</div>
+          <div className="exec-header-bar" />
+        </div>
+
+        {/* KPI Strip */}
+        <div className="exec-kpi-strip">
+          <div className="exec-kpi-item">
+            <div className="exec-kpi-dot" style={{ background: '#ef4444' }} />
+            <div className="exec-kpi-num" style={{ color: '#dc2626' }}>{urgentP.length}</div>
+            <div className="exec-kpi-label">عاجلة</div>
+          </div>
+          <div className="exec-kpi-item">
+            <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
+            <div className="exec-kpi-num" style={{ color: '#1d4ed8' }}>{dueT.length + urgentP.filter(isDueToday).length}</div>
+            <div className="exec-kpi-label">مستحقة اليوم</div>
+          </div>
+          <div className="exec-kpi-item">
+            <div className="exec-kpi-dot" style={{ background: '#10b981' }} />
+            <div className="exec-kpi-num" style={{ color: '#059669' }}>{done24h.length}</div>
+            <div className="exec-kpi-label">أنجز (٢٤س)</div>
+          </div>
+        </div>
+
+        {/* What to do today */}
+        <div className="exec-section">
+          <div className="exec-section-head">
+            <div className="exec-section-line" style={{ background: '#6366f1' }} />
+            <div className="exec-section-title" style={{ color: '#4338ca' }}>ما يجب إنجازه اليوم</div>
+            <div className="exec-section-badge" style={{ background: '#e0e7ff', color: '#3730a3' }}>{todayAll.length}</div>
+          </div>
+          {todayAll.length === 0
+            ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد مهام معلقة اليوم 🎉</div>
+            : todayAll.map(t => {
+              const color = getTaskColor(t)
+              return (
+                <div key={t.id} className="exec-task-row" style={{ borderRightColor: color }}>
+                  <div className="exec-task-indicator" style={{ background: color }} />
+                  <div className="exec-task-body">
+                    <div className="exec-task-title">{t.title}</div>
+                    {t.person && (
+                      <div className="exec-chips">
+                        <span className="exec-chip exec-chip-person">{t.person}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          }
+        </div>
+
+        {/* Completed last 24h */}
+        <div className="exec-section">
+          <div className="exec-section-head">
+            <div className="exec-section-line" style={{ background: '#10b981' }} />
+            <div className="exec-section-title" style={{ color: '#059669' }}>أنجز خلال آخر ٢٤ ساعة</div>
+            <div className="exec-section-badge" style={{ background: '#d1fae5', color: '#065f46' }}>{done24h.length}</div>
+          </div>
+          {done24h.length === 0
+            ? <div style={{ fontSize: 13, color: 'var(--text3)', padding: '8px 4px' }}>لا توجد إنجازات خلال آخر ٢٤ ساعة</div>
+            : done24h.map(t => (
+              <div key={t.id} className="exec-task-row" style={{ borderRightColor: '#10b981' }}>
+                <div className="exec-task-indicator" style={{ background: '#10b981' }} />
+                <div className="exec-task-body">
+                  <div className="exec-task-title done">{t.title}</div>
+                  {t.person && (
+                    <div className="exec-chips">
+                      <span className="exec-chip exec-chip-person">{t.person}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))
+          }
+        </div>
+
+        {/* Footer */}
+        <div className="exec-report-footer">
+          <div className="exec-foot-brand">مهامي Pro</div>
+          <div className="exec-foot-time">
+            {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {formatArabicDate()}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  )
+}
+
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function ReportsPage({ tasks, showToast, apiKey }) {
   const [tab, setTab] = useState('dashboard')
+  const [visualType, setVisualType] = useState('executive')
   const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
   const [notifEnabled, setNotifEnabled] = useState(() => loadData('mytasks_notif') || false)
   const [showSettings, setShowSettings] = useState(false)
@@ -573,7 +763,38 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
 
       {/* ── Visual Summary ── */}
       {tab === 'visual' && (
-        <VisualSummary tasks={tasks} apiKey={apiKey} />
+        <div>
+          {/* نوع التقرير */}
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px' }}>
+            <button
+              onClick={() => setVisualType('executive')}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: visualType === 'executive'
+                  ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)'
+                  : 'var(--bg3)',
+                color: visualType === 'executive' ? '#fff' : 'var(--text2)',
+                transition: 'all 0.2s',
+              }}
+            >✨ التنفيذي</button>
+            <button
+              onClick={() => setVisualType('daily')}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: visualType === 'daily'
+                  ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)'
+                  : 'var(--bg3)',
+                color: visualType === 'daily' ? '#fff' : 'var(--text2)',
+                transition: 'all 0.2s',
+              }}
+            >⚡ اليومي</button>
+          </div>
+
+          {visualType === 'executive' && <VisualSummary tasks={tasks} apiKey={apiKey} />}
+          {visualType === 'daily'     && <DailyBriefCard tasks={tasks} directorPhone={directorPhone} />}
+        </div>
       )}
     </PullToRefresh>
   )
