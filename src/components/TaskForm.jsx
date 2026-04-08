@@ -36,6 +36,13 @@ const RECURRENCES = [
   { value: 'monthly', label: 'شهري' },
 ]
 
+const SOURCE_TYPES = [
+  { value: '', label: '— اختياري —' },
+  { value: 'minutes', label: 'محضر' },
+  { value: 'directive', label: 'توجيه مباشر' },
+  { value: 'email', label: 'إيميل' },
+]
+
 const DEFAULT_TASK = {
   title: '',
   priority: 'medium',
@@ -46,6 +53,8 @@ const DEFAULT_TASK = {
   recurrence: '',
   reminderTime: '',
   projectName: '',
+  sourceType: '',
+  sourceTitle: '',
   done: false,
 }
 
@@ -268,6 +277,31 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
             ))}
           </div>
         )}
+
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">مصدر المهمة</label>
+            <select
+              className="form-input"
+              value={form.sourceType}
+              onChange={e => set('sourceType', e.target.value)}
+            >
+              {SOURCE_TYPES.map(s => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">عنوان المصدر</label>
+            <input
+              className="form-input"
+              value={form.sourceTitle}
+              onChange={e => set('sourceTitle', e.target.value)}
+              placeholder="رقم المحضر أو الإيميل..."
+              disabled={!form.sourceType}
+            />
+          </div>
+        </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
           {task
