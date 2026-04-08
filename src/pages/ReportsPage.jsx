@@ -189,12 +189,25 @@ function StatCard({ value, label, color }) {
 
 /* ─── TaskRow ─────────────────────────────────────────────── */
 function TaskRow({ t, accent }) {
+  const isUrgent  = t.priority === 'urgent' && !t.done
+  const isLate    = isOverdue(t)
+  const borderColor = isUrgent ? '#ef4444' : isLate ? '#f97316' : accent
+  const statusIcon  = isUrgent ? '🔴' : isLate ? '⚠️' : null
+
   return (
     <div style={{
       background: 'var(--card)', borderRadius: 12, padding: '12px 14px',
-      marginBottom: 8, borderRight: `3px solid ${accent}`
+      marginBottom: 8, borderRight: `3px solid ${borderColor}`,
+      boxShadow: isUrgent
+        ? '0 0 0 1px rgba(239,68,68,0.15)'
+        : isLate
+        ? '0 0 0 1px rgba(249,115,22,0.15)'
+        : 'none',
     }}>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{t.title}</div>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+        {statusIcon && <span style={{ fontSize: 13, flexShrink: 0 }}>{statusIcon}</span>}
+        <span>{t.title}</span>
+      </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--text2)' }}>
         {t.person && <span>👤 {t.person}</span>}
         {t.dueDate && <span>📅 {formatShortDate(t.dueDate)}</span>}
