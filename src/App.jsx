@@ -1,47 +1,72 @@
 import { useState, useEffect, useCallback } from 'react'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
 import NotesPage from './pages/NotesPage'
 import UploadPage from './pages/UploadPage'
 import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
-import { loadData, saveData } from './utils/storage'
-import { deduplicateTasks } from './utils/dedup'
+import AdminPanel from './pages/AdminPanel'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
+import { loadData, saveData } from './utils/storage'
+import {
+  subscribeToTasks, importTasksFromArray, isTasksEmpty,
+  subscribeToPendingRequests,
+} from './utils/db'
 
-const NAV = [
-  { id: 'tasks', label: 'المهام', icon: '✓' },
-  { id: 'notes', label: 'ملاحظة', icon: '✍' },
-  { id: 'upload', label: 'رفع ملف', icon: '📎' },
-  { id: 'contacts', label: 'جهات', icon: '👥' },
-  { id: 'reports', label: 'تقرير', icon: '📊' },
-]
-
-function App() {
-  const [page, setPage] = useState('tasks')
+function AppShell() {
+  const { firebaseUser, userProfile, logout, isAdmin, loading } = useAuth()
+  const [page, setPage]   = useState('tasks')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [migrationDone, setMigrationDone] = useState(false)
 
+  /* ── API key ── */
   useEffect(() => {
-    const storedTasks = loadData('mytasks_tasks') || []
     const storedKey = loadData('mytasks_apikey') || ''
-    const key = HARDCODED_API_KEY || storedKey
-    // One-time deduplicate: keep first occurrence of each title
-    const unique = storedTasks.filter((t, i, arr) =>
-      arr.findIndex(x => x.title.trim().toLowerCase() === t.title.trim().toLowerCase()) === i
-    )
-    if (unique.length !== storedTasks.length) {
-      saveData('mytasks_tasks', unique)
-    }
-    setTasks(unique)
-    setApiKey(key)
+    setApiKey(HARDCODED_API_KEY || storedKey)
   }, [])
 
-  const persistTasks = useCallback((newTasks) => {
-    setTasks(newTasks)
-    saveData('mytasks_tasks', newTasks)
-  }, [])
+  /* ── Subscribe to Firestore tasks after login ── */
+  useEffect(() => {
+    if (!userProfile) return
+    const unsub = subscribeToTasks(setTasks)
+    return unsub
+  }, [userProfile])
+
+  /* ── Auto-migrate localStorage tasks on first run (admin only) ── */
+  useEffect(() => {
+    if (!isAdmin || migrationDone) return
+    async function migrate() {
+      try {
+        const empty = await isTasksEmpty()
+        if (empty) {
+          const local = loadData('mytasks_tasks') || []
+          if (local.length > 0) {
+            await importTasksFromArray(local)
+            showToast(`✓ تم استيراد ${local.length} مهمة من الجهاز`)
+          }
+        }
+        setMigrationDone(true)
+      } catch (e) {
+        console.error('Migration error:', e)
+        setMigrationDone(true)
+      }
+    }
+    migrate()
+  }, [isAdmin, migrationDone])
+
+  /* ── Subscribe to pending requests (admin) ── */
+  useEffect(() => {
+    if (!isAdmin) return
+    const unsub = subscribeToPendingRequests(reqs => {
+      setPendingCount(reqs.filter(r => r.status === 'pending').length)
+    })
+    return unsub
+  }, [isAdmin])
 
   const persistApiKey = useCallback((key) => {
     setApiKey(key)
@@ -50,29 +75,92 @@ function App() {
 
   const showToast = useCallback((msg) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 2500)
+    setTimeout(() => setToast(null), 2800)
   }, [])
 
   const contacts = deriveContacts(tasks)
+
+  /* ── Loading splash ── */
+  if (loading) {
+    return (
+      <div style={{
+        height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 16,
+        background: 'var(--bg)',
+      }}>
+        <div style={{
+          width: 64, height: 64, borderRadius: 20,
+          background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 32,
+        }}>✓</div>
+        <span className="spinner" style={{ width: 28, height: 28 }} />
+      </div>
+    )
+  }
+
+  /* ── Login gate ── */
+  if (!firebaseUser || !userProfile) {
+    return <LoginPage />
+  }
+
+  /* ── Build nav ── */
+  const NAV = [
+    { id: 'tasks',   label: 'المهام',  icon: '✓'  },
+    { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
+    { id: 'upload',  label: 'رفع ملف', icon: '📎' },
+    { id: 'contacts',label: 'جهات',   icon: '👥' },
+    { id: 'reports', label: 'تقرير',  icon: '📊' },
+    ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
+  ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {toast && <Toast msg={toast} />}
 
+      {/* User bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '8px 16px 6px',
+        paddingTop: `max(8px, env(safe-area-inset-top, 8px))`,
+        background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
+        fontSize: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {userProfile.photoURL && (
+            <img src={userProfile.photoURL} alt=""
+              style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+          )}
+          <div>
+            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{userProfile.name}</span>
+            <span style={{
+              marginRight: 6, fontSize: 10, padding: '2px 7px', borderRadius: 8,
+              background: ROLE_BG[userProfile.role] || 'var(--bg3)',
+              color: ROLE_COLOR[userProfile.role] || 'var(--text2)',
+              fontWeight: 700,
+            }}>{ROLE_LABEL[userProfile.role]}</span>
+          </div>
+        </div>
+        <button onClick={logout} style={{
+          background: 'var(--bg3)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '4px 10px',
+          color: 'var(--text2)', fontSize: 11, fontWeight: 600,
+        }}>خروج</button>
+      </div>
+
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
-            setTasks={persistTasks}
             apiKey={apiKey}
             setApiKey={persistApiKey}
             showToast={showToast}
+            userProfile={userProfile}
           />
         )}
         {page === 'notes' && (
           <NotesPage
             tasks={tasks}
-            setTasks={persistTasks}
             apiKey={apiKey}
             setApiKey={persistApiKey}
             showToast={showToast}
@@ -81,17 +169,19 @@ function App() {
         {page === 'upload' && (
           <UploadPage
             tasks={tasks}
-            setTasks={persistTasks}
             apiKey={apiKey}
             setApiKey={persistApiKey}
             showToast={showToast}
           />
         )}
         {page === 'contacts' && (
-          <ContactsPage contacts={contacts} tasks={tasks} setTasks={persistTasks} showToast={showToast} />
+          <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
         )}
         {page === 'reports' && (
-          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} />
+          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
+        )}
+        {page === 'admin' && isAdmin && (
+          <AdminPanel showToast={showToast} />
         )}
       </div>
 
@@ -102,15 +192,30 @@ function App() {
             key={n.id}
             className={`nav-item${page === n.id ? ' active' : ''}`}
             onClick={() => setPage(n.id)}
+            style={{ position: 'relative' }}
           >
             <span style={{ fontSize: 20 }}>{n.icon}</span>
             <span>{n.label}</span>
+            {n.badge > 0 && (
+              <span style={{
+                position: 'absolute', top: 4, right: 4,
+                background: '#ef4444', color: '#fff',
+                borderRadius: '50%', width: 16, height: 16,
+                fontSize: 10, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{n.badge}</span>
+            )}
           </button>
         ))}
       </nav>
     </div>
   )
 }
+
+/* ─── Role display helpers ───────────────────────────────── */
+const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'مستخدم' }
+const ROLE_BG    = { admin: 'rgba(139,92,246,0.15)', superuser: 'rgba(59,130,246,0.15)', user: 'rgba(16,185,129,0.12)' }
+const ROLE_COLOR = { admin: '#a78bfa', superuser: '#60a5fa', user: '#34d399' }
 
 function deriveContacts(tasks) {
   const map = {}
@@ -124,4 +229,10 @@ function deriveContacts(tasks) {
   return Object.values(map)
 }
 
-export default App
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
+  )
+}

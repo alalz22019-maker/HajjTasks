@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase'
 
 const AuthContext = createContext(null)
@@ -20,9 +20,33 @@ export function AuthProvider({ children }) {
       setFirebaseUser(fbUser)
       // Look up user profile in Firestore
       try {
-        const snap = await getDoc(doc(db, 'users', fbUser.uid))
+        // 1) Try by UID directly
+        let snap = await getDoc(doc(db, 'users', fbUser.uid))
+        if (!snap.exists()) {
+          // 2) Fallback: look up by email (pre-registered with stub UID by admin)
+          const q    = query(collection(db, 'users'), where('email', '==', fbUser.email))
+          const qsnap = await getDocs(q)
+          if (!qsnap.empty) {
+            const oldDoc = qsnap.docs[0]
+            // Migrate: write with real UID, delete stub
+            const data = oldDoc.data()
+            await setDoc(doc(db, 'users', fbUser.uid), {
+              ...data,
+              name: fbUser.displayName || data.name,
+              photoURL: fbUser.photoURL || '',
+            })
+            snap = await getDoc(doc(db, 'users', fbUser.uid))
+          }
+        }
         if (snap.exists()) {
-          setUserProfile({ uid: fbUser.uid, ...snap.data() })
+          const data = snap.data()
+          // Sync displayName and photo on every login
+          await setDoc(doc(db, 'users', fbUser.uid), {
+            ...data,
+            name: data.name || fbUser.displayName || '',
+            photoURL: fbUser.photoURL || data.photoURL || '',
+          }, { merge: true })
+          setUserProfile({ uid: fbUser.uid, photoURL: fbUser.photoURL, ...data })
           setAuthError('')
         } else {
           // User authenticated but not in our users collection
