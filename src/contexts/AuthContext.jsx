@@ -25,6 +25,7 @@ export function AuthProvider({ children }) {
         // 1) Try by UID directly
         let snap = await getDoc(doc(db, 'users', fbUser.uid))
         console.log('Firestore doc:', snap.exists())
+        
         if (!snap.exists()) {
           // 2) Fallback: look up by email (pre-registered with stub UID by admin)
           const q    = query(collection(db, 'users'), where('email', '==', fbUser.email))
@@ -41,6 +42,7 @@ export function AuthProvider({ children }) {
             snap = await getDoc(doc(db, 'users', fbUser.uid))
           }
         }
+        
         if (snap.exists()) {
           const data = snap.data()
           // Sync displayName and photo on every login
@@ -52,17 +54,16 @@ export function AuthProvider({ children }) {
           setUserProfile({ uid: fbUser.uid, photoURL: fbUser.photoURL, ...data })
           setAuthError('')
         } else {
-          // User authenticated but not in our users collection
+          // 🔴 التعديل السحري هنا:
+          // إذا المستخدم ما عنده بروفايل في قاعدة البيانات، لا تطرده!
+          // خله موجود عشان صفحة LoginPage تقدر تطلع له القائمة المنسدلة ويختار اسمه
           setUserProfile(null)
-          setAuthError('غير مصرح لك بالدخول. تواصل مع المدير لإضافة حسابك.')
-          await signOut(auth)
-          setFirebaseUser(null)
+          setAuthError('') 
         }
       } catch (e) {
         console.error('Profile fetch error:', e)
-        setAuthError('خطأ في التحقق من الصلاحيات. حاول مجدداً.')
-        await signOut(auth)
-        setFirebaseUser(null)
+        setAuthError('خطأ في الاتصال بقاعدة البيانات. تأكد من اتصالك بالإنترنت.')
+        // شلنا الطرد هنا بعد عشان نعطيه فرصة يحاول مرة ثانية
       }
     })
     return unsub
