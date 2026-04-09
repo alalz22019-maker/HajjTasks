@@ -20,8 +20,11 @@ export function AuthProvider({ children }) {
       setFirebaseUser(fbUser)
       // Look up user profile in Firestore
       try {
+        console.log('UID:', fbUser.uid)
+        console.log('Email:', fbUser.email)
         // 1) Try by UID directly
         let snap = await getDoc(doc(db, 'users', fbUser.uid))
+        console.log('Firestore doc:', snap.exists())
         if (!snap.exists()) {
           // 2) Fallback: look up by email (pre-registered with stub UID by admin)
           const q    = query(collection(db, 'users'), where('email', '==', fbUser.email))
