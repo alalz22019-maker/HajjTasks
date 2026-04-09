@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase'
 
@@ -76,6 +76,22 @@ export function AuthProvider({ children }) {
     }
   }
 
+  async function loginWithEmail(email, password) {
+    setAuthError('')
+    try {
+      await signInWithEmailAndPassword(auth, email, password)
+    } catch (e) {
+      const msgs = {
+        'auth/user-not-found':   'البريد الإلكتروني غير مسجل.',
+        'auth/wrong-password':   'كلمة المرور غير صحيحة.',
+        'auth/invalid-email':    'البريد الإلكتروني غير صحيح.',
+        'auth/invalid-credential': 'البريد أو كلمة المرور غير صحيحة.',
+        'auth/too-many-requests': 'محاولات كثيرة. حاول لاحقاً.',
+      }
+      setAuthError(msgs[e.code] || 'فشل تسجيل الدخول. حاول مجدداً.')
+    }
+  }
+
   async function logout() {
     await signOut(auth)
     setUserProfile(null)
@@ -93,6 +109,7 @@ export function AuthProvider({ children }) {
       authError,
       setAuthError,
       loginWithGoogle,
+      loginWithEmail,
       logout,
       isAdmin,
       isSuperUser,
