@@ -1,12 +1,62 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { getFirestore, doc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
+
+// قائمة الأسماء والأدوار المعتمدة في النظام بناءً على الكشف الرسمي
+const INITIAL_TEAM_MAP = [
+  { name: 'م. علي الزهراني', role: 'admin' },
+  { name: 'د. منار سمان', role: 'admin' },
+  { name: 'د. وليد الحسن', role: 'admin' },
+  { name: 'أ. عبير الشدوخي', role: 'superuser' },
+  { name: 'د. حامد الزهراني', role: 'user' },
+  { name: 'أ. حماد المظيبري', role: 'user' },
+  { name: 'أ. محمد القرشي', role: 'user' },
+  { name: 'أ. محمد الحجيلي', role: 'user' },
+  { name: 'أ. سعد القرشي', role: 'user' },
+  { name: 'أ. أميرة التميمي', role: 'user' },
+  { name: 'Eksha Mohapatra', role: 'user' },
+  { name: 'د. مرام الشهراني', role: 'user' },
+  { name: 'أ. وفاء آل إسماعيل', role: 'user' },
+  { name: 'د. سمية الغريب', role: 'user' },
+  { name: 'أ. مشاعل المطيري', role: 'user' },
+  { name: 'أ. صفاء الشهري', role: 'user' },
+  { name: 'أ. أمجاد المطيري', role: 'user' },
+  { name: 'أ. مي الأسمري', role: 'user' },
+  { name: 'أ. شادي نبيل', role: 'user' }
+]
 
 export default function LoginPage() {
-  const { loginWithGoogle, loginWithEmail, authError, setAuthError } = useAuth()
-  const [email, setEmail]       = useState('')
+  const { 
+    loginWithGoogle, loginWithEmail, authError, setAuthError, 
+    firebaseUser, userProfile, logout 
+  } = useAuth()
+  
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [loading, setLoading] = useState(false)
   const [showEmail, setShowEmail] = useState(false)
+  const [availableNames, setAvailableNames] = useState([])
+  const [selectedName, setSelectedName] = useState('')
+
+  // جلب الأسماء المتاحة (التي لم يتم حجزها بعد في قاعدة البيانات)
+  useEffect(() => {
+    if (firebaseUser && !userProfile) {
+      const fetchAvailable = async () => {
+        try {
+          const db = getFirestore()
+          const querySnapshot = await getDocs(collection(db, 'users'))
+          const takenNames = querySnapshot.docs.map(doc => doc.data().name)
+          
+          // تصفية القائمة الأساسية لاستبعاد الأسماء المحجوزة
+          const available = INITIAL_TEAM_MAP.filter(item => !takenNames.includes(item.name))
+          setAvailableNames(available)
+        } catch (error) {
+          console.error("Error fetching users:", error)
+        }
+      }
+      fetchAvailable()
+    }
+  }, [firebaseUser, userProfile])
 
   async function handleEmailLogin(e) {
     e.preventDefault()
@@ -16,6 +66,77 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  async function handleClaimProfile(e) {
+    e.preventDefault()
+    if (!selectedName) return
+    setLoading(true)
+    
+    try {
+      const db = getFirestore()
+      const selectedInfo = INITIAL_TEAM_MAP.find(item => item.name === selectedName)
+
+      const profileData = {
+        name: selectedInfo.name,
+        role: selectedInfo.role,
+        email: firebaseUser.email || '',
+        uid: firebaseUser.uid,
+        createdAt: serverTimestamp(),
+        photoURL: firebaseUser.photoURL || ''
+      }
+
+      // ربط الحساب بالاسم المختار في Firestore
+      await setDoc(doc(db, 'users', firebaseUser.uid), profileData)
+      // سيقوم AuthContext تلقائياً بإعادة توجيهك للداخل بمجرد حفظ البيانات
+    } catch (error) {
+      setAuthError('عذراً، تعذر ربط الحساب. تأكد من اتصالك أو صلاحيات قاعدة البيانات.')
+      setLoading(false)
+    }
+  }
+
+  // --- الشاشة الذكية: اختيار الاسم عند أول دخول ---
+  if (firebaseUser && !userProfile) {
+    return (
+      <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
+        <div style={{ width: '100%', maxWidth: 360, background: 'var(--card)', borderRadius: 20, padding: 28, textAlign: 'center', border: '1px solid var(--border)', boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', marginBottom: 8 }}>مرحباً بك في مهامي Pro</div>
+          <div style={{ fontSize: 14, color: 'var(--text2)', marginBottom: 20 }}>الرجاء اختيار اسمك من القائمة لمرة واحدة فقط لربط حسابك:</div>
+          
+          {authError && (
+            <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 18, fontSize: 13, color: '#ef4444', lineHeight: 1.6 }}>
+              🚫 {authError}
+            </div>
+          )}
+
+          <form onSubmit={handleClaimProfile}>
+            <select 
+              value={selectedName} 
+              onChange={e => setSelectedName(e.target.value)}
+              style={{ width: '100%', padding: '12px 14px', borderRadius: 12, background: 'var(--bg3)', color: 'var(--text)', border: '1px solid var(--border)', marginBottom: 20, fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="" disabled>-- اختر اسمك من هنا --</option>
+              {availableNames.map(item => (
+                <option key={item.name} value={item.name}>{item.name} ({item.role === 'admin' ? 'مدير' : item.role === 'superuser' ? 'مشرف' : 'موظف'})</option>
+              ))}
+            </select>
+
+            <button 
+              type="submit" 
+              disabled={!selectedName || loading}
+              style={{ width: '100%', padding: 14, borderRadius: 12, background: (!selectedName || loading) ? 'var(--bg3)' : 'linear-gradient(135deg,#3b82f6,#8b5cf6)', color: (!selectedName || loading) ? 'var(--text3)' : '#fff', fontWeight: 700, border: 'none', cursor: (!selectedName || loading) ? 'default' : 'pointer', fontFamily: 'inherit' }}
+            >
+              {loading ? 'جاري الربط...' : 'تأكيد الهوية والدخول'}
+            </button>
+          </form>
+          
+          <button onClick={() => { setAuthError(''); logout(); }} style={{ marginTop: 20, background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'inherit' }}>
+            تسجيل الخروج
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- شاشة تسجيل الدخول الأساسية ---
   return (
     <div style={{
       minHeight: '100%', display: 'flex', flexDirection: 'column',
