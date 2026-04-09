@@ -38,7 +38,6 @@ export default function LoginPage() {
   const [availableNames, setAvailableNames] = useState([])
   const [selectedName, setSelectedName] = useState('')
 
-  // جلب الأسماء المتاحة (التي لم يتم حجزها بعد في قاعدة البيانات)
   useEffect(() => {
     if (firebaseUser && !userProfile) {
       const fetchAvailable = async () => {
@@ -47,7 +46,6 @@ export default function LoginPage() {
           const querySnapshot = await getDocs(collection(db, 'users'))
           const takenNames = querySnapshot.docs.map(doc => doc.data().name)
           
-          // تصفية القائمة الأساسية لاستبعاد الأسماء المحجوزة
           const available = INITIAL_TEAM_MAP.filter(item => !takenNames.includes(item.name))
           setAvailableNames(available)
         } catch (error) {
@@ -84,16 +82,17 @@ export default function LoginPage() {
         photoURL: firebaseUser.photoURL || ''
       }
 
-      // ربط الحساب بالاسم المختار في Firestore
       await setDoc(doc(db, 'users', firebaseUser.uid), profileData)
-      // سيقوم AuthContext تلقائياً بإعادة توجيهك للداخل بمجرد حفظ البيانات
+      
+      // 🔴 الحل هنا: إجبار التطبيق على التحديث بعد الحفظ ليدخلك مباشرة
+      window.location.reload()
+      
     } catch (error) {
       setAuthError('عذراً، تعذر ربط الحساب. تأكد من اتصالك أو صلاحيات قاعدة البيانات.')
       setLoading(false)
     }
   }
 
-  // --- الشاشة الذكية: اختيار الاسم عند أول دخول ---
   if (firebaseUser && !userProfile) {
     return (
       <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'var(--bg)' }}>
@@ -136,154 +135,51 @@ export default function LoginPage() {
     )
   }
 
-  // --- شاشة تسجيل الدخول الأساسية ---
   return (
-    <div style={{
-      minHeight: '100%', display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      padding: '32px 24px', background: 'var(--bg)',
-    }}>
-      {/* Logo */}
+    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 24px', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <div style={{
-          width: 80, height: 80, borderRadius: 24,
-          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 40, margin: '0 auto 20px',
-          boxShadow: '0 8px 32px rgba(59,130,246,0.35)',
-        }}>✓</div>
-        <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', marginBottom: 6 }}>
-          مهامي Pro
-        </div>
-        <div style={{ fontSize: 14, color: 'var(--text2)' }}>
-          نظام إدارة المهام — PMO وزارة الصحة
-        </div>
+        <div style={{ width: 80, height: 80, borderRadius: 24, background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40, margin: '0 auto 20px', boxShadow: '0 8px 32px rgba(59,130,246,0.35)' }}>✓</div>
+        <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--text)', marginBottom: 6 }}>مهامي Pro</div>
+        <div style={{ fontSize: 14, color: 'var(--text2)' }}>نظام إدارة المهام — PMO وزارة الصحة</div>
       </div>
 
-      {/* Card */}
-      <div style={{
-        width: '100%', maxWidth: 360,
-        background: 'var(--card)', borderRadius: 20,
-        border: '1px solid var(--border)', padding: '28px 24px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-      }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6, textAlign: 'center' }}>
-          تسجيل الدخول
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', marginBottom: 24 }}>
-          استخدم حسابك المعتمد للدخول إلى النظام
-        </div>
+      <div style={{ width: '100%', maxWidth: 360, background: 'var(--card)', borderRadius: 20, border: '1px solid var(--border)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 6, textAlign: 'center' }}>تسجيل الدخول</div>
+        <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', marginBottom: 24 }}>استخدم حسابك المعتمد للدخول إلى النظام</div>
 
-        {/* Error */}
         {authError && (
-          <div style={{
-            background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
-            borderRadius: 12, padding: '12px 16px', marginBottom: 18,
-            fontSize: 13, color: '#ef4444', textAlign: 'center', lineHeight: 1.6,
-          }}>
+          <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, padding: '12px 16px', marginBottom: 18, fontSize: 13, color: '#ef4444', textAlign: 'center', lineHeight: 1.6 }}>
             🚫 {authError}
           </div>
         )}
 
-        {/* Google button */}
-        <button
-          onClick={() => { setAuthError(''); loginWithGoogle() }}
-          style={{
-            width: '100%', padding: '13px 20px', borderRadius: 14,
-            background: '#fff', color: '#1a1a1a',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-            fontSize: 15, fontWeight: 700, border: '1px solid #e0e0e0',
-            cursor: 'pointer', fontFamily: 'var(--font)', marginBottom: 14,
-          }}
-          onMouseDown={e => e.currentTarget.style.opacity = '0.75'}
-          onMouseUp={e => e.currentTarget.style.opacity = '1'}
-        >
-          <GoogleIcon />
-          الدخول بحساب Google
+        <button onClick={() => { setAuthError(''); loginWithGoogle() }} style={{ width: '100%', padding: '13px 20px', borderRadius: 14, background: '#fff', color: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, fontSize: 15, fontWeight: 700, border: '1px solid #e0e0e0', cursor: 'pointer', fontFamily: 'var(--font)', marginBottom: 14 }}>
+          <GoogleIcon /> الدخول بحساب Google
         </button>
 
-        {/* Divider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           <span style={{ fontSize: 12, color: 'var(--text3)' }}>أو</span>
           <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
-        {/* Email/Password toggle */}
         {!showEmail ? (
-          <button
-            onClick={() => setShowEmail(true)}
-            style={{
-              width: '100%', padding: '13px 20px', borderRadius: 14,
-              background: 'var(--bg3)', color: 'var(--text2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              fontSize: 14, fontWeight: 600, border: '1px solid var(--border)',
-              cursor: 'pointer', fontFamily: 'var(--font)',
-            }}
-          >
+          <button onClick={() => setShowEmail(true)} style={{ width: '100%', padding: '13px 20px', borderRadius: 14, background: 'var(--bg3)', color: 'var(--text2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 14, fontWeight: 600, border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
             ✉️ الدخول بالإيميل وكلمة المرور
           </button>
         ) : (
           <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <input
-              type="email"
-              placeholder="البريد الإلكتروني"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              dir="ltr"
-              autoComplete="email"
-              style={{
-                padding: '12px 14px', borderRadius: 12,
-                border: '1px solid var(--border)', background: 'var(--bg3)',
-                color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)',
-                outline: 'none', width: '100%', boxSizing: 'border-box',
-                textAlign: 'left',
-              }}
-            />
-            <input
-              type="password"
-              placeholder="كلمة المرور"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              autoComplete="current-password"
-              style={{
-                padding: '12px 14px', borderRadius: 12,
-                border: '1px solid var(--border)', background: 'var(--bg3)',
-                color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)',
-                outline: 'none', width: '100%', boxSizing: 'border-box',
-              }}
-            />
-            <button
-              type="submit"
-              disabled={loading || !email.trim() || !password}
-              style={{
-                padding: '13px', borderRadius: 12, border: 'none',
-                background: loading ? 'var(--bg3)' : 'linear-gradient(135deg,#3b82f6,#8b5cf6)',
-                color: loading ? 'var(--text3)' : '#fff',
-                fontSize: 15, fontWeight: 700,
-                cursor: loading ? 'default' : 'pointer', fontFamily: 'var(--font)',
-              }}
-            >
+            <input type="email" placeholder="البريد الإلكتروني" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" autoComplete="email" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)', outline: 'none', width: '100%', boxSizing: 'border-box', textAlign: 'left' }} />
+            <input type="password" placeholder="كلمة المرور" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
+            <button type="submit" disabled={loading || !email.trim() || !password} style={{ padding: '13px', borderRadius: 12, border: 'none', background: loading ? 'var(--bg3)' : 'linear-gradient(135deg,#3b82f6,#8b5cf6)', color: loading ? 'var(--text3)' : '#fff', fontSize: 15, fontWeight: 700, cursor: loading ? 'default' : 'pointer', fontFamily: 'var(--font)' }}>
               {loading ? 'جارٍ الدخول...' : 'دخول'}
             </button>
-            <button
-              type="button"
-              onClick={() => { setShowEmail(false); setAuthError('') }}
-              style={{
-                background: 'none', border: 'none', color: 'var(--text3)',
-                fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', padding: 4,
-              }}
-            >إخفاء</button>
+            <button type="button" onClick={() => { setShowEmail(false); setAuthError('') }} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)', padding: 4 }}>إخفاء</button>
           </form>
         )}
 
-        <div style={{
-          marginTop: 20, padding: '10px 14px',
-          background: 'var(--bg3)', borderRadius: 10,
-          fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.7,
-        }}>
-          الدخول متاح للمستخدمين المعتمدين فقط
-          <br />تواصل مع مسؤول النظام لإضافة حسابك
+        <div style={{ marginTop: 20, padding: '10px 14px', background: 'var(--bg3)', borderRadius: 10, fontSize: 12, color: 'var(--text3)', textAlign: 'center', lineHeight: 1.7 }}>
+          الدخول متاح للمستخدمين المعتمدين فقط<br />تواصل مع مسؤول النظام لإضافة حسابك
         </div>
       </div>
     </div>
