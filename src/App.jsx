@@ -16,7 +16,8 @@ import {
 } from './utils/db'
 
 function AppShell() {
-  const { firebaseUser, userProfile, logout, isAdmin, loading } = useAuth()
+  // 🔴 أضفنا isUser هنا عشان نتحكم بالصلاحيات في الشريط السفلي
+  const { firebaseUser, userProfile, logout, isAdmin, isUser, loading } = useAuth()
   const [page, setPage]   = useState('tasks')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
@@ -105,10 +106,11 @@ function AppShell() {
   }
 
   /* ── Build nav ── */
+  // 🔴 هنا اللعبة: إخفاء أيقونة "رفع ملف" تماماً عن الموظف העادي
   const NAV = [
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
-    { id: 'upload',  label: 'رفع ملف', icon: '📎' },
+    ...(!isUser ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []), // تظهر فقط للمدير والمشرف
     { id: 'contacts',label: 'جهات',   icon: '👥' },
     { id: 'reports', label: 'تقرير',  icon: '📊' },
     ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
@@ -166,7 +168,8 @@ function AppShell() {
             showToast={showToast}
           />
         )}
-        {page === 'upload' && (
+        {/* حماية إضافية: لو حاول يفتحها بطريقة ما، ما راح تفتح له إذا كان موظف */}
+        {page === 'upload' && !isUser && (
           <UploadPage
             tasks={tasks}
             apiKey={apiKey}
@@ -213,7 +216,7 @@ function AppShell() {
 }
 
 /* ─── Role display helpers ───────────────────────────────── */
-const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'مستخدم' }
+const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'موظف' }
 const ROLE_BG    = { admin: 'rgba(139,92,246,0.15)', superuser: 'rgba(59,130,246,0.15)', user: 'rgba(16,185,129,0.12)' }
 const ROLE_COLOR = { admin: '#a78bfa', superuser: '#60a5fa', user: '#34d399' }
 
