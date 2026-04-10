@@ -4,6 +4,7 @@ import PullToRefresh from '../components/PullToRefresh'
 import VisualSummary from '../components/VisualSummary'
 import { D, KPI_PALETTE, CARD, formatDates } from '../components/VisualSummaryColors'
 import { exportPNG, exportPDF, shareImage } from '../components/VisualSummaryExport'
+import { useAuth } from '../contexts/AuthContext' // 🔴 تمت إضافة جلب الصلاحيات
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -536,6 +537,8 @@ function DailyBriefCard({ tasks, directorPhone }) {
 
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function ReportsPage({ tasks, showToast, apiKey }) {
+  const { isUser } = useAuth() // 🔴 جلب صلاحية الموظف
+
   const [tab, setTab] = useState('dashboard')
   const [visualType, setVisualType] = useState('executive')
   const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
@@ -659,10 +662,13 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
           className={`report-tab${tab === 'executive' ? ' active' : ''}`}
           onClick={() => setTab('executive')}
         >التنفيذي</button>
-        <button
-          className={`report-tab${tab === 'visual' ? ' active' : ''}`}
-          onClick={() => setTab('visual')}
-        >🎨 بصري</button>
+        {/* 🔴 إخفاء تبويب "التقرير البصري" عن الموظف */}
+        {!isUser && (
+          <button
+            className={`report-tab${tab === 'visual' ? ' active' : ''}`}
+            onClick={() => setTab('visual')}
+          >🎨 بصري</button>
+        )}
       </div>
 
       {/* ── Dashboard ── */}
@@ -941,7 +947,8 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
       )}
 
       {/* ── Visual Summary ── */}
-      {tab === 'visual' && (
+      {/* 🔴 إخفاء محتوى التقرير البصري عن الموظف كحماية إضافية */}
+      {tab === 'visual' && !isUser && (
         <div>
           {/* نوع التقرير */}
           <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px' }}>
