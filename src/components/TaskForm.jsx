@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { analyzeTaskWithAI } from '../utils/claude'
+import { useAuth } from '../contexts/AuthContext'
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
 
 const PRIORITIES = [
   { value: 'urgent', label: 'عاجل' },
@@ -43,6 +45,15 @@ const SOURCE_TYPES = [
   { value: 'email', label: 'إيميل' },
 ]
 
+// القائمة الرسمية المعتمدة بأسماء الفريق لمنع إدخال أسماء خاطئة
+const TEAM_MEMBERS = [
+  'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن', 'أ. عبير الشدوخي',
+  'د. حامد الزهراني', 'أ. حماد المظيبري', 'أ. محمد القرشي', 'أ. محمد الحجيلي',
+  'أ. سعد القرشي', 'أ. أميرة التميمي', 'Eksha Mohapatra', 'د. مرام الشهراني',
+  'أ. وفاء آل إسماعيل', 'د. سمية الغريب', 'أ. مشاعل المطيري', 'أ. صفاء الشهري',
+  'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل'
+]
+
 const DEFAULT_TASK = {
   title: '',
   priority: 'medium',
@@ -59,12 +70,41 @@ const DEFAULT_TASK = {
 }
 
 export default function TaskForm({ task, onSave, onClose, apiKey }) {
-  const [form, setForm] = useState(task ? { ...task, projectName: task.projectName || '' } : { ...DEFAULT_TASK })
+  const { isUser, userProfile } = useAuth()
+  
+  const [form, setForm] = useState(() => {
+    if (task) return { ...task, projectName: task.projectName || '' }
+    // إذا كان الموظف عادي، يتم تعيين اسمه تلقائياً في خانة المسؤول
+    return { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '' }
+  })
+  
   const [saving, setSaving] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [aiReason, setAiReason] = useState('')
   const [subTasks, setSubTasks] = useState([])
   const [selectedSubTasks, setSelectedSubTasks] = useState([])
+
+  const [existingProjects, setExistingProjects] = useState([])
+  const [isNewProject, setIsNewProject] = useState(false)
+
+  // جلب أسماء المشاريع الموجودة مسبقاً من قاعدة البيانات
+  useEffect(() => {
+    async function fetchProjects() {
+      try {
+        const db = getFirestore()
+        const snap = await getDocs(collection(db, 'tasks'))
+        const projectsSet = new Set()
+        snap.forEach(doc => {
+          const p = doc.data().projectName
+          if (p && p.trim() !== '') projectsSet.add(p.trim())
+        })
+        setExistingProjects(Array.from(projectsSet))
+      } catch (e) {
+        console.error('Error fetching projects:', e)
+      }
+    }
+    fetchProjects()
+  }, [])
 
   function set(field, value) {
     setForm(f => {
@@ -89,9 +129,10 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         setForm(f => ({
           ...f,
           priority: result.priority || f.priority,
-          category: result.category || f.category,
-          subcategory: result.subcategory || f.subcategory,
-          person: result.person || f.person,
+          // لا نحدث التصنيفات والشخص إذا كان المستخدم موظف عادي
+          category: isUser ? f.category : (result.category || f.category),
+          subcategory: isUser ? f.subcategory : (result.subcategory || f.subcategory),
+          person: isUser ? f.person : (result.person || f.person),
           projectName: result.projectName || f.projectName || '',
         }))
         if (result.reason) setAiReason(result.reason)
@@ -116,7 +157,14 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   function handleSubmit() {
     if (!form.title.trim() || saving) return
     setSaving(true)
-    onSave(form, selectedSubTasks)
+    
+    // تأكيد أخير لمنع التلاعب: إذا كان موظف عادي، يتم تثبيت اسمه
+    const finalForm = { ...form }
+    if (isUser) {
+      finalForm.person = userProfile?.name || ''
+    }
+    
+    onSave(finalForm, selectedSubTasks)
   }
 
   const subs = SUBCATEGORIES[form.category] || []
@@ -175,51 +223,104 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">التصنيف</label>
-            <select
-              className="form-input"
-              value={form.category}
-              onChange={e => set('category', e.target.value)}
-            >
-              {CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
+        {/* إخفاء التصنيفات عن الموظف العادي */}
+        {!isUser && (
+          <div className="form-row">
+            <div className="form-group">
+              <label className="form-label">التصنيف</label>
+              <select
+                className="form-input"
+                value={form.category}
+                onChange={e => set('category', e.target.value)}
+              >
+                {CATEGORIES.map(c => (
+                  <option key={c.value} value={c.value}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">التصنيف الفرعي</label>
+              <select
+                className="form-input"
+                value={form.subcategory}
+                onChange={e => set('subcategory', e.target.value)}
+              >
+                {subs.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="form-group">
-            <label className="form-label">التصنيف الفرعي</label>
-            <select
-              className="form-input"
-              value={form.subcategory}
-              onChange={e => set('subcategory', e.target.value)}
-            >
-              {subs.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        )}
 
         <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>
-          <input
-            className="form-input"
-            value={form.projectName}
-            onChange={e => set('projectName', e.target.value)}
-            placeholder="مثال: مشروع التحول الرقمي..."
-          />
+          {!isNewProject ? (
+            <select
+              className="form-input"
+              value={existingProjects.includes(form.projectName) ? form.projectName : (form.projectName ? 'NEW_PROJECT' : '')}
+              onChange={e => {
+                if (e.target.value === 'NEW_PROJECT') {
+                  setIsNewProject(true)
+                  set('projectName', '') // تفريغ الحقل للكتابة الجديدة
+                } else {
+                  set('projectName', e.target.value)
+                }
+              }}
+            >
+              <option value="">— بدون مشروع —</option>
+              {existingProjects.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+              {form.projectName && !existingProjects.includes(form.projectName) && form.projectName !== 'NEW_PROJECT' && (
+                <option value={form.projectName}>{form.projectName}</option>
+              )}
+              <option value="NEW_PROJECT" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
+                + إضافة مشروع/مبادرة جديدة
+              </option>
+            </select>
+          ) : (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                className="form-input"
+                style={{ flex: 1 }}
+                value={form.projectName}
+                onChange={e => set('projectName', e.target.value)}
+                placeholder="اكتب اسم المشروع الجديد هنا..."
+                autoFocus
+              />
+              <button 
+                type="button" 
+                onClick={() => { setIsNewProject(false); set('projectName', ''); }} 
+                style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}
+              >
+                إلغاء
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="form-group">
           <label className="form-label">الشخص المسؤول / المتابع</label>
-          <input
-            className="form-input"
-            value={form.person}
-            onChange={e => set('person', e.target.value)}
-            placeholder="اسم الشخص..."
-          />
+          {isUser ? (
+            <input
+              className="form-input"
+              value={userProfile?.name || ''}
+              disabled
+              style={{ background: 'var(--bg3)', cursor: 'not-allowed', opacity: 0.7, color: 'var(--text)' }}
+            />
+          ) : (
+            <select
+              className="form-input"
+              value={form.person}
+              onChange={e => set('person', e.target.value)}
+            >
+              <option value="">— اختر المسؤول —</option>
+              {TEAM_MEMBERS.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div className="form-row">
