@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import PullToRefresh from '../components/PullToRefresh'
+import { useAuth } from '../contexts/AuthContext' // 🔴 استيراد الصلاحيات
 
 /* ── استخراج كل الأسماء الفردية من جميع المهام ── */
 function extractAllNames(tasks) {
@@ -28,6 +29,8 @@ function applyMerge(tasks, selectedNames, canonical) {
 }
 
 export default function ContactsPage({ contacts, tasks, setTasks, showToast }) {
+  const { isUser } = useAuth() // 🔴 جلب صلاحية الموظف
+
   const [mergeOpen, setMergeOpen]     = useState(false)
   const [selected,  setSelected]      = useState(new Set())
   const [canonical, setCanonical]     = useState('')
@@ -81,24 +84,26 @@ export default function ContactsPage({ contacts, tasks, setTasks, showToast }) {
         <div className="header-sub">تُضاف تلقائياً من المهام • {contacts.length} جهة</div>
       </div>
 
-      {/* ── زر دمج الأسماء ── */}
-      <div style={{ padding: '0 16px 12px' }}>
-        <button
-          onClick={() => { setMergeOpen(o => !o); setSelected(new Set()); setCanonical('') }}
-          style={{
-            width: '100%', padding: '11px 0', borderRadius: 12, border: '1px solid var(--border)',
-            background: mergeOpen ? 'rgba(99,102,241,0.12)' : 'var(--bg3)',
-            color: mergeOpen ? '#818cf8' : 'var(--text2)',
-            fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}
-        >
-          🔀 دمج الأسماء المتكررة {mergeOpen ? '▲' : '▼'}
-        </button>
-      </div>
+      {/* 🔴 إخفاء زر الدمج عن الموظف العادي */}
+      {!isUser && (
+        <div style={{ padding: '0 16px 12px' }}>
+          <button
+            onClick={() => { setMergeOpen(o => !o); setSelected(new Set()); setCanonical('') }}
+            style={{
+              width: '100%', padding: '11px 0', borderRadius: 12, border: '1px solid var(--border)',
+              background: mergeOpen ? 'rgba(99,102,241,0.12)' : 'var(--bg3)',
+              color: mergeOpen ? '#818cf8' : 'var(--text2)',
+              fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            🔀 دمج الأسماء المتكررة {mergeOpen ? '▲' : '▼'}
+          </button>
+        </div>
+      )}
 
-      {/* ── لوحة الدمج ── */}
-      {mergeOpen && (
+      {/* 🔴 إخفاء لوحة الدمج بالكامل عن الموظف العادي */}
+      {!isUser && mergeOpen && (
         <div style={{ margin: '0 16px 16px', background: 'var(--card)', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden' }}>
 
           <div style={{ padding: '12px 14px 8px', borderBottom: '1px solid var(--border)' }}>
