@@ -80,7 +80,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       else if (filter === 'active'   && t.done) return false
       else if (filter === 'done'     && !t.done) return false
       else if (filter === 'urgent'   && t.priority !== 'urgent') return false
-      // 🔴 تعديل فلتر "مهامي" ليكون ديناميكي حسب المستخدم الحالي
       else if (filter === 'mine'     && (!t.person || t.person.trim() !== userProfile?.name)) return false
       
       if (!q) return true
@@ -278,37 +277,55 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     showToast('✅ تم تنزيل ملف CSV')
   }
 
-  function exportExcel() {
-    const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %']
-    const dataToExport = tasks.map(t => {
-      let finalDueDate = t.dueDate;
-      if (!finalDueDate) {
-        const d = new Date(t.createdAt || Date.now());
-        let addedDays = 0;
-        while (addedDays < 5) {
-          d.setDate(d.getDate() + 1);
-          if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
+    function exportExcel() {
+    try {
+      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %']
+      const dataToExport = tasks.map(t => {
+        let finalDueDate = t.dueDate;
+        if (!finalDueDate) {
+          const d = new Date(t.createdAt || Date.now());
+          let addedDays = 0;
+          while (addedDays < 5) {
+            d.setDate(d.getDate() + 1);
+            if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
+          }
+          finalDueDate = d.toISOString().split('T')[0];
         }
-        finalDueDate = d.toISOString().split('T')[0];
-      }
-      return {
-        [EXCEL_COLUMNS[0]]: t.sourceType || '', 
-        [EXCEL_COLUMNS[1]]: 'مهامي برو',
-        [EXCEL_COLUMNS[2]]: t.sourceTitle || '', 
-        [EXCEL_COLUMNS[3]]: t.title || '', 
-        [EXCEL_COLUMNS[4]]: t.closeNote || '', 
-        [EXCEL_COLUMNS[5]]: t.projectName || '', 
-        [EXCEL_COLUMNS[6]]: finalDueDate,
-        [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%'
-      };
-    });
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
-    XLSX.writeFile(workbook, `LOC_Tasks_${new Date().toISOString().split('T')[0]}.xlsx`);
-    setShowExportMenu(false);
-    showToast('✅ تم تنزيل ملف Excel');
+        return {
+          [EXCEL_COLUMNS[0]]: t.sourceType || '', 
+          [EXCEL_COLUMNS[1]]: 'مهامي برو',
+          [EXCEL_COLUMNS[2]]: t.sourceTitle || '', 
+          [EXCEL_COLUMNS[3]]: t.title || '', 
+          [EXCEL_COLUMNS[4]]: t.closeNote || '', 
+          [EXCEL_COLUMNS[5]]: t.projectName || '', 
+          [EXCEL_COLUMNS[6]]: finalDueDate,
+          [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%'
+        };
+      });
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
+      
+      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `LOC_Tasks_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      document.body.appendChild(a); 
+      a.click();
+      document.body.removeChild(a);
+      
+      URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+      showToast('✅ تم تنزيل ملف Excel');
+    } catch (error) {
+      console.error("Excel export error:", error);
+      showToast('❌ حدث خطأ أثناء التصدير');
+    }
   }
+
 
   function handleImportJSON(e) {
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الاستيراد'); return }
@@ -339,16 +356,20 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <div className="header-row">
           <div>
             <div className="header-title">مهامي Pro</div>
-            {/* 🔴 قراءة الاسم من اليوزر اللي مسجل دخوله بدال الاسم الثابت */}
             <div className="header-sub">{userProfile?.name} • PMO مركز عمليات المختبرات</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
-            <button onClick={() => setShowExportMenu(s => !s)} style={{
-                background: 'rgba(99,102,241,0.12)', color: '#818cf8',
-                border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8,
-                padding: '6px 10px', fontSize: 13, fontFamily: 'var(--font)', cursor: 'pointer',
-              }}>⬇️</button>
-            {showExportMenu && (
+            
+            {/* 🔴 إخفاء قائمة التصدير كاملة عن الموظف العادي */}
+            {!isUser && (
+              <button onClick={() => setShowExportMenu(s => !s)} style={{
+                  background: 'rgba(99,102,241,0.12)', color: '#818cf8',
+                  border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8,
+                  padding: '6px 10px', fontSize: 13, fontFamily: 'var(--font)', cursor: 'pointer',
+                }}>⬇️</button>
+            )}
+
+            {showExportMenu && !isUser && (
               <div style={{
                 position: 'absolute', top: 38, right: 0, zIndex: 200,
                 background: 'var(--card)', border: '1px solid var(--border)',
@@ -371,6 +392,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               </div>
             )}
             {showExportMenu && <div onClick={() => setShowExportMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />}
+            
             <button onClick={cycleView} title={VIEW_MODES.find(v => v.id === viewMode)?.label} style={{
               background: 'rgba(59,130,246,0.12)', color: 'var(--blue-light)',
               border: '1px solid rgba(59,130,246,0.25)', borderRadius: 8,
@@ -380,19 +402,23 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               <span>{VIEW_MODES.find(v => v.id === viewMode)?.icon}</span>
               <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
             </button>
-            <button onClick={() => setShowApiKey(true)} style={{
-              background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-              color: apiKey ? 'var(--green)' : 'var(--orange)',
-              border: 'none', borderRadius: 8, padding: '6px 10px',
-              fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
-            }}>
-              {apiKey ? '🔑 API' : '⚙️ API'}
-            </button>
+            
+            {/* 🔴 إخفاء زر الـ API عن الموظف العادي */}
+            {!isUser && (
+              <button onClick={() => setShowApiKey(true)} style={{
+                background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                color: apiKey ? 'var(--green)' : 'var(--orange)',
+                border: 'none', borderRadius: 8, padding: '6px 10px',
+                fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
+              }}>
+                {apiKey ? '🔑 API' : '⚙️ API'}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="page" style={{ paddingBottom: 'env(safe-area-inset-bottom, 80px)' }}>
+      <div className="page" style={{ paddingBottom: '90px' }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12 }}>
           <div className="ring-container" style={{ width: 80, height: 80 }}>
             <svg viewBox="0 0 100 100">
@@ -501,8 +527,13 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
         ) : null}
 
-        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 'env(safe-area-inset-bottom, 80px)' }}>+</button>
-        <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 'env(safe-area-inset-bottom, 80px)' }}>💬 محادثة ذكية</button>
+        {/* 🔴 إصلاح الأزرار العائمة (FABs) ورفعها عن الشريط السفلي */}
+        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>+</button>
+        
+        {/* 🔴 إخفاء المحادثة الذكية عن الموظف لأنها تحتاج API */}
+        {!isUser && (
+          <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
+        )}
 
         {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={apiKey} />}
         {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={apiKey} />}
