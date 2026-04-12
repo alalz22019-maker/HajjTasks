@@ -121,7 +121,7 @@ function AppShell() {
     return <LoginPage />
   }
 
-  // 🔴 4. شاشة التعهد الأمني الإلزامية (تظهر قبل الدخول للتطبيق)
+  // 🔴 4. شاشة التعهد الأمني الإلزامية (تظهر قبل الدخول للتطبيق)  // 🔴 4. شاشة التعهد الأمني الإلزامية (النسخة الرسمية التوجيهية المعتمدة)
   if (!pledgeAccepted) {
     return (
       <div style={{
@@ -130,21 +130,23 @@ function AppShell() {
         background: 'var(--bg)', textAlign: 'center'
       }}>
         <div style={{
-          background: 'var(--bg2)', padding: '32px 24px', borderRadius: 16,
-          border: '1px solid var(--border)', maxWidth: 400, width: '100%',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+          background: 'var(--card)', padding: '32px 24px', borderRadius: 16,
+          border: '1px solid var(--border)', maxWidth: 380, width: '100%',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.12)'
         }}>
-          <div style={{ fontSize: 56, marginBottom: 16 }}>🔒</div>
-          <h2 style={{ color: 'var(--text)', marginBottom: 12 }}>تعهد أمني وإخلاء مسؤولية</h2>
-          <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>
-            أقر وأتعهد أنا المستخدم لهذا النظام بالالتزام التام بسياسات أمن المعلومات بـ <strong style={{color: 'var(--text)'}}>مركز عمليات المختبرات</strong>. كما أتعهد بعدم رفع أو مشاركة أي بيانات حساسة أو معلومات تخص المرضى والمستفيدين، وأتحمل المسؤولية الكاملة في حال مخالفة ذلك.
+          <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+          <h2 style={{ color: 'var(--text)', marginBottom: 16, fontSize: 18, fontWeight: 700 }}>
+            تنبيه أمني
+          </h2>
+          <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.8, marginBottom: 28, fontWeight: 500 }}>
+            تحذير: هذا النظام مخصص لإدارة المهام الإدارية. تجنب إدخال أي بيانات طبية حساسة أو معلومات او بيانات سرية وكذلك بيانات مستفيدين او موظفين التزاماً بسياسات الخصوصية.
           </p>
           <button
             onClick={handleAcceptPledge}
             style={{
               background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-              color: '#fff', border: 'none', borderRadius: 8,
-              padding: '14px 24px', fontSize: 16, fontWeight: 700,
+              color: '#fff', border: 'none', borderRadius: 10,
+              padding: '12px 24px', fontSize: 15, fontWeight: 700,
               width: '100%', cursor: 'pointer', marginBottom: 12
             }}
           >
@@ -153,8 +155,8 @@ function AppShell() {
           <button
             onClick={logout}
             style={{
-              background: 'transparent', color: '#ef4444',
-              border: '1px solid #ef4444', borderRadius: 8,
+              background: 'transparent', color: 'var(--text3)',
+              border: 'none', borderRadius: 10,
               padding: '10px 24px', fontSize: 14, fontWeight: 600,
               width: '100%', cursor: 'pointer'
             }}
@@ -165,6 +167,7 @@ function AppShell() {
       </div>
     )
   }
+
 
   /* ── Build nav ── */
   const NAV = [
