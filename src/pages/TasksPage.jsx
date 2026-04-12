@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import * as XLSX from 'xlsx' // 🔴 إضافة مكتبة الإكسل هنا
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
@@ -15,14 +16,13 @@ import {
 
 const MY_NAMES = ['علي الزهراني', 'ali alzahrani', 'ali', 'علي']
 
+// 🔴 تم إلغاء تصنيفات (العمل، شخصي) من الفلاتر
 const FILTERS = [
   { id: 'all',      label: 'الكل' },
   { id: 'active',   label: 'قيد التنفيذ' },
   { id: 'done',     label: 'مكتملة' },
   { id: 'urgent',   label: 'عاجل' },
   { id: 'mine',     label: 'مهامي' },
-  { id: 'work',     label: 'العمل' },
-  { id: 'personal', label: 'شخصي' },
 ]
 
 function genId() {
@@ -86,8 +86,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       else if (filter === 'done'     && !t.done) return false
       else if (filter === 'urgent'   && t.priority !== 'urgent') return false
       else if (filter === 'mine'     && !MY_NAMES.some(n => t.person?.toLowerCase().includes(n.toLowerCase()))) return false
-      else if (filter === 'work'     && t.category !== 'work') return false
-      else if (filter === 'personal' && t.category !== 'personal') return false
+      // 🔴 تم إزالة شروط فلترة التصنيفات هنا
       if (!q) return true
       return (t.title || '').toLowerCase().includes(q)
           || (t.person || '').toLowerCase().includes(q)
@@ -176,7 +175,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     }
 
     if (!canWrite) {
-      // User role → submit request
       submitRequest('add', { ...form })
       setShowForm(false)
       return
@@ -185,20 +183,17 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     try {
       await dbAddTask({ ...form, done: false })
       if (subTaskTitles.length > 0) {
-        // We'll use the newly created doc id as parentId if we can — but since
-        // Firestore addDoc returns a ref, we handle sub-tasks sequentially.
-        // For simplicity, add sub-tasks with the parent title as projectName.
         for (const title of subTaskTitles) {
           await dbAddTask({
             title,
             priority: form.priority,
-            category: form.category,
-            subcategory: form.subcategory,
             person: form.person,
             dueDate: '',
             recurrence: '',
             reminderTime: '',
             projectName: form.projectName || form.title,
+            source: form.source,
+            sourceTitle: form.sourceTitle,
             done: false,
           })
         }
@@ -214,7 +209,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   async function updateTaskHandler(form) {
     if (!canWrite) {
-      // Find what changed
       const original = tasks.find(t => t.id === form.id)
       if (original) {
         if (original.title !== form.title) {
@@ -243,7 +237,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     if (!task) return
 
     if (!canWrite && !task.done) {
-      // User role: closing a task needs approval
       submitRequest('close', { taskId: id, taskTitle: task.title })
       return
     }
@@ -324,6 +317,55 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     showToast('✅ تم تنزيل ملف CSV')
   }
 
+  // 🔴 دالة التصدير الاحترافي لـ Excel بالمطابقة (Mapping) المتفق عليها
+  function exportExcel() {
+    const EXCEL_COLUMNS = [
+      'Channel',
+      'Sub_Source',
+      'Task title',
+      'Task description',
+      'What\'s Done',
+      'Type',
+      'Due date',
+      'Completion %'
+    ]
+
+    const dataToExport = tasks.map(t => {
+      // حساب 5 أيام عمل إذا لم يكن هناك تاريخ استحقاق
+      let finalDueDate = t.dueDate;
+      if (!finalDueDate) {
+        const d = new Date(t.createdAt || Date.now());
+        let addedDays = 0;
+        while (addedDays < 5) {
+          d.setDate(d.getDate() + 1);
+          if (d.getDay() !== 5 && d.getDay() !== 6) { // استثناء الجمعة والسبت
+            addedDays++;
+          }
+        }
+        finalDueDate = d.toISOString().split('T')[0];
+      }
+
+      return {
+        [EXCEL_COLUMNS[0]]: t.source || '', // مصدر المهمة
+        [EXCEL_COLUMNS[1]]: 'مهامي برو',
+        [EXCEL_COLUMNS[2]]: t.sourceTitle || '', // عنوان المصدر
+        [EXCEL_COLUMNS[3]]: t.title || '', // عنوان المهمة
+        [EXCEL_COLUMNS[4]]: t.closeNote || '', // What's Done
+        [EXCEL_COLUMNS[5]]: t.projectName || '', // المشروع / المبادرة
+        [EXCEL_COLUMNS[6]]: finalDueDate,
+        [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%'
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
+    XLSX.writeFile(workbook, `LOC_Tasks_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    setShowExportMenu(false);
+    showToast('✅ تم تنزيل ملف Excel');
+  }
+
   function handleImportJSON(e) {
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الاستيراد'); return }
     const file = e.target.files[0]
@@ -354,10 +396,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <div className="header-row">
           <div>
             <div className="header-title">مهامي Pro</div>
-            <div className="header-sub">علي الزهراني • PMO وزارة الصحة</div>
+            {/* 🔴 تغيير المسمى إلى مركز عمليات المختبرات */}
+            <div className="header-sub">علي الزهراني • PMO مركز عمليات المختبرات</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
-            {/* Export menu — visible to all, JSON restricted inside */}
             <button
               onClick={() => setShowExportMenu(s => !s)}
               style={{
@@ -374,6 +416,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                 boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
                 display: 'flex', flexDirection: 'column', gap: 4,
               }}>
+                {/* 🔴 زر تنزيل Excel المضاف */}
+                <button onClick={exportExcel} style={menuBtnStyle}>
+                  <span>📗</span> تنزيل Excel
+                </button>
                 {isAdmin && (
                   <button onClick={exportJSON} style={menuBtnStyle}>
                     <span>💾</span> تنزيل JSON
@@ -682,13 +728,24 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                   {pendingRequest.label}
                 </div>
               </div>
+              
+              {/* 🔴 تلميح طلب إغلاق المهمة */}
+              {pendingRequest.type === 'close' && (
+                <div style={{
+                  fontSize: 12, color: 'var(--blue)', background: 'rgba(59, 130, 246, 0.1)',
+                  padding: '8px 12px', borderRadius: 8, marginBottom: 12, lineHeight: 1.6
+                }}>
+                  💡 يرجى كتابة ما تم إنجازه بوضوح وبصيغة مهنية لتوثيق اكتمال المهمة.
+                </div>
+              )}
+
               <div className="form-group">
                 <label className="form-label">ملاحظة (اختياري)</label>
                 <input
                   className="form-input"
                   value={requestNote}
                   onChange={e => setRequestNote(e.target.value)}
-                  placeholder="أضف سبباً أو تفصيلاً..."
+                  placeholder={pendingRequest.type === 'close' ? "اكتب ما تم إنجازه هنا..." : "أضف سبباً أو تفصيلاً..."}
                 />
               </div>
               <button className="submit-btn" onClick={confirmRequest} disabled={submittingReq}>
