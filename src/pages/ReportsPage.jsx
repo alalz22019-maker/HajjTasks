@@ -69,7 +69,7 @@ function buildWhatsAppText(tasks) {
 
   lines.push(`📋 *تقرير المهام اليومي*`)
   lines.push(`🗓 ${formatArabicDate()}`)
-  lines.push(`👤 علي الزهراني | PMO مركز عمليات المختبرات`)
+  lines.push(`👤 ${userProfile?.name || 'مستخدم'} | PMO مركز عمليات المختبرات`)
   lines.push(sep)
 
   lines.push(`📊 *الملخص التنفيذي*`)
@@ -514,7 +514,8 @@ function DailyBriefCard({ tasks }) {
 }
 
 /* ─── Main Page ───────────────────────────────────────────── */
-export default function ReportsPage({ tasks, showToast, apiKey }) {
+export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
+
   const { isUser } = useAuth() 
 
   const [tab, setTab] = useState('dashboard')
@@ -669,7 +670,8 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
                 <div className="exec-header-badge">التقرير التنفيذي</div>
               </div>
               <div className="exec-report-date">{formatArabicDate()}</div>
-              <div className="exec-report-user">علي الزهراني — PMO | مركز عمليات المختبرات</div>
+              <div className="exec-report-user">{userProfile?.name || 'مستخدم'} — PMO | مركز عمليات المختبرات</div>
+
               <div className="exec-header-bar" />
             </div>
 
