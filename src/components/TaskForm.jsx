@@ -9,28 +9,6 @@ const PRIORITIES = [
   { value: 'low', label: 'منخفضة' },
 ]
 
-const CATEGORIES = [
-  { value: 'work', label: 'عمل' },
-  { value: 'personal', label: 'شخصي' },
-  { value: 'health', label: 'صحة' },
-]
-
-const SUBCATEGORIES = {
-  work: [
-    { value: 'leaders', label: 'القادة' },
-    { value: 'team', label: 'الفريق' },
-    { value: 'other', label: 'أخرى' },
-  ],
-  personal: [
-    { value: 'home', label: 'البيت' },
-    { value: 'business', label: 'بيزنس' },
-    { value: 'other', label: 'أخرى' },
-  ],
-  health: [
-    { value: 'other', label: 'أخرى' },
-  ],
-}
-
 const RECURRENCES = [
   { value: '', label: 'لا تكرار' },
   { value: 'daily', label: 'يومي' },
@@ -54,11 +32,10 @@ const TEAM_MEMBERS = [
   'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل'
 ]
 
+// 🔴 تم إزالة التصنيفات والتصنيفات الفرعية من هنا
 const DEFAULT_TASK = {
   title: '',
   priority: 'medium',
-  category: 'work',
-  subcategory: 'other',
   person: '',
   dueDate: '',
   recurrence: '',
@@ -107,14 +84,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   }, [])
 
   function set(field, value) {
-    setForm(f => {
-      const next = { ...f, [field]: value }
-      if (field === 'category') {
-        const subs = SUBCATEGORIES[value]
-        next.subcategory = subs?.[0]?.value || 'other'
-      }
-      return next
-    })
+    setForm(f => ({ ...f, [field]: value }))
   }
 
   async function analyzeTask() {
@@ -129,9 +99,6 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         setForm(f => ({
           ...f,
           priority: result.priority || f.priority,
-          // لا نحدث التصنيفات والشخص إذا كان المستخدم موظف عادي
-          category: isUser ? f.category : (result.category || f.category),
-          subcategory: isUser ? f.subcategory : (result.subcategory || f.subcategory),
           person: isUser ? f.person : (result.person || f.person),
           projectName: result.projectName || f.projectName || '',
         }))
@@ -167,11 +134,19 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
     onSave(finalForm, selectedSubTasks)
   }
 
-  const subs = SUBCATEGORIES[form.category] || []
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
+    <div 
+      className="modal-overlay" 
+      onClick={onClose}
+      /* 🔴 إضافة مسافة علوية لتجنب الاختفاء خلف شريط مهامي برو */
+      style={{ alignItems: 'flex-start', paddingTop: '90px' }} 
+    >
+      <div 
+        className="modal" 
+        onClick={e => e.stopPropagation()}
+        /* 🔴 ضمان عدم قص الشاشة وإضافة تمرير داخلي */
+        style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
+      >
         <div className="modal-handle" />
         <h2 className="modal-title">{task ? 'تعديل المهمة' : 'إضافة مهمة جديدة'}</h2>
 
@@ -223,35 +198,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           </div>
         </div>
 
-        {/* إخفاء التصنيفات عن الموظف العادي */}
-        {!isUser && (
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">التصنيف</label>
-              <select
-                className="form-input"
-                value={form.category}
-                onChange={e => set('category', e.target.value)}
-              >
-                {CATEGORIES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">التصنيف الفرعي</label>
-              <select
-                className="form-input"
-                value={form.subcategory}
-                onChange={e => set('subcategory', e.target.value)}
-              >
-                {subs.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
+        {/* 🔴 تم إزالة قسم التصنيفات بالكامل من هنا */}
 
         <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>
