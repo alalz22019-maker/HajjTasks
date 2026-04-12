@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
-import { loadData, saveData } from '../utils/storage'
+import { useState, useMemo, useRef } from 'react'
 import PullToRefresh from '../components/PullToRefresh'
 import VisualSummary from '../components/VisualSummary'
 import { D, KPI_PALETTE, CARD, formatDates } from '../components/VisualSummaryColors'
 import { exportPNG, exportPDF, shareImage } from '../components/VisualSummaryExport'
-import { useAuth } from '../contexts/AuthContext' // 🔴 تمت إضافة جلب الصلاحيات
+import { useAuth } from '../contexts/AuthContext' 
 
 /* ─── helpers ─────────────────────────────────────────────── */
 const TODAY_START = (() => { const d = new Date(); d.setHours(0,0,0,0); return d })()
@@ -15,7 +14,6 @@ function isCompletedToday(t) {
   const c = new Date(t.completedAt)
   return c >= TODAY_START && c <= TODAY_END
 }
-
 
 function isOverdue(t) {
   if (t.done || !t.dueDate) return false
@@ -46,7 +44,6 @@ function formatShortDate(iso) {
   return new Date(iso).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' })
 }
 
-
 /* ─── Build WhatsApp text ─────────────────────────────────── */
 function buildWhatsAppText(tasks) {
   const all     = tasks
@@ -72,7 +69,7 @@ function buildWhatsAppText(tasks) {
 
   lines.push(`📋 *تقرير المهام اليومي*`)
   lines.push(`🗓 ${formatArabicDate()}`)
-  lines.push(`👤 علي الزهراني | PMO وزارة الصحة`)
+  lines.push(`👤 علي الزهراني | PMO مركز عمليات المختبرات`)
   lines.push(sep)
 
   lines.push(`📊 *الملخص التنفيذي*`)
@@ -244,7 +241,7 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── DailyBriefCard ──────────────────────────────────────── */
-function DailyBriefCard({ tasks, directorPhone }) {
+function DailyBriefCard({ tasks }) {
   const cardRef   = useRef(null)
   const [exporting, setExporting] = useState(false)
 
@@ -293,13 +290,9 @@ function DailyBriefCard({ tasks, directorPhone }) {
   function shareBrief() {
     const text    = buildBriefText(tasks)
     const encoded = encodeURIComponent(text)
-    const phone   = (directorPhone || '').replace(/\D/g, '')
-    window.open(phone
-      ? `https://wa.me/${phone}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`, '_blank')
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
   }
 
-  /* ── helper: task row ── */
   function TaskItem({ t, accent }) {
     const col = KPI_PALETTE[accent] || KPI_PALETTE.gray
     return (
@@ -328,7 +321,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
     )
   }
 
-  /* ── helper: section header ── */
   function SectionHead({ icon, label, count, color }) {
     const col = KPI_PALETTE[color] || KPI_PALETTE.gray
     return (
@@ -346,8 +338,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
 
   return (
     <div style={{ padding: '0 16px 32px', direction: 'rtl' }}>
-
-      {/* أزرار التصدير */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <button onClick={() => withExport(exportPDF)} disabled={exporting} style={{
           flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
@@ -366,15 +356,12 @@ function DailyBriefCard({ tasks, directorPhone }) {
         }}>📤 واتساب</button>
       </div>
 
-      {/* البطاقة */}
       <div ref={cardRef} style={{
         background: D.bg, borderRadius: 20,
         fontFamily: "'IBM Plex Sans Arabic','Segoe UI',system-ui,sans-serif",
         boxShadow: '0 4px 24px rgba(0,107,63,0.13)',
         border: `1px solid ${D.border}`,
       }}>
-
-        {/* Header */}
         <div style={{
           background: 'linear-gradient(135deg, #004D2C 0%, #006B3F 100%)',
           borderRadius: '20px 20px 0 0', padding: '18px 20px 16px',
@@ -408,8 +395,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-          {/* KPI Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             {kpis.map((kpi, i) => {
               const col = KPI_PALETTE[kpi.color] || KPI_PALETTE.gray
@@ -435,7 +420,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
             })}
           </div>
 
-          {/* Progress Bar */}
           <div style={{
             background: CARD.background, borderRadius: CARD.borderRadius,
             border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow,
@@ -459,7 +443,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
             </div>
           </div>
 
-          {/* مستحقة اليوم */}
           {dueT.length > 0 && (
             <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
               <SectionHead icon="📅" label="مستحقة اليوم" count={dueT.length} color="yellow" />
@@ -467,7 +450,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
             </div>
           )}
 
-          {/* متأخرة */}
           {overdueT.length > 0 && (
             <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
               <SectionHead icon="⚡" label="متأخرة عن الموعد" count={overdueT.length} color="red" />
@@ -475,7 +457,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
             </div>
           )}
 
-          {/* أنجز خلال ٢٤ ساعة */}
           {done24h.length > 0 && (
             <div style={{
               background: 'linear-gradient(135deg, rgba(0,107,63,0.08), rgba(16,185,129,0.05))',
@@ -495,7 +476,6 @@ function DailyBriefCard({ tasks, directorPhone }) {
             </div>
           )}
 
-          {/* الأداء حسب المسؤول */}
           {persons.length > 0 && (
             <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -521,14 +501,12 @@ function DailyBriefCard({ tasks, directorPhone }) {
             </div>
           )}
 
-          {/* Footer */}
           <div style={{ textAlign: 'center', paddingTop: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: D.green }}>مهامي Pro</div>
             <div style={{ fontSize: 10, color: D.text3, marginTop: 2 }}>
               {new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })} • {hijri}
             </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -537,14 +515,10 @@ function DailyBriefCard({ tasks, directorPhone }) {
 
 /* ─── Main Page ───────────────────────────────────────────── */
 export default function ReportsPage({ tasks, showToast, apiKey }) {
-  const { isUser } = useAuth() // 🔴 جلب صلاحية الموظف
+  const { isUser } = useAuth() 
 
   const [tab, setTab] = useState('dashboard')
   const [visualType, setVisualType] = useState('executive')
-  const [directorPhone, setDirectorPhone] = useState(() => loadData('mytasks_dir_phone') || '')
-  const [notifEnabled, setNotifEnabled] = useState(() => loadData('mytasks_notif') || false)
-  const [showSettings, setShowSettings] = useState(false)
-  const notifRef = useRef(null)
 
   const all       = tasks
   const urgent    = useMemo(() => all.filter(t => t.priority === 'urgent' && !t.done), [all])
@@ -567,59 +541,10 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
     return Object.entries(map).sort((a,b) => b[1].total - a[1].total)
   }, [all])
 
-  /* ── 8 AM notification ── */
-  useEffect(() => {
-    if (!notifEnabled) return
-    if (!('Notification' in window)) return
-
-    function schedule() {
-      const now  = new Date()
-      const next = new Date()
-      next.setHours(8, 0, 0, 0)
-      if (now >= next) next.setDate(next.getDate() + 1)
-      notifRef.current = setTimeout(() => {
-        if (Notification.permission === 'granted') {
-          new Notification('مهامي Pro — تقرير الصباح ☀️', {
-            body: 'تقرير المهام اليومي جاهز للإرسال للمدير',
-            icon: '/icons/icon-192x192.png',
-            tag: 'daily-report',
-          })
-        }
-        schedule()
-      }, next - now)
-    }
-
-    if (Notification.permission === 'granted') {
-      schedule()
-    } else {
-      Notification.requestPermission().then(p => {
-        if (p === 'granted') schedule()
-        else { setNotifEnabled(false); saveData('mytasks_notif', false) }
-      })
-    }
-
-    return () => clearTimeout(notifRef.current)
-  }, [notifEnabled])
-
-  /* ── actions ── */
-  function handleNotifToggle() {
-    const next = !notifEnabled
-    setNotifEnabled(next)
-    saveData('mytasks_notif', next)
-  }
-
-  function handlePhoneSave(v) {
-    setDirectorPhone(v)
-    saveData('mytasks_dir_phone', v)
-  }
-
   function shareWhatsApp() {
     const text    = buildWhatsAppText(tasks)
     const encoded = encodeURIComponent(text)
-    const phone   = directorPhone.replace(/\D/g, '')
-    window.open(phone
-      ? `https://wa.me/${phone}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`, '_blank')
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
   }
 
   function printReport() {
@@ -627,7 +552,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
     window.print()
     document.body.classList.remove('print-exec')
   }
-
 
   if (all.length === 0) {
     return (
@@ -652,7 +576,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
         <div className="header-sub">{formatArabicDate()}</div>
       </div>
 
-      {/* Tab bar */}
       <div className="report-tab-bar">
         <button
           className={`report-tab${tab === 'dashboard' ? ' active' : ''}`}
@@ -662,7 +585,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
           className={`report-tab${tab === 'executive' ? ' active' : ''}`}
           onClick={() => setTab('executive')}
         >التنفيذي</button>
-        {/* 🔴 إخفاء تبويب "التقرير البصري" عن الموظف */}
         {!isUser && (
           <button
             className={`report-tab${tab === 'visual' ? ' active' : ''}`}
@@ -671,7 +593,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
         )}
       </div>
 
-      {/* ── Dashboard ── */}
       {tab === 'dashboard' && (
         <div>
           <div className="report-section">
@@ -730,11 +651,9 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
         </div>
       )}
 
-      {/* ── Executive Report ── */}
       {tab === 'executive' && (
         <div>
-          {/* Action buttons */}
-          <div className="exec-actions">
+          <div className="exec-actions" style={{ marginBottom: 16 }}>
             <button className="exec-btn whatsapp" onClick={shareWhatsApp}>
               <span>📤</span> واتساب
             </button>
@@ -743,68 +662,17 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
             </button>
           </div>
 
-          {/* Settings */}
-          <button className="exec-settings-toggle" onClick={() => setShowSettings(s => !s)}>
-            ⚙️ الإعدادات {showSettings ? '▲' : '▼'}
-          </button>
-
-          {showSettings && (
-            <div className="exec-settings-box">
-              <div className="form-group">
-                <label className="form-label">رقم واتساب المدير</label>
-                <input
-                  className="form-input"
-                  type="tel"
-                  value={directorPhone}
-                  onChange={e => handlePhoneSave(e.target.value)}
-                  placeholder="966501234567"
-                  dir="ltr"
-                />
-                <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
-                  مع مفتاح الدولة، بدون + أو 00
-                </div>
-              </div>
-
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '12px 0', borderTop: '1px solid var(--border)', marginTop: 4
-              }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>إشعار يومي الساعة 8 صباحاً</div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                    تنبيه لإرسال التقرير للمدير
-                  </div>
-                </div>
-                <button onClick={handleNotifToggle} style={{
-                  width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
-                  background: notifEnabled ? '#3b82f6' : 'var(--bg3)', transition: 'background 0.2s',
-                  flexShrink: 0, position: 'relative'
-                }}>
-                  <div style={{
-                    width: 22, height: 22, borderRadius: 11, background: '#fff',
-                    position: 'absolute', top: 3, transition: 'right 0.2s',
-                    right: notifEnabled ? 3 : 23, boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                  }} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Executive report card */}
           <div id="exec-report" className="exec-report-card">
-
-            {/* ── Header ── */}
             <div className="exec-report-header">
               <div className="exec-header-top">
                 <div className="exec-report-logo">مهامي <span>Pro</span></div>
                 <div className="exec-header-badge">التقرير التنفيذي</div>
               </div>
               <div className="exec-report-date">{formatArabicDate()}</div>
-              <div className="exec-report-user">علي الزهراني — PMO | وزارة الصحة</div>
+              <div className="exec-report-user">علي الزهراني — PMO | مركز عمليات المختبرات</div>
               <div className="exec-header-bar" />
             </div>
 
-            {/* ── KPI Strip ── */}
             <div className="exec-kpi-strip">
               <div className="exec-kpi-item">
                 <div className="exec-kpi-dot" style={{ background: '#3b82f6' }} />
@@ -828,7 +696,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             </div>
 
-            {/* ── Progress ── */}
             <div className="exec-progress-wrap">
               <div className="exec-progress-label">
                 <span>التقدم الكلي</span>
@@ -839,7 +706,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             </div>
 
-            {/* ── Urgent ── */}
             {urgent.length > 0 && (
               <div className="exec-section">
                 <div className="exec-section-head">
@@ -862,7 +728,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             )}
 
-            {/* ── Overdue ── */}
             {overdue.length > 0 && (
               <div className="exec-section">
                 <div className="exec-section-head">
@@ -885,7 +750,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             )}
 
-            {/* ── Completed Today ── */}
             {todayDone.length > 0 && (
               <div className="exec-section">
                 <div className="exec-section-head">
@@ -907,7 +771,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             )}
 
-            {/* ── By Person ── */}
             {persons.length > 0 && (
               <div className="exec-section">
                 <div className="exec-section-head">
@@ -935,7 +798,6 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
               </div>
             )}
 
-            {/* ── Footer ── */}
             <div className="exec-report-footer">
               <div className="exec-foot-brand">مهامي Pro</div>
               <div className="exec-foot-time">
@@ -946,11 +808,8 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
         </div>
       )}
 
-      {/* ── Visual Summary ── */}
-      {/* 🔴 إخفاء محتوى التقرير البصري عن الموظف كحماية إضافية */}
       {tab === 'visual' && !isUser && (
         <div>
-          {/* نوع التقرير */}
           <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px' }}>
             <button
               onClick={() => setVisualType('executive')}
@@ -979,7 +838,7 @@ export default function ReportsPage({ tasks, showToast, apiKey }) {
           </div>
 
           {visualType === 'executive' && <VisualSummary tasks={tasks} apiKey={apiKey} />}
-          {visualType === 'daily'     && <DailyBriefCard tasks={tasks} directorPhone={directorPhone} />}
+          {visualType === 'daily'     && <DailyBriefCard tasks={tasks} />}
         </div>
       )}
     </PullToRefresh>
