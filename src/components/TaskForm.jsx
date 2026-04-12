@@ -23,7 +23,6 @@ const SOURCE_TYPES = [
   { value: 'email', label: 'إيميل' },
 ]
 
-// القائمة الرسمية المعتمدة بأسماء الفريق لمنع إدخال أسماء خاطئة
 const TEAM_MEMBERS = [
   'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن', 'أ. عبير الشدوخي',
   'د. حامد الزهراني', 'أ. حماد المظيبري', 'أ. محمد القرشي', 'أ. محمد الحجيلي',
@@ -32,18 +31,9 @@ const TEAM_MEMBERS = [
   'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل'
 ]
 
-// 🔴 تم إزالة التصنيفات والتصنيفات الفرعية من هنا
 const DEFAULT_TASK = {
-  title: '',
-  priority: 'medium',
-  person: '',
-  dueDate: '',
-  recurrence: '',
-  reminderTime: '',
-  projectName: '',
-  sourceType: '',
-  sourceTitle: '',
-  done: false,
+  title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
+  reminderTime: '', projectName: '', sourceType: '', sourceTitle: '', done: false,
 }
 
 export default function TaskForm({ task, onSave, onClose, apiKey }) {
@@ -51,7 +41,6 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   
   const [form, setForm] = useState(() => {
     if (task) return { ...task, projectName: task.projectName || '' }
-    // إذا كان الموظف عادي، يتم تعيين اسمه تلقائياً في خانة المسؤول
     return { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '' }
   })
   
@@ -64,7 +53,6 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   const [existingProjects, setExistingProjects] = useState([])
   const [isNewProject, setIsNewProject] = useState(false)
 
-  // جلب أسماء المشاريع الموجودة مسبقاً من قاعدة البيانات
   useEffect(() => {
     async function fetchProjects() {
       try {
@@ -76,9 +64,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           if (p && p.trim() !== '') projectsSet.add(p.trim())
         })
         setExistingProjects(Array.from(projectsSet))
-      } catch (e) {
-        console.error('Error fetching projects:', e)
-      }
+      } catch (e) { console.error('Error fetching projects:', e) }
     }
     fetchProjects()
   }, [])
@@ -89,16 +75,12 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
 
   async function analyzeTask() {
     if (!form.title.trim()) return
-    setAnalyzing(true)
-    setAiReason('')
-    setSubTasks([])
-    setSelectedSubTasks([])
+    setAnalyzing(true); setAiReason(''); setSubTasks([]); setSelectedSubTasks([])
     try {
       const result = await analyzeTaskWithAI(apiKey, form.title)
       if (result) {
         setForm(f => ({
-          ...f,
-          priority: result.priority || f.priority,
+          ...f, priority: result.priority || f.priority,
           person: isUser ? f.person : (result.person || f.person),
           projectName: result.projectName || f.projectName || '',
         }))
@@ -108,29 +90,19 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           setSelectedSubTasks(result.subTasks)
         }
       }
-    } catch (e) {
-      console.error('AI analyze error:', e)
-    } finally {
-      setAnalyzing(false)
-    }
+    } catch (e) { console.error('AI analyze error:', e) } 
+    finally { setAnalyzing(false) }
   }
 
   function toggleSubTask(st) {
-    setSelectedSubTasks(prev =>
-      prev.includes(st) ? prev.filter(s => s !== st) : [...prev, st]
-    )
+    setSelectedSubTasks(prev => prev.includes(st) ? prev.filter(s => s !== st) : [...prev, st])
   }
 
   function handleSubmit() {
     if (!form.title.trim() || saving) return
     setSaving(true)
-    
-    // تأكيد أخير لمنع التلاعب: إذا كان موظف عادي، يتم تثبيت اسمه
     const finalForm = { ...form }
-    if (isUser) {
-      finalForm.person = userProfile?.name || ''
-    }
-    
+    if (isUser) finalForm.person = userProfile?.name || ''
     onSave(finalForm, selectedSubTasks)
   }
 
@@ -138,14 +110,21 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
     <div 
       className="modal-overlay" 
       onClick={onClose}
-      /* 🔴 إضافة مسافة علوية لتجنب الاختفاء خلف شريط مهامي برو */
-      style={{ alignItems: 'flex-start', paddingTop: '90px' }} 
+      /* 🔴 تطبيق الحماية للحواف والتوافق مع جميع الشاشات */
+      style={{ 
+        alignItems: 'flex-start', 
+        paddingTop: 'env(safe-area-inset-top, 60px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 20px)'
+      }} 
     >
       <div 
         className="modal" 
         onClick={e => e.stopPropagation()}
-        /* 🔴 ضمان عدم قص الشاشة وإضافة تمرير داخلي */
-        style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
+        style={{ 
+          width: '100%', maxWidth: '450px', margin: '0 auto',
+          maxHeight: '85vh', overflowY: 'auto',
+          boxSizing: 'border-box'
+        }}
       >
         <div className="modal-handle" />
         <h2 className="modal-title">{task ? 'تعديل المهمة' : 'إضافة مهمة جديدة'}</h2>
@@ -153,96 +132,43 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         <div className="form-group">
           <label className="form-label">عنوان المهمة *</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input
-              className="form-input"
-              style={{ flex: 1 }}
-              value={form.title}
-              onChange={e => set('title', e.target.value)}
-              placeholder="اكتب المهمة..."
-            />
-            <button
-              className="ai-analyze-btn"
-              onClick={analyzeTask}
-              disabled={!form.title.trim() || analyzing || !apiKey}
-              title={!apiKey ? 'يلزم إعداد مفتاح API أولاً' : 'تحليل ذكي'}
-            >
+            <input className="form-input" style={{ flex: 1 }} value={form.title} onChange={e => set('title', e.target.value)} placeholder="اكتب المهمة..." />
+            <button className="ai-analyze-btn" onClick={analyzeTask} disabled={!form.title.trim() || analyzing || !apiKey} title={!apiKey ? 'يلزم إعداد مفتاح API أولاً' : 'تحليل ذكي'}>
               {analyzing ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
             </button>
           </div>
-          {!apiKey && (
-            <div style={{ fontSize: 11, color: 'var(--orange)', marginTop: 4 }}>
-              أضف مفتاح API لتفعيل التحليل الذكي
-            </div>
-          )}
         </div>
 
         {aiReason && (
-          <div className="ai-reason-box">
-            <span style={{ fontSize: 13 }}>🤖</span>
-            <span>{aiReason}</span>
-          </div>
+          <div className="ai-reason-box"><span style={{ fontSize: 13 }}>🤖</span><span>{aiReason}</span></div>
         )}
 
         <div className="form-group">
           <label className="form-label">الأولوية</label>
           <div className="seg-control">
             {PRIORITIES.map(p => (
-              <button
-                key={p.value}
-                className={`seg-btn${form.priority === p.value ? ' active' : ''}`}
-                onClick={() => set('priority', p.value)}
-              >
-                {p.label}
-              </button>
+              <button key={p.value} className={`seg-btn${form.priority === p.value ? ' active' : ''}`} onClick={() => set('priority', p.value)}>{p.label}</button>
             ))}
           </div>
         </div>
 
-        {/* 🔴 تم إزالة قسم التصنيفات بالكامل من هنا */}
-
         <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>
           {!isNewProject ? (
-            <select
-              className="form-input"
-              value={existingProjects.includes(form.projectName) ? form.projectName : (form.projectName ? 'NEW_PROJECT' : '')}
+            <select className="form-input" value={existingProjects.includes(form.projectName) ? form.projectName : (form.projectName ? 'NEW_PROJECT' : '')}
               onChange={e => {
-                if (e.target.value === 'NEW_PROJECT') {
-                  setIsNewProject(true)
-                  set('projectName', '') // تفريغ الحقل للكتابة الجديدة
-                } else {
-                  set('projectName', e.target.value)
-                }
-              }}
-            >
+                if (e.target.value === 'NEW_PROJECT') { setIsNewProject(true); set('projectName', ''); } 
+                else { set('projectName', e.target.value) }
+              }}>
               <option value="">— بدون مشروع —</option>
-              {existingProjects.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-              {form.projectName && !existingProjects.includes(form.projectName) && form.projectName !== 'NEW_PROJECT' && (
-                <option value={form.projectName}>{form.projectName}</option>
-              )}
-              <option value="NEW_PROJECT" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>
-                + إضافة مشروع/مبادرة جديدة
-              </option>
+              {existingProjects.map(p => <option key={p} value={p}>{p}</option>)}
+              {form.projectName && !existingProjects.includes(form.projectName) && form.projectName !== 'NEW_PROJECT' && (<option value={form.projectName}>{form.projectName}</option>)}
+              <option value="NEW_PROJECT" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>+ إضافة مشروع/مبادرة جديدة</option>
             </select>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                className="form-input"
-                style={{ flex: 1 }}
-                value={form.projectName}
-                onChange={e => set('projectName', e.target.value)}
-                placeholder="اكتب اسم المشروع الجديد هنا..."
-                autoFocus
-              />
-              <button 
-                type="button" 
-                onClick={() => { setIsNewProject(false); set('projectName', ''); }} 
-                style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}
-              >
-                إلغاء
-              </button>
+              <input className="form-input" style={{ flex: 1 }} value={form.projectName} onChange={e => set('projectName', e.target.value)} placeholder="اسم المشروع..." autoFocus />
+              <button type="button" onClick={() => { setIsNewProject(false); set('projectName', ''); }} style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}>إلغاء</button>
             </div>
           )}
         </div>
@@ -250,22 +176,11 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         <div className="form-group">
           <label className="form-label">الشخص المسؤول / المتابع</label>
           {isUser ? (
-            <input
-              className="form-input"
-              value={userProfile?.name || ''}
-              disabled
-              style={{ background: 'var(--bg3)', cursor: 'not-allowed', opacity: 0.7, color: 'var(--text)' }}
-            />
+            <input className="form-input" value={userProfile?.name || ''} disabled style={{ background: 'var(--bg3)', cursor: 'not-allowed', opacity: 0.7, color: 'var(--text)' }} />
           ) : (
-            <select
-              className="form-input"
-              value={form.person}
-              onChange={e => set('person', e.target.value)}
-            >
+            <select className="form-input" value={form.person} onChange={e => set('person', e.target.value)}>
               <option value="">— اختر المسؤول —</option>
-              {TEAM_MEMBERS.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
+              {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
         </div>
@@ -273,21 +188,11 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">تاريخ الاستحقاق</label>
-            <input
-              className="form-input"
-              type="date"
-              value={form.dueDate}
-              onChange={e => set('dueDate', e.target.value)}
-            />
+            <input className="form-input" type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />
           </div>
           <div className="form-group">
             <label className="form-label">وقت التنبيه</label>
-            <input
-              className="form-input"
-              type="time"
-              value={form.reminderTime}
-              onChange={e => set('reminderTime', e.target.value)}
-            />
+            <input className="form-input" type="time" value={form.reminderTime} onChange={e => set('reminderTime', e.target.value)} />
           </div>
         </div>
 
@@ -295,31 +200,17 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           <label className="form-label">التكرار</label>
           <div className="seg-control">
             {RECURRENCES.map(r => (
-              <button
-                key={r.value}
-                className={`seg-btn${form.recurrence === r.value ? ' active' : ''}`}
-                onClick={() => set('recurrence', r.value)}
-              >
-                {r.label}
-              </button>
+              <button key={r.value} className={`seg-btn${form.recurrence === r.value ? ' active' : ''}`} onClick={() => set('recurrence', r.value)}>{r.label}</button>
             ))}
           </div>
         </div>
 
         {subTasks.length > 0 && (
           <div className="subtasks-panel">
-            <div className="subtasks-title">
-              📋 المهام الفرعية المقترحة
-              <span className="subtasks-hint">اختر ما تريد إضافته</span>
-            </div>
+            <div className="subtasks-title">📋 المهام الفرعية المقترحة<span className="subtasks-hint">اختر ما تريد إضافته</span></div>
             {subTasks.map(st => (
               <label key={st} className="subtask-item">
-                <input
-                  type="checkbox"
-                  checked={selectedSubTasks.includes(st)}
-                  onChange={() => toggleSubTask(st)}
-                  className="subtask-checkbox"
-                />
+                <input type="checkbox" checked={selectedSubTasks.includes(st)} onChange={() => toggleSubTask(st)} className="subtask-checkbox" />
                 <span>{st}</span>
               </label>
             ))}
@@ -329,36 +220,20 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">مصدر المهمة</label>
-            <select
-              className="form-input"
-              value={form.sourceType}
-              onChange={e => set('sourceType', e.target.value)}
-            >
-              {SOURCE_TYPES.map(s => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
+            <select className="form-input" value={form.sourceType} onChange={e => set('sourceType', e.target.value)}>
+              {SOURCE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
           <div className="form-group">
             <label className="form-label">عنوان المصدر</label>
-            <input
-              className="form-input"
-              value={form.sourceTitle}
-              onChange={e => set('sourceTitle', e.target.value)}
-              placeholder="رقم المحضر أو الإيميل..."
-              disabled={!form.sourceType}
-            />
+            <input className="form-input" value={form.sourceTitle} onChange={e => set('sourceTitle', e.target.value)} placeholder="رقم المحضر..." disabled={!form.sourceType} />
           </div>
         </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
-          {task
-            ? 'حفظ التغييرات'
-            : selectedSubTasks.length > 0
-              ? `إضافة المهمة + ${selectedSubTasks.length} مهام فرعية`
-              : 'إضافة المهمة'}
+          {task ? 'حفظ التغييرات' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} مهام فرعية` : 'إضافة المهمة'}
         </button>
-        <button className="cancel-btn" onClick={onClose}>إلغاء</button>
+        <button className="cancel-btn" onClick={onClose} style={{ marginBottom: '10px' }}>إلغاء</button>
       </div>
     </div>
   )
