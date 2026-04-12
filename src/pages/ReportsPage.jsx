@@ -654,14 +654,17 @@ export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
 
       {tab === 'executive' && (
         <div>
-          <div className="exec-actions" style={{ marginBottom: 16 }}>
-            <button className="exec-btn whatsapp" onClick={shareWhatsApp}>
-              <span>📤</span> واتساب
-            </button>
-            <button className="exec-btn print" onClick={printReport}>
-              <span>🖨️</span> PDF
-            </button>
-          </div>
+                    {/* 🔴 إخفاء أزرار تصدير الواتساب والـ PDF عن الموظف العادي */}
+          {!isUser && (
+            <div className="exec-actions" style={{ marginBottom: 16 }}>
+              <button className="exec-btn whatsapp" onClick={shareWhatsApp}>
+                <span>📤</span> واتساب
+              </button>
+              <button className="exec-btn print" onClick={printReport}>
+                <span>🖨️</span> PDF
+              </button>
+            </div>
+          )}
 
           <div id="exec-report" className="exec-report-card">
             <div className="exec-report-header">
