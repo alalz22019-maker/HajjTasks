@@ -531,9 +531,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>+</button>
         
         {/* 🔴 إخفاء المحادثة الذكية عن الموظف لأنها تحتاج API */}
-        {!isUser && (
-          <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
-        )}
+        <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
+
 
         {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={apiKey} />}
         {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={apiKey} />}
