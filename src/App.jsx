@@ -16,7 +16,6 @@ import {
 } from './utils/db'
 
 function AppShell() {
-  // 🔴 أضفنا isUser هنا عشان نتحكم بالصلاحيات في الشريط السفلي
   const { firebaseUser, userProfile, logout, isAdmin, isUser, loading } = useAuth()
   const [page, setPage]   = useState('tasks')
   const [tasks, setTasks] = useState([])
@@ -24,12 +23,23 @@ function AppShell() {
   const [toast, setToast] = useState(null)
   const [pendingCount, setPendingCount] = useState(0)
   const [migrationDone, setMigrationDone] = useState(false)
+  
+  // 🔴 1. حالة التعهد الأمني
+  const [pledgeAccepted, setPledgeAccepted] = useState(true)
 
   /* ── API key ── */
   useEffect(() => {
     const storedKey = loadData('mytasks_apikey') || ''
     setApiKey(HARDCODED_API_KEY || storedKey)
   }, [])
+
+  // 🔴 2. التحقق من موافقة المستخدم الحالي على التعهد
+  useEffect(() => {
+    if (userProfile && userProfile.name) {
+      const isAccepted = loadData(`pledge_accepted_${userProfile.name}`)
+      setPledgeAccepted(!!isAccepted)
+    }
+  }, [userProfile])
 
   /* ── Subscribe to Firestore tasks after login ── */
   useEffect(() => {
@@ -79,6 +89,12 @@ function AppShell() {
     setTimeout(() => setToast(null), 2800)
   }, [])
 
+  // 🔴 3. دالة الموافقة على التعهد وحفظه في الجهاز
+  const handleAcceptPledge = () => {
+    saveData(`pledge_accepted_${userProfile.name}`, true)
+    setPledgeAccepted(true)
+  }
+
   const contacts = deriveContacts(tasks)
 
   /* ── Loading splash ── */
@@ -105,8 +121,52 @@ function AppShell() {
     return <LoginPage />
   }
 
+  // 🔴 4. شاشة التعهد الأمني الإلزامية (تظهر قبل الدخول للتطبيق)
+  if (!pledgeAccepted) {
+    return (
+      <div style={{
+        height: '100%', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', padding: 24,
+        background: 'var(--bg)', textAlign: 'center'
+      }}>
+        <div style={{
+          background: 'var(--bg2)', padding: '32px 24px', borderRadius: 16,
+          border: '1px solid var(--border)', maxWidth: 400, width: '100%',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+        }}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>🔒</div>
+          <h2 style={{ color: 'var(--text)', marginBottom: 12 }}>تعهد أمني وإخلاء مسؤولية</h2>
+          <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.7, marginBottom: 28 }}>
+            أقر وأتعهد أنا المستخدم لهذا النظام بالالتزام التام بسياسات أمن المعلومات بـ <strong style={{color: 'var(--text)'}}>مركز عمليات المختبرات</strong>. كما أتعهد بعدم رفع أو مشاركة أي بيانات حساسة أو معلومات تخص المرضى والمستفيدين، وأتحمل المسؤولية الكاملة في حال مخالفة ذلك.
+          </p>
+          <button
+            onClick={handleAcceptPledge}
+            style={{
+              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+              color: '#fff', border: 'none', borderRadius: 8,
+              padding: '14px 24px', fontSize: 16, fontWeight: 700,
+              width: '100%', cursor: 'pointer', marginBottom: 12
+            }}
+          >
+            أوافق وأتعهد
+          </button>
+          <button
+            onClick={logout}
+            style={{
+              background: 'transparent', color: '#ef4444',
+              border: '1px solid #ef4444', borderRadius: 8,
+              padding: '10px 24px', fontSize: 14, fontWeight: 600,
+              width: '100%', cursor: 'pointer'
+            }}
+          >
+            تراجع وتسجيل الخروج
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   /* ── Build nav ── */
-  // 🔴 هنا اللعبة: إخفاء أيقونة "رفع ملف" تماماً عن الموظف העادي
   const NAV = [
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
