@@ -277,7 +277,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     showToast('✅ تم تنزيل ملف CSV')
   }
 
-    function exportExcel() {
+  function exportExcel() {
     try {
       const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %']
       const dataToExport = tasks.map(t => {
@@ -320,10 +320,11 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       URL.revokeObjectURL(url);
       setShowExportMenu(false);
       showToast('✅ تم تنزيل ملف Excel');
-        } catch (error) {
+    } catch (error) {
       console.error("Excel export error:", error);
       showToast('❌ خطأ: ' + error.message);
     }
+  } // <--- هذا هو القوس المفقود الذي دمر المشروع وتم إرجاعه الآن!
 
   // --- كود استيراد الإكسل الجديد ---
   function parseExcelDate(raw) {
@@ -426,7 +427,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
             
-            {/* 🔴 إخفاء قائمة التصدير كاملة عن الموظف العادي */}
             {!isUser && (
               <button onClick={() => setShowExportMenu(s => !s)} style={{
                   background: 'rgba(99,102,241,0.12)', color: '#818cf8',
@@ -447,9 +447,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                 {isAdmin && <button onClick={exportJSON} style={menuBtnStyle}><span>💾</span> تنزيل JSON</button>}
                 <button onClick={exportCSV} style={menuBtnStyle}><span>📊</span> تنزيل CSV</button>
                 <label style={{ ...menuBtnStyle, cursor: 'pointer' }}>
-  <span style={{ marginRight: 8 }}>📥</span> استيراد Excel
-  <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
-</label>
+                  <span style={{ marginRight: 8 }}>📥</span> استيراد Excel
+                  <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
+                </label>
                 {canWrite && (
                   <>
                     <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
@@ -473,7 +473,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
             </button>
             
-            {/* 🔴 إخفاء زر الـ API عن الموظف العادي */}
             {!isUser && (
               <button onClick={() => setShowApiKey(true)} style={{
                 background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
@@ -597,12 +596,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
         ) : null}
 
-        {/* 🔴 إصلاح الأزرار العائمة (FABs) ورفعها عن الشريط السفلي */}
         <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>+</button>
         
-        {/* 🔴 إخفاء المحادثة الذكية عن الموظف لأنها تحتاج API */}
         <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
-
 
         {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={apiKey} />}
         {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={apiKey} />}
