@@ -102,9 +102,14 @@ export function AuthProvider({ children }) {
     setAuthError('')
   }
 
-  const isAdmin     = userProfile?.role === 'admin'
-  const isSuperUser = userProfile?.role === 'superuser'
-  const isUser      = userProfile?.role === 'user'
+  // 🔴 قوائم الصلاحيات (الأسماء مطابقة للقائمة المنسدلة بالضبط)
+  const SUPERUSER_NAMES = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
+  const ADMIN_NAMES     = ['أ. شادي نبيل', 'أ. مي الأسمري']
+
+  // 🔴 توزيع الصلاحيات الذكي
+  const isSuperUser = userProfile?.role === 'superuser' || (userProfile && SUPERUSER_NAMES.includes(userProfile.name))
+  const isAdmin     = userProfile?.role === 'admin' || isSuperUser || (userProfile && ADMIN_NAMES.includes(userProfile.name))
+  const isUser      = userProfile && !isAdmin && !isSuperUser
 
   return (
     <AuthContext.Provider value={{
