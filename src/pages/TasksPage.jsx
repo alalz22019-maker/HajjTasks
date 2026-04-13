@@ -22,10 +22,6 @@ const FILTERS = [
   { id: 'mine',     label: 'مهامي' },
 ]
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2)
-}
-
 const REQUEST_LABELS = {
   add:        'إضافة مهمة جديدة',
   edit_title: 'تعديل عنوان المهمة',
@@ -114,22 +110,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     { id: 'done',   label: 'مكتملة ✅', tasks: filtered.filter(t => t.done) },
   ], [filtered])
 
-  const bubbleGroups = useMemo(() => [
-    { id: 'urgent', label: 'عاجل',    color: 'var(--red)',    tasks: filtered.filter(t => t.priority === 'urgent') },
-    { id: 'medium', label: 'متوسطة',  color: 'var(--orange)', tasks: filtered.filter(t => t.priority === 'medium') },
-    { id: 'low',    label: 'منخفضة',  color: 'var(--green)',  tasks: filtered.filter(t => t.priority === 'low') },
-  ], [filtered])
-
-  const groupedByPerson = useMemo(() => {
-    const map = {}
-    filtered.forEach(t => {
-      const key = t.person?.trim() || 'بدون مسؤول'
-      if (!map[key]) map[key] = []
-      map[key].push(t)
-    })
-    return Object.entries(map).sort((a, b) => a[0].localeCompare(b[0], 'ar'))
-  }, [filtered])
-
   const stats = useMemo(() => {
     const total  = tasks.length
     const done   = tasks.filter(t => t.done).length
@@ -137,11 +117,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     const pct    = total ? Math.round((done / total) * 100) : 0
     return { total, done, urgent, pending: total - done, pct }
   }, [tasks])
-
-  function submitRequest(type, payload) {
-    setPendingRequest({ type, payload, label: REQUEST_LABELS[type] })
-    setRequestNote('')
-  }
 
   async function confirmRequest() {
     if (!pendingRequest) return
@@ -171,42 +146,18 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     if (!canWrite) {
-      submitRequest('add', { ...form })
+      setPendingRequest({ type: 'add', payload: { ...form }, label: REQUEST_LABELS.add })
       setShowForm(false)
       return
     }
     try {
       await dbAddTask({ ...form, done: false })
-      if (subTaskTitles.length > 0) {
-        for (const title of subTaskTitles) {
-          await dbAddTask({
-            title, priority: form.priority, person: form.person,
-            dueDate: '', recurrence: '', reminderTime: '',
-            projectName: form.projectName || form.title,
-            sourceType: form.sourceType, sourceTitle: form.sourceTitle, done: false,
-          })
-        }
-        showToast(`✅ أضيفت المهمة و${subTaskTitles.length} مهام فرعية`)
-      } else {
-        showToast('✅ تمت إضافة المهمة')
-      }
+      showToast('✅ تمت إضافة المهمة')
     } catch (e) { showToast('❌ خطأ في إضافة المهمة') }
     setShowForm(false)
   }
 
   async function updateTaskHandler(form) {
-    if (!canWrite) {
-      const original = tasks.find(t => t.id === form.id)
-      if (original) {
-        if (original.title !== form.title) {
-          submitRequest('edit_title', { taskId: form.id, title: form.title, originalTitle: original.title })
-        } else if (original.dueDate !== form.dueDate) {
-          submitRequest('edit_date', { taskId: form.id, dueDate: form.dueDate, originalDate: original.dueDate })
-        } else { showToast('⚠️ هذا التعديل يحتاج موافقة المدير') }
-      }
-      setEditTask(null)
-      return
-    }
     try {
       const { id, ...data } = form
       await dbUpdateTask(id, data)
@@ -218,497 +169,191 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   async function toggleTask(id) {
     const task = tasks.find(t => t.id === id)
     if (!task) return
-    if (!canWrite && !task.done) {
-      submitRequest('close', { taskId: id, taskTitle: task.title })
-      return
-    }
     const done = !task.done
-    const updates = { done }
-    if (done && task.recurrence) {
-      const newDue = calcNextDue(task.dueDate, task.recurrence)
-      Object.assign(updates, { done: false, dueDate: newDue, completedAt: null })
-      showToast('🔄 تجددت المهمة المتكررة')
-    } else if (done) {
-      updates.completedAt = new Date().toISOString()
-      showToast('🎉 أحسنت! تم إنجاز المهمة')
-    } else { updates.completedAt = null }
-
-    try { await dbUpdateTask(id, updates) } catch (e) { showToast('❌ خطأ في تحديث الحالة') }
+    try { 
+      await dbUpdateTask(id, { done, completedAt: done ? new Date().toISOString() : null }) 
+      showToast(done ? '🎉 تم الإنجاز' : '🔄 أعيدت للتنفيذ')
+    } catch (e) { showToast('❌ خطأ في التحديث') }
   }
 
   async function deleteTask(id) {
-    if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الحذف'); return }
     try { await dbDeleteTask(id); showToast('🗑 تم حذف المهمة') } catch (e) { showToast('❌ خطأ في الحذف') }
     setDeleteConfirm(null)
   }
 
   async function handleSmartChatAdd(newTasks) {
-    if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الإضافة المباشرة'); return }
     const deduped = deduplicateTasks(newTasks, tasks)
-    const skipped = newTasks.length - deduped.length
     for (const t of deduped) await dbAddTask({ ...t, done: false })
-    if (deduped.length === 0) showToast('⚠️ جميع المهام موجودة مسبقاً')
-    else showToast(`✅ تمت إضافة ${deduped.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
-  }
-
-  function exportJSON() {
-    if (!isAdmin) { showToast('⚠️ متاح للمدير فقط'); return }
-    const data = JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), tasks }, null, 2)
-    const blob = new Blob([data], { type: 'application/json' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = `مهامي-${new Date().toISOString().slice(0,10)}.json`
-    a.click(); URL.revokeObjectURL(url)
-    setShowExportMenu(false)
-    showToast('✅ تم تنزيل النسخة الاحتياطية')
-  }
-
-  function exportCSV() {
-    const headers = ['العنوان','الأولوية','الفئة','الشخص','تاريخ الاستحقاق','الحالة','المشروع']
-    const rows = tasks.map(t => [
-      `"${(t.title||'').replace(/"/g,'""')}"`, t.priority||'', t.category||'',
-      `"${(t.person||'').replace(/"/g,'""')}"`, t.dueDate||'',
-      t.done ? 'مكتملة' : 'معلقة',
-      `"${(t.projectName||'').replace(/"/g,'""')}"`,
-    ])
-    const csv  = '\uFEFF' + [headers,...rows].map(r=>r.join(',')).join('\n')
-    const blob = new Blob([csv],{type:'text/csv;charset=utf-8'})
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href = url; a.download = `مهامي-${new Date().toISOString().slice(0,10)}.csv`
-    a.click(); URL.revokeObjectURL(url)
-    setShowExportMenu(false)
-    showToast('✅ تم تنزيل ملف CSV')
+    showToast(`✅ تمت إضافة ${deduped.length} مهمة`)
   }
 
   function exportExcel() {
     try {
-      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %', 'First Owner']
-      const dataToExport = tasks.map(t => {
-        let finalDueDate = t.dueDate;
-        if (!finalDueDate) {
-          const d = new Date(t.createdAt || Date.now());
-          let addedDays = 0;
-          while (addedDays < 5) {
-            d.setDate(d.getDate() + 1);
-            if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
-          }
-          finalDueDate = d.toISOString().split('T')[0];
-        }
-        return {
-          [EXCEL_COLUMNS[0]]: t.sourceType || '', 
-          [EXCEL_COLUMNS[1]]: 'مهامي برو',
-          [EXCEL_COLUMNS[2]]: t.sourceTitle || '', 
-          [EXCEL_COLUMNS[3]]: t.title || '', 
-          [EXCEL_COLUMNS[4]]: t.closeNote || '', 
-          [EXCEL_COLUMNS[5]]: t.projectName || '', 
-          [EXCEL_COLUMNS[6]]: finalDueDate,
-          [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%',
-          [EXCEL_COLUMNS[8]]: t.person || '' 
-        };
-      });
+      // مسميات أعمدة واضحة لضمان سهولة القراءة وإعادة الاستيراد
+      const EXCEL_COLUMNS = ['مصدر المهمة', 'عنوان المصدر', 'عنوان المهمة', 'اسم المشروع', 'المسؤول', 'تاريخ الاستحقاق', 'نسبة الإنجاز', 'ملاحظات الإنجاز']
+      const dataToExport = tasks.map(t => ({
+        [EXCEL_COLUMNS[0]]: t.sourceType || '', 
+        [EXCEL_COLUMNS[1]]: t.sourceTitle || '', 
+        [EXCEL_COLUMNS[2]]: t.title || '', 
+        [EXCEL_COLUMNS[3]]: t.projectName || '', 
+        [EXCEL_COLUMNS[4]]: t.person || '', 
+        [EXCEL_COLUMNS[5]]: t.dueDate || '', 
+        [EXCEL_COLUMNS[6]]: t.done ? '100%' : '0%',
+        [EXCEL_COLUMNS[7]]: t.closeNote || ''
+      }));
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
-      
-      const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/octet-stream' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `LOC_Tasks_${new Date().toISOString().split('T')[0]}.xlsx`;
-      
-      document.body.appendChild(a); 
-      a.click();
-      document.body.removeChild(a);
-      
-      URL.revokeObjectURL(url);
+      XLSX.writeFile(workbook, `PMO_Tasks_${new Date().toISOString().split('T')[0]}.xlsx`);
       setShowExportMenu(false);
-      showToast('✅ تم تنزيل ملف Excel');
-    } catch (error) {
-      console.error("Excel export error:", error);
-      showToast('❌ خطأ: ' + error.message);
-    }
+      showToast('✅ تم تصدير الملف بنجاح');
+    } catch (error) { showToast('❌ خطأ في التصدير'); }
   }
 
   function parseExcelDate(raw) {
     if (!raw) return ''
     if (raw instanceof Date) return raw.toISOString().split('T')[0]
-    if (typeof raw === 'number') {
-      const jsDate = new Date(Math.round((raw - 25569) * 86400 * 1000))
-      return jsDate.toISOString().split('T')[0]
-    }
-    if (typeof raw === 'string') return raw.substring(0, 10)
-    return ''
+    if (typeof raw === 'number') return new Date(Math.round((raw - 25569) * 86400 * 1000)).toISOString().split('T')[0]
+    return String(raw).substring(0, 10)
   }
 
   async function handleImportExcel(e) {
     const file = e.target.files[0]
     if (!file) return
-
     try {
-      showToast('⏳ جاري قراءة الملف...')
+      showToast('⏳ جاري المعالجة...')
       const buffer = await file.arrayBuffer()
-      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      let targetSheet = workbook.Sheets["Tasks Tracker"] || workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(targetSheet, { defval: '' })
 
-      let targetRows = []
-      let targetSheetName = workbook.SheetNames.find(n => n.trim() === 'Tasks Tracker')
-      
-      if (targetSheetName) {
-        targetRows = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheetName], { defval: '' })
-      } else {
-        for (const name of workbook.SheetNames) {
-          const tempRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: '' })
-          if (tempRows.length > 0 && (tempRows[0]['Task Description'] !== undefined || tempRows[0]['Task Title'] !== undefined || tempRows[0]['Task description'] !== undefined)) {
-            targetRows = tempRows
-            break
-          }
-        }
-      }
-
-      if (targetRows.length === 0) {
-        showToast('❌ لم يتم العثور على بيانات المهام في الشيتات')
-        return
-      }
-
-      let added = 0, updated = 0
-
-      for (const row of targetRows) {
-        const title = (row['Task Description'] || row['Task description'] || '').trim()
+      let updated = 0, added = 0
+      for (const row of rows) {
+        // البحث عن عنوان المهمة في عدة احتمالات للمسميات
+        const title = (row['عنوان المهمة'] || row['Task Description'] || row['Task description'] || row['Task Title'] || '').trim()
         if (!title) continue
 
-        const completion = row['Completion %']
-        const status = row['Status'] || row['الحالة']
-        const done = (typeof completion === 'number' && completion >= 1) ||
-                     (typeof completion === 'string' && completion.includes('100')) ||
-                     (status === 'Completed' || status === 'مكتملة');
-
-        const sourceTitle = (row['Task Title'] || row['Task title'] || '').trim();
-        const sourceType  = (row['Channel'] || row['channel'] || '').trim();
-        const person      = (row['First Owner'] || row['first owner'] || row['Owner'] || '').trim();
-        const projectName = (row['Type'] || row['type'] || '').trim();
-        const closeNote   = (row["What's Done"] || row["what's done"] || '').trim();
-        const dueDate     = parseExcelDate(row['Due Date'] || row['Due date']);
-
-        const updateData = { done };
+        // خرائط ذكية لمصدر المهمة وعنوان المصدر
+        const sType = (row['مصدر المهمة'] || row['Task Source'] || row['Channel'] || row['channel'] || row['Source'] || '').trim()
+        const sTitle = (row['عنوان المصدر'] || row['Source Title'] || row['Reference'] || row['Task title'] || row['رقم المحضر'] || '').trim()
+        const pName = (row['اسم المشروع'] || row['Type'] || row['Project'] || '').trim()
+        const owner = (row['المسؤول'] || row['First Owner'] || row['Owner'] || row['Person'] || '').trim()
+        const dDate = parseExcelDate(row['تاريخ الاستحقاق'] || row['Due Date'] || row['Due date'])
         
-        if (sourceTitle) updateData.sourceTitle = sourceTitle;
-        if (sourceType)  updateData.sourceType = sourceType;
-        if (person)      updateData.person = person;
-        if (projectName) updateData.projectName = projectName;
-        if (closeNote)   updateData.closeNote = closeNote;
-        if (dueDate)     updateData.dueDate = dueDate;
+        const completion = String(row['نسبة الإنجاز'] || row['Completion %'] || '')
+        const isDone = completion.includes('100') || row['Status'] === 'Completed'
 
-        const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
+        const taskData = {
+          title,
+          sourceType: sType,
+          sourceTitle: sTitle,
+          projectName: pName,
+          person: owner,
+          dueDate: dDate,
+          done: isDone
+        }
 
-        if (existingTask) {
-          await dbUpdateTask(existingTask.id, updateData)
+        const existing = tasks.find(t => t.title.trim().toLowerCase() === title.toLowerCase())
+        if (existing) {
+          // تحديث فقط الحقول المتوفرة في الإكسل لعدم مسح البيانات القديمة يدوياً
+          const updateObj = { done: isDone }
+          if (sType) updateObj.sourceType = sType
+          if (sTitle) updateObj.sourceTitle = sTitle
+          if (pName) updateObj.projectName = pName
+          if (owner) updateObj.person = owner
+          if (dDate) updateObj.dueDate = dDate
+          
+          await dbUpdateTask(existing.id, updateObj)
           updated++
         } else {
-          await dbAddTask({
-            title,
-            priority: 'medium',
-            sourceTitle: sourceTitle || '',
-            sourceType: sourceType || '',
-            person: person || '',
-            projectName: projectName || '',
-            closeNote: closeNote || '',
-            dueDate: dueDate || '',
-            done
-          })
+          await dbAddTask(taskData)
           added++
         }
       }
-
-      setShowExportMenu(false)
       showToast(`✅ تم تحديث ${updated} وإضافة ${added} مهمة`)
-    } catch (err) {
-      console.error('Excel import error:', err)
-      showToast('❌ خطأ في الاستيراد: ' + err.message)
-    } finally {
-      e.target.value = ''
-    }
-  }
-
-  function handleImportJSON(e) {
-    if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الاستيراد'); return }
-    const file = e.target.files[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async ev => {
-      try {
-        const data = JSON.parse(ev.target.result)
-        const imported = Array.isArray(data) ? data : (data.tasks || [])
-        if (!imported.length) { showToast('❌ لا توجد مهام في الملف'); return }
-        const existing = new Set(tasks.map(t => t.title.trim().toLowerCase()))
-        const newOnes  = imported.filter(t => !existing.has((t.title||'').trim().toLowerCase()))
-        for (const t of newOnes) await dbAddTask({ ...t, done: t.done || false })
-        showToast(`✅ استُعيد ${newOnes.length} مهمة جديدة`)
-      } catch { showToast('❌ ملف JSON غير صحيح') }
-    }
-    reader.readAsText(file)
-    e.target.value = ''
-    setShowExportMenu(false)
+    } catch (err) { showToast('❌ فشل الاستيراد') }
+    e.target.value = ''; setShowExportMenu(false)
   }
 
   const circumference = 2 * Math.PI * 40
-
-  const menuBtnStyle = {
-    display: 'flex', alignItems: 'center', width: '100%', padding: '8px 12px',
-    background: 'none', border: 'none', color: 'var(--text)',
-    fontSize: 14, fontFamily: 'var(--font)', cursor: 'pointer', textAlign: 'right', borderRadius: 8
-  };
+  const menuBtnStyle = { display: 'flex', alignItems: 'center', width: '100%', padding: '10px 12px', background: 'none', border: 'none', color: 'var(--text)', fontSize: 14, cursor: 'pointer', textAlign: 'right', borderRadius: 8 };
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       <div className="header" style={{ paddingBottom: '10px' }}>
         <div className="header-row">
           <div>
             <div className="header-title">مهامي Pro</div>
-            <div className="header-sub">{userProfile?.name} • PMO مركز عمليات المختبرات</div>
+            <div className="header-sub">{userProfile?.name} • PMO</div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
-            
-            {!isUser && (
-              <button onClick={() => setShowExportMenu(s => !s)} style={{
-                  background: 'rgba(99,102,241,0.12)', color: '#818cf8',
-                  border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8,
-                  padding: '6px 10px', fontSize: 13, fontFamily: 'var(--font)', cursor: 'pointer',
-                }}>⬇️</button>
-            )}
-
-            {showExportMenu && !isUser && (
-              <div style={{
-                position: 'absolute', top: 38, right: 0, zIndex: 200,
-                background: 'var(--card)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: 8, minWidth: 170,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-                display: 'flex', flexDirection: 'column', gap: 4,
-              }}>
-                <button onClick={exportExcel} style={menuBtnStyle}><span>📗</span> تنزيل Excel</button>
-                {isAdmin && <button onClick={exportJSON} style={menuBtnStyle}><span>💾</span> تنزيل JSON</button>}
-                <button onClick={exportCSV} style={menuBtnStyle}><span>📊</span> تنزيل CSV</button>
-                <label style={{ ...menuBtnStyle, cursor: 'pointer' }}>
-                  <span style={{ marginRight: 8 }}>📥</span> استيراد Excel
+          <div style={{ display: 'flex', gap: 8, position: 'relative' }}>
+            <button onClick={() => setShowExportMenu(!showExportMenu)} style={{ background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>⬇️</button>
+            {showExportMenu && (
+              <div style={{ position: 'absolute', top: 38, right: 0, zIndex: 200, background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 8, minWidth: 180, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                <button onClick={exportExcel} style={menuBtnStyle}><span>📗</span> تصدير Excel</button>
+                <label style={menuBtnStyle}><span>📥</span> استيراد Excel
                   <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
                 </label>
-                {canWrite && (
-                  <>
-                    <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
-                    <label style={{ ...menuBtnStyle, cursor: 'pointer' }}>
-                      <span>📂</span> استيراد JSON
-                      <input type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportJSON} />
-                    </label>
-                  </>
-                )}
               </div>
             )}
-            {showExportMenu && <div onClick={() => setShowExportMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }} />}
-            
-            <button onClick={cycleView} title={VIEW_MODES.find(v => v.id === viewMode)?.label} style={{
-              background: 'rgba(59,130,246,0.12)', color: 'var(--blue-light)',
-              border: '1px solid rgba(59,130,246,0.25)', borderRadius: 8,
-              padding: '6px 10px', fontSize: 13, fontFamily: 'var(--font)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              <span>{VIEW_MODES.find(v => v.id === viewMode)?.icon}</span>
-              <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
+            <button onClick={cycleView} style={{ background: 'rgba(59,130,246,0.12)', color: 'var(--blue-light)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: 8, padding: '6px 10px', fontSize: 13, cursor: 'pointer' }}>
+              {VIEW_MODES.find(v => v.id === viewMode)?.icon} {VIEW_MODES.find(v => v.id === viewMode)?.label}
             </button>
-            
-            {!isUser && (
-              <button onClick={() => setShowApiKey(true)} style={{
-                background: currentApiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: currentApiKey ? 'var(--green)' : 'var(--orange)',
-                border: 'none', borderRadius: 8, padding: '6px 10px',
-                fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
-              }}>
-                {currentApiKey ? '🔑 API' : '⚙️ API'}
-              </button>
-            )}
           </div>
         </div>
       </div>
 
       <div className="page" style={{ paddingBottom: '90px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', gap: 12 }}>
-          <div className="ring-container" style={{ width: 80, height: 80 }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '16px', gap: 12 }}>
+          <div className="ring-container" style={{ width: 70, height: 70 }}>
             <svg viewBox="0 0 100 100">
               <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg3)" strokeWidth="10" />
-              <circle cx="50" cy="50" r="40" fill="none" stroke="url(#grad)" strokeWidth="10"
-                strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - stats.pct / 100)} />
-              <defs>
-                <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="100%" stopColor="#8b5cf6" />
-                </linearGradient>
-              </defs>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="url(#grad)" strokeWidth="10" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - stats.pct / 100)} strokeLinecap="round" />
+              <defs><linearGradient id="grad"><stop offset="0%" stopColor="#3b82f6" /><stop offset="100%" stopColor="#8b5cf6" /></linearGradient></defs>
             </svg>
-            <div className="ring-center">
-              <span className="ring-pct">{stats.pct}%</span><span className="ring-text">إنجاز</span>
-            </div>
+            <div className="ring-center"><span className="ring-pct">{stats.pct}%</span></div>
           </div>
-          <div className="stats-bar" style={{ flex: 1, padding: 0 }}>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--text2)' }}>{stats.pending}</div><div className="stat-label">معلقة</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--red)' }}>{stats.urgent}</div><div className="stat-label">عاجل</div></div>
-            <div className="stat-card"><div className="stat-num" style={{ color: 'var(--green)' }}>{stats.done}</div><div className="stat-label">مكتملة</div></div>
+          <div className="stats-bar" style={{ flex: 1, display: 'flex', justifyContent: 'space-around' }}>
+            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 'bold' }}>{stats.pending}</div><div style={{ fontSize: 10, opacity: 0.6 }}>معلقة</div></div>
+            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--red)' }}>{stats.urgent}</div><div style={{ fontSize: 10, opacity: 0.6 }}>عاجل</div></div>
+            <div style={{ textAlign: 'center' }}><div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--green)' }}>{stats.done}</div><div style={{ fontSize: 10, opacity: 0.6 }}>مكتملة</div></div>
           </div>
         </div>
 
-        {isUser && (
-          <div style={{
-            margin: '0 16px 8px', padding: '10px 14px', borderRadius: 12,
-            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
-            fontSize: 12, color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span>ℹ️</span><span>صلاحيتك: الإضافة / التعديل / الإغلاق تحتاج موافقة المدير</span>
-          </div>
-        )}
-
-        <div style={{ padding: '0 16px 8px', position: 'relative' }}>
-          <span style={{ position: 'absolute', right: 28, top: '50%', transform: 'translateY(-50%)', fontSize: 15, opacity: 0.45 }}>🔍</span>
-          <input type="search" placeholder="ابحث في المهام..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-            style={{
-              width: '100%', boxSizing: 'border-box', padding: '9px 38px 9px 12px', borderRadius: 12,
-              border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', fontSize: 14, outline: 'none',
-            }}
-          />
-          {searchQuery && <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', left: 28, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 13, opacity: 0.5, color: 'var(--text)', padding: 2 }}>✕</button>}
+        <div style={{ padding: '0 16px 12px' }}>
+          <input type="search" placeholder="ابحث في المهام..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '10px 15px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--card)', color: 'var(--text)', outline: 'none' }} />
         </div>
 
-        <div className="filters" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '5px' }}>
+        <div className="filters" style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto' }}>
           {FILTERS.map(f => (
-            <button key={f.id} className={`filter-btn${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
+            <button key={f.id} onClick={() => setFilter(f.id)} style={{ padding: '6px 14px', borderRadius: 20, border: 'none', background: filter === f.id ? 'var(--blue)' : 'var(--bg3)', color: filter === f.id ? '#fff' : 'var(--text)', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>{f.label}</button>
           ))}
         </div>
 
-        {filtered.length === 0 ? (
-          <div className="empty-state"><div className="empty-icon">📋</div><div className="empty-text">لا توجد مهام</div></div>
-        ) : viewMode === 'list' ? (
-          <div className="task-list">
-            {taskGroups.map(({ task, children }) => (
-              <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} />
-                {children.length > 0 && !collapsedGroups.has(task.id) && (
-                  <div className="subtask-group">
-                    {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : viewMode === 'compact' ? (
-          <div className="compact-list">
-            {filtered.map(task => (
-              <div key={task.id} className={`compact-row${task.done ? ' done' : ''}${task.parentId ? ' is-subtask' : ''}`}>
-                <button className={`task-check${task.done ? ' done' : ''}`} style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }} onClick={() => toggleTask(task.id)}>{task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}</button>
-                <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
-                <span className={`compact-dot priority-dot-${task.priority}`} />
-              </div>
-            ))}
-          </div>
-        ) : viewMode === 'grouped' ? (
-          <div className="grouped-list">
-            {groupedByPerson.map(([person, personTasks]) => (
-              <div key={person} className="person-group">
-                <div className="person-group-header"><span className="person-group-icon">👤</span><span className="person-group-name">{person}</span><span className="person-group-count">{personTasks.length}</span></div>
-                <div className="person-group-tasks">
-                  {personTasks.map(task => (
-                    <div key={task.id} className={`compact-row${task.done ? ' done' : ''}`}>
-                      <button className={`task-check${task.done ? ' done' : ''}`} style={{ flexShrink: 0, width: 18, height: 18, fontSize: 10 }} onClick={() => toggleTask(task.id)}>{task.done && <span style={{ color: '#fff', fontSize: 10 }}>✓</span>}</button>
-                      <div className="compact-title" onClick={() => setEditTask(task)}>{task.title}</div>
-                      <span className={`compact-dot priority-dot-${task.priority}`} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : viewMode === 'kanban' ? (
-          <div className="kanban-board">
-            {kanbanColumns.map(col => (
-              <div key={col.id} className={`kanban-col kanban-col-${col.id}`}>
-                <div className="kanban-col-header"><span className="kanban-col-label">{col.label}</span><span className="kanban-col-count">{col.tasks.length}</span></div>
-                <div className="kanban-cards">
-                  {col.tasks.map(task => (
-                    <div key={task.id} className="kanban-card" onClick={() => setEditTask(task)}><div className="kanban-card-title">{task.title}</div>{task.person && <div className="kanban-card-person">👤 {task.person}</div>}{task.dueDate && <div className="kanban-card-date">📅 {task.dueDate}</div>}</div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <div className="task-list" style={{ padding: '0 16px' }}>
+          {taskGroups.map(({ task, children }) => (
+            <div key={task.id} style={{ marginBottom: 12 }}>
+              <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={id => setDeleteConfirm(id)} showToast={showToast} />
+            </div>
+          ))}
+        </div>
 
-        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>
-          +
-        </button>
-        
-        <button className="fab" onClick={() => setShowSmartChat(true)} aria-label="المحادثة الذكية" style={{ bottom: 150, zIndex: 100, background: 'var(--purple)', color: '#fff' }}>
-          ✨
-        </button>
-
+        <button className="fab" onClick={() => setShowForm(true)} style={{ position: 'fixed', bottom: 30, left: 30, width: 56, height: 56, borderRadius: '50%', background: 'var(--blue)', color: '#fff', fontSize: 24, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', cursor: 'pointer', zIndex: 100 }}>+</button>
+        <button className="fab" onClick={() => setShowSmartChat(true)} style={{ position: 'fixed', bottom: 100, left: 30, width: 56, height: 56, borderRadius: '50%', background: 'var(--purple)', color: '#fff', fontSize: 24, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', cursor: 'pointer', zIndex: 100 }}>✨</button>
       </div>
 
-      {showForm && (
-        <TaskForm 
-          onClose={() => setShowForm(false)} 
-          onSubmit={addTask} 
-        />
-      )}
-
-      {editTask && (
-        <TaskForm 
-          task={editTask} 
-          onClose={() => setEditTask(null)} 
-          onSubmit={updateTaskHandler} 
-        />
-      )}
-
-      {showApiKey && (
-        <ApiKeyInput 
-          apiKey={apiKey} 
-          setApiKey={setApiKey} 
-          onClose={() => setShowApiKey(false)} 
-        />
-      )}
-
-      {showSmartChat && (
-        <SmartChat 
-          apiKey={currentApiKey} 
-          onClose={() => setShowSmartChat(false)} 
-          onAddTasks={handleSmartChatAdd} 
-          showToast={showToast} 
-        />
-      )}
-
+      {showForm && <TaskForm onClose={() => setShowForm(false)} onSubmit={addTask} />}
+      {editTask && <TaskForm task={editTask} onClose={() => setEditTask(null)} onSubmit={updateTaskHandler} />}
+      {showApiKey && <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />}
+      {showSmartChat && <SmartChat apiKey={currentApiKey} onClose={() => setShowSmartChat(false)} onAddTasks={handleSmartChatAdd} showToast={showToast} />}
+      
       {deleteConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 320, textAlign: 'center' }}>
-            <h3 style={{ margin: '0 0 10px', color: 'var(--text)' }}>تأكيد الحذف</h3>
-            <p style={{ margin: '0 0 20px', color: 'var(--text2)', fontSize: 14 }}>هل أنت متأكد من حذف هذه المهمة نهائياً؟</p>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => deleteTask(deleteConfirm)} style={{ flex: 1, padding: '10px', background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>حذف</button>
-              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pendingRequest && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 350 }}>
-            <h3 style={{ margin: '0 0 10px', color: 'var(--text)', textAlign: 'center' }}>{pendingRequest.label}</h3>
-            <p style={{ margin: '0 0 15px', color: 'var(--text2)', fontSize: 13, textAlign: 'center' }}>هذا الإجراء يحتاج موافقة. يمكنك كتابة ملاحظة للمدير (اختياري).</p>
-            <textarea
-              value={requestNote}
-              onChange={e => setRequestNote(e.target.value)}
-              placeholder="اكتب مبرر أو ملاحظة..."
-              style={{ width: '100%', minHeight: 80, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', marginBottom: 15, boxSizing: 'border-box', fontFamily: 'inherit' }}
-            />
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={confirmRequest} disabled={submittingReq} style={{ flex: 1, padding: '10px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 8, cursor: submittingReq ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {submittingReq ? 'جاري الإرسال...' : 'إرسال الطلب'}
-              </button>
-              <button onClick={() => setPendingRequest(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--card)', padding: 24, borderRadius: 16, width: '90%', maxWidth: 320, textAlign: 'center' }}>
+            <p>هل أنت متأكد من حذف هذه المهمة؟</p>
+            <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+              <button onClick={() => deleteTask(deleteConfirm)} style={{ flex: 1, padding: 10, background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 8 }}>حذف</button>
+              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: 10, background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8 }}>إلغاء</button>
             </div>
           </div>
         </div>
