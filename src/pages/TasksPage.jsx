@@ -34,7 +34,6 @@ const REQUEST_LABELS = {
 }
 
 export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile }) {
-  // قراءة المفتاح من Vercel أو من المتصفح
   const envApiKey = import.meta.env.VITE_CLAUDE_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
@@ -284,7 +283,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   function exportExcel() {
     try {
-      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %']
+      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %', 'First Owner']
       const dataToExport = tasks.map(t => {
         let finalDueDate = t.dueDate;
         if (!finalDueDate) {
@@ -304,7 +303,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           [EXCEL_COLUMNS[4]]: t.closeNote || '', 
           [EXCEL_COLUMNS[5]]: t.projectName || '', 
           [EXCEL_COLUMNS[6]]: finalDueDate,
-          [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%'
+          [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%',
+          [EXCEL_COLUMNS[8]]: t.person || '' 
         };
       });
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -351,7 +351,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
 
-      // بحث ذكي عن الشيت اللي فيه البيانات، بدلاً من أخذ الشيت الأول بشكل أعمى
       let targetRows = []
       let targetSheetName = workbook.SheetNames.find(n => n.trim() === 'Tasks Tracker')
       
@@ -360,7 +359,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       } else {
         for (const name of workbook.SheetNames) {
           const tempRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: '' })
-          // التحقق إذا كان الشيت يحتوي على أعمدة المهام
           if (tempRows.length > 0 && (tempRows[0]['Task Description'] !== undefined || tempRows[0]['Task Title'] !== undefined || tempRows[0]['Task description'] !== undefined)) {
             targetRows = tempRows
             break
@@ -380,30 +378,44 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         if (!title) continue
 
         const completion = row['Completion %']
-        const status = row['Status']
+        const status = row['Status'] || row['الحالة']
         const done = (typeof completion === 'number' && completion >= 1) ||
                      (typeof completion === 'string' && completion.includes('100')) ||
-                     (status === 'Completed');
+                     (status === 'Completed' || status === 'مكتملة');
 
-        const taskData = {
-          title: title,
-          sourceTitle:  (row['Task Title'] || '').trim(),
-          sourceType:   (row['Channel'] || '').trim(),
-          projectName:  (row['Type'] || '').trim(),
-          closeNote:    (row["What's Done"] || '').trim(),
-          dueDate:      parseExcelDate(row['Due Date'] || row['Due date']),
-          person:       (row['First Owner'] || '').trim(),
-          priority:     'medium',
-          done:         done,
-        }
+        const sourceTitle = (row['Task Title'] || row['Task title'] || '').trim();
+        const sourceType  = (row['Channel'] || row['channel'] || '').trim();
+        const person      = (row['First Owner'] || row['first owner'] || row['Owner'] || '').trim();
+        const projectName = (row['Type'] || row['type'] || '').trim();
+        const closeNote   = (row["What's Done"] || row["what's done"] || '').trim();
+        const dueDate     = parseExcelDate(row['Due Date'] || row['Due date']);
+
+        const updateData = { done };
+        
+        if (sourceTitle) updateData.sourceTitle = sourceTitle;
+        if (sourceType)  updateData.sourceType = sourceType;
+        if (person)      updateData.person = person;
+        if (projectName) updateData.projectName = projectName;
+        if (closeNote)   updateData.closeNote = closeNote;
+        if (dueDate)     updateData.dueDate = dueDate;
 
         const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
 
         if (existingTask) {
-          await dbUpdateTask(existingTask.id, taskData)
+          await dbUpdateTask(existingTask.id, updateData)
           updated++
         } else {
-          await dbAddTask(taskData)
+          await dbAddTask({
+            title,
+            priority: 'medium',
+            sourceTitle: sourceTitle || '',
+            sourceType: sourceType || '',
+            person: person || '',
+            projectName: projectName || '',
+            closeNote: closeNote || '',
+            dueDate: dueDate || '',
+            done
+          })
           added++
         }
       }
