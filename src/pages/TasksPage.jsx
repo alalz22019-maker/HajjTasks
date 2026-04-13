@@ -62,6 +62,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     { id: 'kanban',  icon: '⬛', label: 'كانبان' },
     { id: 'bubbles', icon: '◉', label: 'فقاعات' },
   ]
+  
   function cycleView() {
     setViewMode(cur => {
       const idx = VIEW_MODES.findIndex(v => v.id === cur)
@@ -350,12 +351,31 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
 
-      const sheetName = workbook.SheetNames[0]
-      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
+      // بحث ذكي عن الشيت اللي فيه البيانات، بدلاً من أخذ الشيت الأول بشكل أعمى
+      let targetRows = []
+      let targetSheetName = workbook.SheetNames.find(n => n.trim() === 'Tasks Tracker')
+      
+      if (targetSheetName) {
+        targetRows = XLSX.utils.sheet_to_json(workbook.Sheets[targetSheetName], { defval: '' })
+      } else {
+        for (const name of workbook.SheetNames) {
+          const tempRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: '' })
+          // التحقق إذا كان الشيت يحتوي على أعمدة المهام
+          if (tempRows.length > 0 && (tempRows[0]['Task Description'] !== undefined || tempRows[0]['Task Title'] !== undefined || tempRows[0]['Task description'] !== undefined)) {
+            targetRows = tempRows
+            break
+          }
+        }
+      }
+
+      if (targetRows.length === 0) {
+        showToast('❌ لم يتم العثور على بيانات المهام في الشيتات')
+        return
+      }
 
       let added = 0, updated = 0
 
-      for (const row of rows) {
+      for (const row of targetRows) {
         const title = (row['Task Description'] || row['Task description'] || '').trim()
         if (!title) continue
 
@@ -377,15 +397,12 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           done:         done,
         }
 
-        // هنا السحر: نبحث هل المهمة موجودة؟
-        const existingTask = tasks.find(t => (t.title || '').trim() === title)
+        const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
 
         if (existingTask) {
-          // إذا موجودة، حدث بياناتها
           await dbUpdateTask(existingTask.id, taskData)
           updated++
         } else {
-          // إذا جديدة، أضفها
           await dbAddTask(taskData)
           added++
         }
@@ -423,6 +440,12 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   }
 
   const circumference = 2 * Math.PI * 40
+
+  const menuBtnStyle = {
+    display: 'flex', alignItems: 'center', width: '100%', padding: '8px 12px',
+    background: 'none', border: 'none', color: 'var(--text)',
+    fontSize: 14, fontFamily: 'var(--font)', cursor: 'pointer', textAlign: 'right', borderRadius: 8
+  };
 
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -603,63 +626,81 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
         ) : null}
 
-        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>+</button>
+        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>
+          +
+        </button>
         
-        <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
+        <button className="fab" onClick={() => setShowSmartChat(true)} aria-label="المحادثة الذكية" style={{ bottom: 150, zIndex: 100, background: 'var(--purple)', color: '#fff' }}>
+          ✨
+        </button>
 
-        {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={currentApiKey} />}
-        {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={currentApiKey} />}
-        {showApiKey && <ApiKeyInput apiKey={currentApiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />}
-        {showSmartChat && <SmartChat tasks={tasks} apiKey={currentApiKey} onAddTasks={handleSmartChatAdd} onClose={() => setShowSmartChat(false)} />}
-
-        {deleteConfirm && (
-          <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
-            <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-              <div className="confirm-title">حذف المهمة</div>
-              <div className="confirm-msg">هل أنت متأكد من حذف هذه المهمة؟ لا يمكن التراجع.</div>
-              <div className="confirm-btns">
-                <button className="confirm-btn-yes" onClick={() => deleteTask(deleteConfirm)}>حذف</button>
-                <button className="confirm-btn-no" onClick={() => setDeleteConfirm(null)}>إلغاء</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {pendingRequest && (
-          <div className="modal-overlay" onClick={() => setPendingRequest(null)}>
-            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
-              <div className="modal-handle" />
-              <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>📨</div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>إرسال طلب للمدير</div>
-                <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 6 }}>{pendingRequest.label}</div>
-              </div>
-              {pendingRequest.type === 'close' && (
-                <div style={{ fontSize: 12, color: 'var(--blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '8px 12px', borderRadius: 8, marginBottom: 12, lineHeight: 1.6 }}>
-                  💡 يرجى كتابة ما تم إنجازه بوضوح وبصيغة مهنية لتوثيق اكتمال المهمة.
-                </div>
-              )}
-              <div className="form-group">
-                <label className="form-label">ملاحظة (اختياري)</label>
-                <input className="form-input" value={requestNote} onChange={e => setRequestNote(e.target.value)} placeholder={pendingRequest.type === 'close' ? "اكتب ما تم إنجازه هنا..." : "أضف سبباً أو تفصيلاً..."} />
-              </div>
-              <button className="submit-btn" onClick={confirmRequest} disabled={submittingReq}>{submittingReq ? 'جارٍ الإرسال...' : 'إرسال الطلب'}</button>
-              <button className="cancel-btn" onClick={() => setPendingRequest(null)}>إلغاء</button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {showForm && (
+        <TaskForm 
+          onClose={() => setShowForm(false)} 
+          onSubmit={addTask} 
+        />
+      )}
+
+      {editTask && (
+        <TaskForm 
+          task={editTask} 
+          onClose={() => setEditTask(null)} 
+          onSubmit={updateTaskHandler} 
+        />
+      )}
+
+      {showApiKey && (
+        <ApiKeyInput 
+          apiKey={apiKey} 
+          setApiKey={setApiKey} 
+          onClose={() => setShowApiKey(false)} 
+        />
+      )}
+
+      {showSmartChat && (
+        <SmartChat 
+          apiKey={currentApiKey} 
+          onClose={() => setShowSmartChat(false)} 
+          onAddTasks={handleSmartChatAdd} 
+          showToast={showToast} 
+        />
+      )}
+
+      {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 320, textAlign: 'center' }}>
+            <h3 style={{ margin: '0 0 10px', color: 'var(--text)' }}>تأكيد الحذف</h3>
+            <p style={{ margin: '0 0 20px', color: 'var(--text2)', fontSize: 14 }}>هل أنت متأكد من حذف هذه المهمة نهائياً؟</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => deleteTask(deleteConfirm)} style={{ flex: 1, padding: '10px', background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>حذف</button>
+              <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingRequest && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 350 }}>
+            <h3 style={{ margin: '0 0 10px', color: 'var(--text)', textAlign: 'center' }}>{pendingRequest.label}</h3>
+            <p style={{ margin: '0 0 15px', color: 'var(--text2)', fontSize: 13, textAlign: 'center' }}>هذا الإجراء يحتاج موافقة. يمكنك كتابة ملاحظة للمدير (اختياري).</p>
+            <textarea
+              value={requestNote}
+              onChange={e => setRequestNote(e.target.value)}
+              placeholder="اكتب مبرر أو ملاحظة..."
+              style={{ width: '100%', minHeight: 80, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', marginBottom: 15, boxSizing: 'border-box', fontFamily: 'inherit' }}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={confirmRequest} disabled={submittingReq} style={{ flex: 1, padding: '10px', background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: 8, cursor: submittingReq ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {submittingReq ? 'جاري الإرسال...' : 'إرسال الطلب'}
+              </button>
+              <button onClick={() => setPendingRequest(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
-}
-
-const menuBtnStyle = { background: 'none', border: 'none', color: 'var(--text)', fontFamily: 'var(--font)', fontSize: 13, padding: '8px 12px', borderRadius: 8, cursor: 'pointer', textAlign: 'right', display: 'flex', gap: 8, alignItems: 'center' }
-
-function calcNextDue(currentDue, recurrence) {
-  if (!currentDue) return ''
-  const d = new Date(currentDue)
-  if (recurrence === 'daily') d.setDate(d.getDate() + 1)
-  else if (recurrence === 'weekly') d.setDate(d.getDate() + 7)
-  else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
-  return d.toISOString().split('T')[0]
 }
