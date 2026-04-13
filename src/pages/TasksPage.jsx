@@ -34,6 +34,10 @@ const REQUEST_LABELS = {
 }
 
 export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile }) {
+  // قراءة المفتاح من Vercel أو من المتصفح
+  const envApiKey = import.meta.env.VITE_CLAUDE_API_KEY;
+  const currentApiKey = apiKey || envApiKey || '';
+
   const { isAdmin, isSuperUser, isUser } = useAuth()
   const canWrite = isAdmin || isSuperUser   
   const [filter, setFilter]       = useState('all')
@@ -324,9 +328,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       console.error("Excel export error:", error);
       showToast('❌ خطأ: ' + error.message);
     }
-  } // <--- هذا هو القوس المفقود الذي دمر المشروع وتم إرجاعه الآن!
+  }
 
-  // --- كود استيراد الإكسل الجديد ---
   function parseExcelDate(raw) {
     if (!raw) return ''
     if (raw instanceof Date) return raw.toISOString().split('T')[0]
@@ -347,44 +350,49 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       const buffer = await file.arrayBuffer()
       const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
 
-      const sheetName = workbook.SheetNames.find(n => n.trim() === 'Tasks Tracker')
-      if (!sheetName) {
-        showToast('❌ لم يتم العثور على شيت Tasks Tracker')
-        return
-      }
-
+      const sheetName = workbook.SheetNames[0]
       const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
-      const existingTitles = new Set(tasks.map(t => (t.title || '').trim()))
 
-      let added = 0, skipped = 0
+      let added = 0, updated = 0
 
       for (const row of rows) {
-        const title = (row['Task description'] || row['Task Description'] || '').trim()
+        const title = (row['Task Description'] || row['Task description'] || '').trim()
         if (!title) continue
-        if (existingTitles.has(title)) { skipped++; continue }
 
         const completion = row['Completion %']
+        const status = row['Status']
         const done = (typeof completion === 'number' && completion >= 1) ||
-                     (typeof completion === 'string' && completion.includes('100'))
+                     (typeof completion === 'string' && completion.includes('100')) ||
+                     (status === 'Completed');
 
-        await dbAddTask({
-          title,
-          sourceTitle:  (row['Task title'] || row['Task Title'] || '').trim(),
-          sourceType:   (row['Channel']    || row['Channel ']   || '').trim(),
-          projectName:  (row['Type']       || '').trim(),
+        const taskData = {
+          title: title,
+          sourceTitle:  (row['Task Title'] || '').trim(),
+          sourceType:   (row['Channel'] || '').trim(),
+          projectName:  (row['Type'] || '').trim(),
           closeNote:    (row["What's Done"] || '').trim(),
-          dueDate:      parseExcelDate(row['Due date'] || row['Due Date']),
-          done,
+          dueDate:      parseExcelDate(row['Due Date'] || row['Due date']),
+          person:       (row['First Owner'] || '').trim(),
           priority:     'medium',
-          person:       '',
-        })
+          done:         done,
+        }
 
-        existingTitles.add(title)
-        added++
+        // هنا السحر: نبحث هل المهمة موجودة؟
+        const existingTask = tasks.find(t => (t.title || '').trim() === title)
+
+        if (existingTask) {
+          // إذا موجودة، حدث بياناتها
+          await dbUpdateTask(existingTask.id, taskData)
+          updated++
+        } else {
+          // إذا جديدة، أضفها
+          await dbAddTask(taskData)
+          added++
+        }
       }
 
       setShowExportMenu(false)
-      showToast(`✅ تم استيراد ${added} مهمة وتجاهل ${skipped} مكررة`)
+      showToast(`✅ تم تحديث ${updated} وإضافة ${added} مهمة`)
     } catch (err) {
       console.error('Excel import error:', err)
       showToast('❌ خطأ في الاستيراد: ' + err.message)
@@ -392,7 +400,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       e.target.value = ''
     }
   }
-  // --- نهاية كود الاستيراد ---
 
   function handleImportJSON(e) {
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الاستيراد'); return }
@@ -475,12 +482,12 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
             
             {!isUser && (
               <button onClick={() => setShowApiKey(true)} style={{
-                background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: apiKey ? 'var(--green)' : 'var(--orange)',
+                background: currentApiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                color: currentApiKey ? 'var(--green)' : 'var(--orange)',
                 border: 'none', borderRadius: 8, padding: '6px 10px',
                 fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
               }}>
-                {apiKey ? '🔑 API' : '⚙️ API'}
+                {currentApiKey ? '🔑 API' : '⚙️ API'}
               </button>
             )}
           </div>
@@ -600,10 +607,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         
         <button className="extract-fab" onClick={() => setShowSmartChat(true)} style={{ bottom: 90, zIndex: 100 }}>💬 محادثة ذكية</button>
 
-        {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={apiKey} />}
-        {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={apiKey} />}
-        {showApiKey && <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />}
-        {showSmartChat && <SmartChat tasks={tasks} apiKey={apiKey} onAddTasks={handleSmartChatAdd} onClose={() => setShowSmartChat(false)} />}
+        {showForm && <TaskForm task={null} onSave={addTask} onClose={() => setShowForm(false)} apiKey={currentApiKey} />}
+        {editTask && <TaskForm task={editTask} onSave={updateTaskHandler} onClose={() => setEditTask(null)} apiKey={currentApiKey} />}
+        {showApiKey && <ApiKeyInput apiKey={currentApiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />}
+        {showSmartChat && <SmartChat tasks={tasks} apiKey={currentApiKey} onAddTasks={handleSmartChatAdd} onClose={() => setShowSmartChat(false)} />}
 
         {deleteConfirm && (
           <div className="modal-overlay" onClick={() => setDeleteConfirm(null)}>
@@ -656,4 +663,3 @@ function calcNextDue(currentDue, recurrence) {
   else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
   return d.toISOString().split('T')[0]
 }
- 
