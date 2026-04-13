@@ -320,11 +320,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       URL.revokeObjectURL(url);
       setShowExportMenu(false);
       showToast('✅ تم تنزيل ملف Excel');
-    } catch (error) {
+        } catch (error) {
       console.error("Excel export error:", error);
-      showToast('❌ حدث خطأ أثناء التصدير');
+      showToast('❌ خطأ: ' + error.message);
     }
-  }
 
 
   function handleImportJSON(e) {
