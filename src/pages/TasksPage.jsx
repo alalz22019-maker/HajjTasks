@@ -660,4 +660,3 @@ function calcNextDue(currentDue, recurrence) {
   else if (recurrence === 'monthly') d.setMonth(d.getMonth() + 1)
   return d.toISOString().split('T')[0]
 }
-
