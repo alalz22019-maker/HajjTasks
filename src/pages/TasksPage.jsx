@@ -325,6 +325,73 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       showToast('❌ خطأ: ' + error.message);
     }
 
+  // --- كود استيراد الإكسل الجديد ---
+  function parseExcelDate(raw) {
+    if (!raw) return ''
+    if (raw instanceof Date) return raw.toISOString().split('T')[0]
+    if (typeof raw === 'number') {
+      const jsDate = new Date(Math.round((raw - 25569) * 86400 * 1000))
+      return jsDate.toISOString().split('T')[0]
+    }
+    if (typeof raw === 'string') return raw.substring(0, 10)
+    return ''
+  }
+
+  async function handleImportExcel(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    try {
+      showToast('⏳ جاري قراءة الملف...')
+      const buffer = await file.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true })
+
+      const sheetName = workbook.SheetNames.find(n => n.trim() === 'Tasks Tracker')
+      if (!sheetName) {
+        showToast('❌ لم يتم العثور على شيت Tasks Tracker')
+        return
+      }
+
+      const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: '' })
+      const existingTitles = new Set(tasks.map(t => (t.title || '').trim()))
+
+      let added = 0, skipped = 0
+
+      for (const row of rows) {
+        const title = (row['Task description'] || row['Task Description'] || '').trim()
+        if (!title) continue
+        if (existingTitles.has(title)) { skipped++; continue }
+
+        const completion = row['Completion %']
+        const done = (typeof completion === 'number' && completion >= 1) ||
+                     (typeof completion === 'string' && completion.includes('100'))
+
+        await dbAddTask({
+          title,
+          sourceTitle:  (row['Task title'] || row['Task Title'] || '').trim(),
+          sourceType:   (row['Channel']    || row['Channel ']   || '').trim(),
+          projectName:  (row['Type']       || '').trim(),
+          closeNote:    (row["What's Done"] || '').trim(),
+          dueDate:      parseExcelDate(row['Due date'] || row['Due Date']),
+          done,
+          priority:     'medium',
+          person:       '',
+        })
+
+        existingTitles.add(title)
+        added++
+      }
+
+      setShowExportMenu(false)
+      showToast(`✅ تم استيراد ${added} مهمة وتجاهل ${skipped} مكررة`)
+    } catch (err) {
+      console.error('Excel import error:', err)
+      showToast('❌ خطأ في الاستيراد: ' + err.message)
+    } finally {
+      e.target.value = ''
+    }
+  }
+  // --- نهاية كود الاستيراد ---
 
   function handleImportJSON(e) {
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الاستيراد'); return }
@@ -379,6 +446,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                 <button onClick={exportExcel} style={menuBtnStyle}><span>📗</span> تنزيل Excel</button>
                 {isAdmin && <button onClick={exportJSON} style={menuBtnStyle}><span>💾</span> تنزيل JSON</button>}
                 <button onClick={exportCSV} style={menuBtnStyle}><span>📊</span> تنزيل CSV</button>
+                <label style={{ ...menuBtnStyle, cursor: 'pointer' }}>
+  <span style={{ marginRight: 8 }}>📥</span> استيراد Excel
+  <input type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportExcel} />
+</label>
                 {canWrite && (
                   <>
                     <div style={{ height: 1, background: 'var(--border)', margin: '2px 8px' }} />
