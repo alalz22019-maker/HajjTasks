@@ -5,7 +5,6 @@ import TaskForm from '../components/TaskForm'
 import ApiKeyInput from '../components/ApiKeyInput'
 import SmartChat from '../components/SmartChat'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
-import { deduplicateTasks, isDuplicateTask } from '../utils/dedup'
 import { useAuth } from '../contexts/AuthContext'
 import {
   addTask as dbAddTask,
@@ -13,6 +12,36 @@ import {
   deleteTask as dbDeleteTask,
   createRequest,
 } from '../utils/db'
+
+// --- دوال منع التكرار (مدمجة هنا لتجنب خطأ الاستيراد) ---
+function normalizeAr(s) {
+  return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670]/g, '').replace(/\u0640/g, '')
+    .replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
+}
+function isDuplicateTask(newTitle, existingTasks) {
+  const n = normalizeAr(newTitle);
+  if (!n) return false;
+  return existingTasks.some(t => {
+    const e = normalizeAr(t.title);
+    if (!e) return false;
+    return e === n || (n.length >= 15 && e.includes(n)) || (e.length >= 15 && n.includes(e));
+  });
+}
+function deduplicateTasks(newTasks, existingTasks) {
+  const unique = [];
+  const currentTitles = existingTasks.map(t => normalizeAr(t.title));
+  newTasks.forEach(task => {
+    const normTitle = normalizeAr(task.title);
+    if (!currentTitles.includes(normTitle)) {
+      unique.push(task);
+      currentTitles.push(normTitle);
+    }
+  });
+  return unique;
+}
+// ----------------------------------------------------
 
 const FILTERS = [
   { id: 'all',      label: 'الكل' },
@@ -374,7 +403,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       let added = 0, updated = 0
 
       for (const rawRow of targetRows) {
-        // خطوة التنظيف الذكية: تحويل كل أسماء الأعمدة لسمول وإزالة المسافات
         const row = {};
         for (const key in rawRow) {
           if (Object.prototype.hasOwnProperty.call(rawRow, key)) {
@@ -382,7 +410,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           }
         }
 
-        // قراءة البيانات من المفاتيح المنظفة
         const title = (row['task description'] || row['عنوان المهمة'] || '').toString().trim()
         if (!title) continue
 
@@ -402,15 +429,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         if (row['due date']) dueDate = parseExcelDate(row['due date']);
         else if (row['تاريخ الاستحقاق']) dueDate = parseExcelDate(row['تاريخ الاستحقاق']);
 
-        // تحديث إجباري وشامل للبيانات
         const updateData = { 
-          done,
-          sourceTitle,
-          sourceType,
-          person,
-          projectName,
-          closeNote,
-          dueDate
+          done, sourceTitle, sourceType, person, projectName, closeNote, dueDate
         };
 
         const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
@@ -420,9 +440,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           updated++
         } else {
           await dbAddTask({
-            title,
-            priority: 'medium',
-            ...updateData
+            title, priority: 'medium', ...updateData
           })
           added++
         }
