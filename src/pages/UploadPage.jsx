@@ -1,11 +1,10 @@
 import { useState, useRef } from 'react'
-import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask, findDuplicateTask } from '../utils/claude'
 import DuplicateConflictModal from '../components/DuplicateConflictModal'
 import PullToRefresh from '../components/PullToRefresh'
-import { addTask } from '../utils/db' // 🔴 الجندي المجهول: دالة الحفظ في فايربيس
+import { addTask } from '../utils/db'
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
-// الدالة لا تزال موجودة تحسباً لأي استخدام محلي في الواجهة (رغم أن فايربيس يولد IDs بنفسه)
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }
@@ -24,7 +23,6 @@ const UPLOAD_SYSTEM = `أنت مساعد ذكي. المستخدم سيرسل ص�
 ]
 أرجع JSON فقط.`
 
-// 🔴 تم إزالة setTasks لأننا سنرسل البيانات مباشرة لفايربيس، وهو سيتكفل بتحديث التطبيق تلقائياً
 export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState(null)
@@ -33,7 +31,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
   const [extracted, setExtracted] = useState([])
   const [meetingMeta, setMeetingMeta] = useState(null)
   const [uploadConflicts, setUploadConflicts] = useState(null)
-  const [showApiKey, setShowApiKey] = useState(false)
   const inputRef = useRef()
 
   function handleFile(f) {
@@ -51,13 +48,17 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
 
   async function analyze() {
     if (!file) return
-    if (!apiKey) { setShowApiKey(true); return }
     setLoading(true)
     setExtracted([])
     setMeetingMeta(null)
     try {
+      const geminiKey = import.meta.env.VITE_GEMINI_API_KEY
+      if (!geminiKey) throw new Error('مفتاح Gemini API غير موجود في إعدادات Vercel')
+      
+      const genAI = new GoogleGenerativeAI(geminiKey)
       let content
       let isPdfMeeting = false
+
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
         const base64 = await new Promise((res, rej) => {
@@ -65,31 +66,18 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
           reader.onerror = rej
           reader.readAsDataURL(file)
         })
-        const mediaType = file.type
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2048,
-            system: UPLOAD_SYSTEM,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                { type: 'text', text: 'استخرج المهام من هذه الصورة' }
-              ]
-            }]
-          })
+        
+        const model = genAI.getGenerativeModel({ 
+          model: 'gemini-1.5-flash',
+          systemInstruction: UPLOAD_SYSTEM
         })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
-        content = data.content?.[0]?.text || '[]'
+        
+        const result = await model.generateContent([
+          { inlineData: { mimeType: file.type, data: base64 } },
+          { text: 'استخرج المهام من هذه الصورة' }
+        ])
+        content = result.response.text()
+
       } else if (file.type === 'application/pdf') {
         const reader = new FileReader()
         const base64 = await new Promise((res, rej) => {
@@ -98,33 +86,18 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
           reader.readAsDataURL(file)
         })
         isPdfMeeting = true
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-beta': 'pdfs-2024-09-25',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 4096,
-            system: PDF_MEETING_SYSTEM,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-                { type: 'text', text: 'استخرج المهام والتكليفات من هذا المحضر' }
-              ]
-            }]
-          })
+        
+        const model = genAI.getGenerativeModel({ 
+          model: 'gemini-1.5-pro',
+          systemInstruction: PDF_MEETING_SYSTEM
         })
-        const rawText = await res.text()
-        let data
-        try { data = JSON.parse(rawText) } catch { throw new Error('خطأ في الاتصال بالـ API: ' + rawText.slice(0, 200)) }
-        if (!res.ok) throw new Error(data?.error?.message || `API error ${res.status}`)
-        content = data.content?.[0]?.text || '{}'
+        
+        const result = await model.generateContent([
+          { inlineData: { mimeType: 'application/pdf', data: base64 } },
+          { text: 'استخرج المهام والتكليفات من هذا المحضر' }
+        ])
+        content = result.response.text()
+
       } else {
         const text = await file.text()
         content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
@@ -152,8 +125,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
       setLoading(false)
     }
   }
-
-  // 🔴 أصبحت الدالة async لتنتظر انتهاء الحفظ في فايربيس
   async function addAll() {
     const unique = [], conflicts = []
     extracted.forEach(t => {
@@ -169,7 +140,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
     await _commitUploadTasks(unique, [], meetingMeta)
   }
 
-  // 🔴 السحر الحقيقي هنا: التكامل مع Firebase
   async function _commitUploadTasks(uniqueTasks, extraApproved, meta) {
     const all = [...uniqueTasks, ...extraApproved]
     let addedCount = 0
@@ -180,7 +150,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
         const existingParent = findDuplicateTask(parentTitle, tasks)
         let effectiveParentId = existingParent ? existingParent.id : null
 
-        // إضافة المهمة الأب (الاجتماع) إن لم تكن موجودة
         if (!existingParent) {
           const parentTask = {
             title: parentTitle, priority: 'urgent',
@@ -189,14 +158,11 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
             recurrence: '', reminderTime: '',
             projectName: meta.suggestedProject || '',
             done: false
-            // لا نحتاج createdAt لأن db.js يضيف serverTimestamp()
           }
-          // نحفظ المهمة ونأخذ الـ ID المولد من فايربيس
           effectiveParentId = await addTask(parentTask) 
           addedCount++
         }
 
-        // إضافة المهام الفرعية وربطها بالأب
         for (const t of all) {
           await addTask({
             ...t, done: false, subcategory: 'leaders', 
@@ -206,7 +172,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
           addedCount++
         }
       } else {
-        // إضافة مهام عادية بدون أب
         for (const t of all) {
           await addTask({
             ...t, done: false, subcategory: t.subcategory || 'other', 
@@ -226,7 +191,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
       console.error("Upload error:", error)
       showToast('❌ حدث خطأ أثناء الحفظ في قاعدة البيانات')
     } finally {
-      // تفريغ الشاشة بعد الانتهاء
       setUploadConflicts(null)
       setExtracted([])
       setMeetingMeta(null)
@@ -237,14 +201,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
 
   return (
     <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
-      {showApiKey && (
-        <ApiKeyInput
-          apiKey={apiKey}
-          onSave={(k) => { setApiKey(k); setShowApiKey(false); showToast('✅ تم حفظ المفتاح'); }}
-          onCancel={() => setShowApiKey(false)}
-        />
-      )}
-      
       {uploadConflicts && (
         <DuplicateConflictModal
           conflicts={uploadConflicts.conflicts}
@@ -261,18 +217,6 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
             <div className="header-title">📎 رفع ملف</div>
             <div className="header-sub">صور وPDF • استخراج ذكي</div>
           </div>
-          {/* 🔴 زر הـ API رجع لمكانه الطبيعي! */}
-          <button
-            onClick={() => setShowApiKey(true)}
-            style={{
-              background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-              color: apiKey ? 'var(--green)' : 'var(--orange)',
-              border: 'none', borderRadius: 8, padding: '6px 10px',
-              fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer'
-            }}
-          >
-            {apiKey ? '🔑 API' : '⚙️ API'}
-          </button>
         </div>
       </div>
 
@@ -303,7 +247,7 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
               <button className="btn btn-outline" style={{ flex: 1 }} onClick={() => { setFile(null); setExtracted([]) }} disabled={loading}>إلغاء</button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={analyze} disabled={loading || !apiKey}>
+              <button className="btn btn-primary" style={{ flex: 2 }} onClick={analyze} disabled={loading}>
                 {loading ? '⏳ جاري التحليل...' : '✨ تحليل واستخراج'}
               </button>
             </div>
