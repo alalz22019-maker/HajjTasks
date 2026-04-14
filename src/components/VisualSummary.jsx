@@ -5,7 +5,7 @@ import VisualSummaryCard from './VisualSummaryCard'
 import { exportPNG, exportPDF, shareImage } from './VisualSummaryExport'
 
 const STEPS = [
-  { key: 'generate', icon: '⚙️', label: 'Claude يحلل المهام ويولّد التقرير...' },
+  { key: 'generate', icon: '⚙️', label: 'جاري تحليل المهام وتوليد التقرير...' },
   { key: 'task',     icon: '🔍', label: 'خبير إدارة المهام يراجع الأشخاص والأولويات...' },
 ]
 
@@ -200,7 +200,7 @@ export default function VisualSummary({ tasks, apiKey }) {
             تقرير إدارة المهام
           </div>
           <div style={{ fontSize: 13, color: '#9090a8', marginBottom: 20 }}>
-            ينشئ Claude ملخصاً تنفيذياً يساعدك على اتخاذ القرارات الصحيحة
+            ملخص تنفيذي يساعدك على اتخاذ القرارات الصحيحة
           </div>
 
           {/* ── فلاتر التقرير ── */}
