@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// استخدام المفتاح الجديد الذي أضفته في Vercel
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+// 1. أخذ المفتاح حصرياً من Vercel (تجاهل الواجهة تماماً)
+const VERCEL_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(VERCEL_API_KEY);
 
 // تطبيع النص العربي: توحيد الألفات والهمزات والتاء المربوطة وإزالة التشكيل
 function normalizeAr(s) {
@@ -28,7 +29,6 @@ function wordSimilarity(a, b) {
   return inter / (A.size + B.size - inter)
 }
 
-// إيجاد المهمة المشابهة من القائمة الموجودة 
 export function findDuplicateTask(newTitle, existingTasks) {
   const n = normalizeAr(newTitle)
   if (!n) return null
@@ -47,7 +47,7 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-// الدالة المعدلة للمحادثة لتعمل مع جيميناي
+// دالة المحادثة (تتجاهل apiKey المرسل لها وتستخدم genAI المربوط بـ Vercel)
 export async function callClaudeChat(apiKey, systemPrompt, messages) {
   try {
     const model = genAI.getGenerativeModel({ 
@@ -60,9 +60,8 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
       parts: [{ text: m.content }]
     }));
 
-    // بدء محادثة جديدة وتمرير السجل
     const chat = model.startChat({
-        history: geminiMessages.slice(0, -1), // كل الرسائل ما عدا الأخيرة
+        history: geminiMessages.slice(0, -1), 
     });
 
     const lastMessage = geminiMessages[geminiMessages.length - 1].parts[0].text;
@@ -88,7 +87,7 @@ ${summary}
 
 مهمتك في كل رسالة:
 1. استخرج المهام من النص واقترح صياغتها بوضوح
-2. قارن كل مهمة مع المهام الموجودة — قارن المعنى والقصد وليس النص الحرفي
+2. قارن كل مهمة مع المهام الموجودة -> قارن المعنى والقصد وليس النص الحرفي
 3. إذا وجدت تشابهاً في المعنى -> ضعها في duplicates مع خيارات للمستخدم
 4. إذا كانت مهمة غير واضحة -> اسأل عنها في questions
 5. استمر في المحادثة حتى تكون كل المهام جاهزة للإضافة
@@ -129,7 +128,7 @@ ${summary}
 }`
 }
 
-// الدالة الأساسية المعدلة لتعمل مع جيميناي بدلا من كلاود
+// دالة النداء الأساسية (تتجاهل apiKey وتستخدم genAI المربوط بـ Vercel)
 export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-1.5-flash') {
   try {
      const model = genAI.getGenerativeModel({ 
@@ -241,7 +240,6 @@ export const ANALYZE_TASK_SYSTEM = `أنت مساعد ذكي لتحليل الم
 أرجع JSON فقط بدون \`\`\`json أو أي نص إضافي`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
-  // نستخدم الدالة المعدلة التي تنادي جيميناي الآن
   const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-1.5-flash')
   try {
     return JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''))
@@ -373,7 +371,6 @@ export async function generateVisualSummary(apiKey, tasks) {
   }))
   
   const promptText = `today=${today}\n${JSON.stringify(slim)}`;
-  // نستخدم الدالة المعدلة التي تنادي جيميناي الآن
   const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-1.5-pro');
   
   try {
@@ -385,13 +382,11 @@ export async function generateVisualSummary(apiKey, tasks) {
   }
 }
 
-// تمت إضافة هذه الدالة لحل مشكلة Vercel ولتعمل مراجعة الخبير عبر جيميناي
 export async function reviewByTaskExpert(apiKey, promptText) {
   const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). 
   قم بمراجعة المهام المعطاة وقدم ملاحظات احترافية ومختصرة لتحسين سير العمل وتحديد الأولويات.`;
   
   try {
-     // نستخدم دالة callClaude المعدلة التي تنادي جيميناي 1.5 برو للتحليل المعقد
      const text = await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-1.5-pro');
      return text;
   } catch (error) {
