@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
-import ApiKeyInput from '../components/ApiKeyInput'
 import SmartChat from '../components/SmartChat'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
@@ -72,7 +71,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [searchQuery, setSearchQuery] = useState('')
   const [showForm, setShowForm]   = useState(false)
   const [editTask, setEditTask]   = useState(null)
-  const [showApiKey, setShowApiKey] = useState(false)
   const [showSmartChat, setShowSmartChat] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewMode, setViewMode]   = useState('list')
@@ -541,16 +539,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
             </button>
             
-            {!isUser && (
-              <button onClick={() => setShowApiKey(true)} style={{
-                background: currentApiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                color: currentApiKey ? 'var(--green)' : 'var(--orange)',
-                border: 'none', borderRadius: 8, padding: '6px 10px',
-                fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
-              }}>
-                {currentApiKey ? '🔑 API' : '⚙️ API'}
-              </button>
-            )}
+            
           </div>
         </div>
       </div>
@@ -689,13 +678,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         />
       )}
 
-      {showApiKey && (
-        <ApiKeyInput 
-          apiKey={apiKey} 
-          setApiKey={setApiKey} 
-          onClose={() => setShowApiKey(false)} 
-        />
-      )}
+      
 
       {showSmartChat && (
         <SmartChat 
