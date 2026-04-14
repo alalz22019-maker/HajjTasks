@@ -68,7 +68,7 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
         })
         
         const model = genAI.getGenerativeModel({ 
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           systemInstruction: UPLOAD_SYSTEM
         })
         
@@ -88,7 +88,7 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
         isPdfMeeting = true
         
         const model = genAI.getGenerativeModel({ 
-          model: 'gemini-2.0-flash',
+          model: 'gemini-2.5-flash',
           systemInstruction: PDF_MEETING_SYSTEM
         })
         
