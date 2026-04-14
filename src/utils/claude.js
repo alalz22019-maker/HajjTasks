@@ -49,7 +49,7 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
   try {
     const genAI = getGenAI();
     const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
+        model: "gemini-2.0-flash",
         systemInstruction: systemPrompt 
     });
 
@@ -98,7 +98,7 @@ ${summary}
 }`
 }
 
-export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-1.5-flash') {
+export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-2.0-flash') {
   try {
      const genAI = getGenAI();
      const model = genAI.getGenerativeModel({ 
@@ -126,7 +126,7 @@ export const ANALYZE_TASK_SYSTEM = `أنت مساعد لتحليل مهام LOC.
 {"priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "projectName": "", "reason": "", "subTasks": []}`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
-  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-1.5-flash')
+  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-2.0-flash')
   try {
     return JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''))
   } catch {
