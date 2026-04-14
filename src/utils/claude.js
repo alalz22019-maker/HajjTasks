@@ -1,4 +1,3 @@
-// تم تغيير الرابط ليتوافق مع واجهة Google Gemini API
 const getGeminiUrl = (modelName, apiKey) => 
   `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
@@ -46,7 +45,6 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-// تم الاحتفاظ بالاسم القديم لتجنب تعديل باقي ملفات التطبيق
 export async function callClaudeChat(apiKey, systemPrompt, messages) {
   // تحويل صيغة المحادثات لتتوافق مع Gemini
   const geminiMessages = messages.map(m => ({
@@ -133,10 +131,9 @@ function translateApiError(status, msg) {
   if (status === 403 || m.includes('api key')) return 'مفتاح API غير صحيح أو غير مفعل.'
   if (status === 429 || m.includes('quota')) return 'تم تجاوز الحد المسموح للاستخدام المجاني، يرجى الانتظار قليلاً.'
   if (status === 500) return 'خوادم جوجل مشغولة حالياً، حاول مرة أخرى.'
-  return msg || \`خطأ من API (\${status})\`
+  return msg || `خطأ من API (${status})`
 }
 
-// تم الاحتفاظ بالاسم القديم لتجنب تعديل باقي ملفات التطبيق
 export async function callClaude(apiKey, systemPrompt, userContent, model = 'gemini-1.5-flash') {
   // توجيه ذكي للموديلات: إذا كان الطلب القديم يطلب سونيت، نحوله لبرو الأقوى
   let targetModel = model.includes('sonnet') || model === 'gemini-1.5-pro' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
@@ -385,11 +382,12 @@ export async function generateVisualSummary(apiKey, tasks) {
     due: t.dueDate || '',
     ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
-  // تم تحويل الموديل إلى gemini-1.5-pro للحصول على تقرير ذكي وعميق
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, \`today=\${today}\n\${JSON.stringify(slim)}\`, 'gemini-1.5-pro')
+  
+  const promptText = `today=${today}\n${JSON.stringify(slim)}`;
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-1.5-pro');
   const text = raw.replace(/^
 http://googleusercontent.com/immersive_entry_chip/0
 http://googleusercontent.com/immersive_entry_chip/1
 http://googleusercontent.com/immersive_entry_chip/2
 
-الحين خذ راحتك، جيب مفتاح API من AI Studio، حطه في التطبيق، واستمتع بالسرعة الخرافية بدون ما تشيل هم الفواتير!
+استبدله الحين و Vercel بيقراه صح وبدون مشاكل 🚀. طمني وش يصير معك!
