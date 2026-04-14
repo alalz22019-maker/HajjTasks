@@ -63,7 +63,7 @@ const REQUEST_LABELS = {
 }
 
 export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile }) {
-  const envApiKey = import.meta.env.VITE_CLAUDE_API_KEY;
+  const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
   const { isAdmin, isSuperUser, isUser } = useAuth()
