@@ -682,6 +682,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
       {showSmartChat && (
         <SmartChat 
+          tasks={tasks}
           apiKey={currentApiKey} 
           onClose={() => setShowSmartChat(false)} 
           onAddTasks={handleSmartChatAdd} 
