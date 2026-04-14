@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import ApiKeyInput from '../components/ApiKeyInput'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { deduplicateTasks } from '../utils/dedup'
 import PullToRefresh from '../components/PullToRefresh'
@@ -12,11 +11,9 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [extracted, setExtracted] = useState([])
-  const [showApiKey, setShowApiKey] = useState(false)
 
   async function handleAnalyze() {
     if (!text.trim()) return
-    if (!apiKey) { setShowApiKey(true); return }
     setLoading(true)
     setExtracted([])
     try {
@@ -61,36 +58,8 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
             <div className="header-title">✍️ ملاحظة ذكية</div>
             <div className="header-sub">استخراج مهام من النص الحر</div>
           </div>
-          <button
-            onClick={() => setShowApiKey(true)}
-            style={{
-              background: apiKey ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-              color: apiKey ? 'var(--green)' : 'var(--orange)',
-              border: 'none',
-              borderRadius: 8,
-              padding: '6px 10px',
-              fontSize: 12,
-              fontFamily: 'var(--font)',
-              cursor: 'pointer'
-            }}
-          >
-            {apiKey ? '🔑 API' : '⚙️ API'}
-          </button>
         </div>
       </div>
-
-      {!apiKey && (
-        <div className="api-key-banner">
-          ⚠️ أضف مفتاح Claude API لتفعيل الاستخراج الذكي
-          <br />
-          <button
-            onClick={() => setShowApiKey(true)}
-            style={{ background: 'none', border: 'none', color: 'var(--orange)', fontWeight: 700, cursor: 'pointer', marginTop: 6, fontFamily: 'var(--font)' }}
-          >
-            إضافة المفتاح
-          </button>
-        </div>
-      )}
 
       <div className="notes-area">
         <div className="form-group">
@@ -114,7 +83,7 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
         {loading && (
           <div className="loading-text">
-            <span className="spinner" /> يحلل Claude النص...
+            <span className="spinner" /> جاري تحليل النص...
           </div>
         )}
 
@@ -141,10 +110,6 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
           </div>
         )}
       </div>
-
-      {showApiKey && (
-        <ApiKeyInput apiKey={apiKey} setApiKey={setApiKey} onClose={() => setShowApiKey(false)} />
-      )}
     </PullToRefresh>
   )
 }
