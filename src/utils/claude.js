@@ -126,7 +126,7 @@ export const ANALYZE_TASK_SYSTEM = `أنت مساعد لتحليل مهام LOC.
 {"priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "projectName": "", "reason": "", "subTasks": []}`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
-  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-2.-flash')
+  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-2.5-flash')
   try {
     return JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''))
   } catch {
@@ -156,7 +156,7 @@ export async function generateVisualSummary(apiKey, tasks) {
   }))
   
   const promptText = `today=${today}\n${JSON.stringify(slim)}`;
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-1.5-pro');
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-2.5-flash');
   
   try {
      return JSON.parse(raw.replace(/```json/g, '').replace(/```/g, ''));
@@ -168,7 +168,7 @@ export async function generateVisualSummary(apiKey, tasks) {
 export async function reviewByTaskExpert(apiKey, promptText) {
   const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). قدم ملاحظات احترافية ومختصرة.`;
   try {
-     return await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-1.5-pro');
+     return await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-2.5-flash');
   } catch (error) {
      return "تعذر إكمال مراجعة الخبير في الوقت الحالي.";
   }
