@@ -147,7 +147,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
               الصق نصاً أو محادثة
             </div>
             <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-              سيحلل Claude المحتوى ويقترح المهام<br />
+         سيحلل المحتوى ويقترح المهام<br />
               مع كشف التكرار والأسئلة قبل أي إضافة
             </div>
           </div>
@@ -277,7 +277,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
               display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <span className="spinner" />
-              Claude يحلل...
+              جاري التحليل...
             </div>
           </div>
         )}
