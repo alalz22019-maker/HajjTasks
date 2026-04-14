@@ -1,25 +1,22 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// 1. أخذ المفتاح حصرياً من Vercel (تجاهل الواجهة تماماً)
-const VERCEL_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(VERCEL_API_KEY);
-
-// تطبيع النص العربي: توحيد الألفات والهمزات والتاء المربوطة وإزالة التشكيل
-function normalizeAr(s) {
-  return (s || '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-    .replace(/[أإآٱ]/g, 'ا')          
-    .replace(/ة/g, 'ه')               
-    .replace(/[\u064B-\u065F\u0670]/g, '') 
-    .replace(/\u0640/g, '')            
-    .replace(/ى/g, 'ي')               
-    .replace(/ؤ/g, 'و')               
-    .replace(/ئ/g, 'ي')               
+// نظام ذكي لاستدعاء المفتاح (Lazy Loading) يمنع انهيار التطبيق
+function getGenAI() {
+  const key = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!key) {
+    throw new Error("❌ فشل الاتصال: مفتاح VITE_GEMINI_API_KEY غير موجود في إعدادات Vercel. تأكد من إضافته وإعادة البناء.");
+  }
+  return new GoogleGenerativeAI(key);
 }
 
-// نسبة التشابه بين عنوانين عبر Jaccard على مستوى الكلمات
+// تطبيع النص العربي
+function normalizeAr(s) {
+  return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه')               
+    .replace(/[\u064B-\u065F\u0670]/g, '').replace(/\u0640/g, '')            
+    .replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')               
+}
+
 function wordSimilarity(a, b) {
   const words = s => new Set(s.split(' ').filter(w => w.length >= 3))
   const A = words(a), B = words(b)
@@ -47,9 +44,10 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-// دالة المحادثة (تتجاهل apiKey المرسل لها وتستخدم genAI المربوط بـ Vercel)
+// محادثة جيميناي
 export async function callClaudeChat(apiKey, systemPrompt, messages) {
   try {
+    const genAI = getGenAI();
     const model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-flash",
         systemInstruction: systemPrompt 
@@ -69,7 +67,7 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
     return result.response.text();
   } catch (error) {
     console.error("Gemini Chat Error:", error);
-    throw new Error("حدث خطأ أثناء المحادثة الذكية.");
+    throw new Error(error.message || "حدث خطأ غير معروف في المحادثة.");
   }
 }
 
@@ -82,55 +80,27 @@ export function buildSmartChatSystem(activeTasks) {
 
   return `أنت مساعد ذكي لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
 
-المهام النشطة الموجودة حالياً (للمقارنة ومنع التكرار):
+المهام النشطة الموجودة حالياً:
 ${summary}
 
-مهمتك في كل رسالة:
-1. استخرج المهام من النص واقترح صياغتها بوضوح
-2. قارن كل مهمة مع المهام الموجودة -> قارن المعنى والقصد وليس النص الحرفي
-3. إذا وجدت تشابهاً في المعنى -> ضعها في duplicates مع خيارات للمستخدم
-4. إذا كانت مهمة غير واضحة -> اسأل عنها في questions
-5. استمر في المحادثة حتى تكون كل المهام جاهزة للإضافة
-
-قواعد كشف التكرار الذكي:
-- قارن القصد والهدف وليس الكلمات فقط
-- "تذكير عبير بالتقرير" = "إرسال تنبيه لعبير عن التقرير" -> تكرار
-- نفس الشخص + نفس المشروع + نفس الهدف -> تكرار حتى لو الصياغة مختلفة
-- مهمة أشمل من الموجودة -> ليست تكرار، نبّه المستخدم
-
-أرجع دائماً JSON فقط بهذا الشكل الدقيق (بدون أي نص خارجه):
+مهمتك:
+1. استخرج المهام واقترح صياغتها.
+2. قارن المعنى والقصد لكشف التكرار.
+3. أرجع JSON فقط بهذا الشكل:
 {
-  "message": "رسالة موجزة للمستخدم بالعربية",
+  "message": "رسالة موجزة",
   "tasks": [
-    {
-      "id": "t1",
-      "title": "عنوان المهمة",
-      "priority": "urgent|medium|low",
-      "category": "work|personal|health",
-      "subcategory": "leaders|team|other",
-      "person": "اسم أو فارغ",
-      "dueDate": "YYYY-MM-DD أو فارغ",
-      "projectName": "اسم المشروع أو فارغ"
-    }
+    { "id": "t1", "title": "عنوان", "priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "dueDate": "", "projectName": "" }
   ],
-  "questions": [
-    { "taskId": "t1", "text": "سؤال عن المهمة" }
-  ],
-  "duplicates": [
-    {
-      "taskId": "t1",
-      "existingTitle": "عنوان المهمة الموجودة",
-      "reason": "سبب التشابه",
-      "options": ["إضافة كجديدة", "إضافة كفرع", "تجاهل"]
-    }
-  ],
+  "questions": [],
+  "duplicates": [],
   "ready": false
 }`
 }
 
-// دالة النداء الأساسية (تتجاهل apiKey وتستخدم genAI المربوط بـ Vercel)
 export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-1.5-flash') {
   try {
+     const genAI = getGenAI();
      const model = genAI.getGenerativeModel({ 
         model: modelName,
         systemInstruction: systemPrompt 
@@ -140,104 +110,20 @@ export async function callClaude(apiKey, systemPrompt, userContent, modelName = 
     return result.response.text();
   } catch (error) {
      console.error("Gemini API Error:", error);
-     throw new Error("حدث خطأ في معالجة الطلب.");
+     throw new Error(error.message || "حدث خطأ في معالجة الطلب.");
   }
 }
 
-export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج المهام من النصوص العربية والإنجليزية.
-استخرج المهام وأرجعها كـ JSON array بهذا الشكل بالضبط (بدون أي نص إضافي):
-[
-  {
-    "title": "عنوان المهمة",
-    "priority": "urgent|medium|low",
-    "category": "work|personal|health",
-    "subcategory": "leaders|team|other|home|business",
-    "person": "اسم الشخص أو فارغ",
-    "dueDate": "YYYY-MM-DD أو فارغ"
-  }
-]
-- إذا ذُكر شخص معين -> ضعه في person
-- إذا ذُكرت كلمات مثل "عاجل" أو "فوراً" -> priority: urgent
-- إذا كانت المهمة متعلقة بالعمل أو الوزارة -> category: work
-- إذا ذُكر تاريخ -> حوّله لـ YYYY-MM-DD
-- أرجع JSON فقط بدون \`\`\`json أو أي نص`
+export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج المهام من النصوص. أرجع JSON array فقط:
+[{"title": "مهمة", "priority": "urgent|medium|low", "category": "work|personal|health", "subcategory": "leaders", "person": "", "dueDate": ""}]`
 
 export const EXTRACT_SYSTEM_EN = EXTRACT_SYSTEM
 
-export const PDF_MEETING_SYSTEM = `أنت مساعد ذكي متخصص في استخراج المهام من محاضر الاجتماعات الحكومية (وزارة الصحة السعودية).
+export const PDF_MEETING_SYSTEM = `أنت مساعد لاستخراج مهام مركز عمليات المختبرات (LOC). أرجع JSON فقط:
+{"meetingTitle": "اسم", "chairperson": "اسم", "suggestedProject": "مشروع", "tasks": []}`
 
-الهيكل القيادي لمركز عمليات المختبرات (LOC):
-- د. محمد عبد العال  -> مساعد وزير الصحة
-- د. مرام العتيبي    -> الرئيس التنفيذي لمركز الخدمات الصحية المساندة
-- د. منار سمان       -> المديرة العامة التنفيذية لمركز عمليات المختبرات (LOC)
-- د. وليد الحسن      -> مساعد المدير التنفيذي لمركز عمليات المختبرات
-
-اقرأ المحضر واستخرج:
-1. اسم الاجتماع ومن ترأسه
-2. جميع المهام والتكليفات
-
-أرجع JSON بهذا الشكل بالضبط (بدون أي نص إضافي):
-{
-  "meetingTitle": "اسم الاجتماع الكامل مع التاريخ إن وُجد",
-  "chairperson": "اسم رئيس الاجتماع",
-  "suggestedProject": "أقرب مشروع أو لجنة من هذه الخيارات: عيني | لجنة الفحوصات المخبرية | جاهزية المختبرات | مشروع علم الأمراض الرقمي | عام",
-  "tasks": [
-    {
-      "title": "عنوان المهمة",
-      "priority": "urgent|medium|low",
-      "category": "work|personal|health",
-      "subcategory": "leaders",
-      "person": "اسم المسؤول عن المهمة أو فارغ",
-      "dueDate": "YYYY-MM-DD أو فارغ"
-    }
-  ]
-}
-
-قواعد مهمة:
-- كل مهام المحضر تكون subcategory: leaders (لأنها من اجتماع قيادي)
-- إذا رأس الاجتماع أو حضر: د. محمد عبد العال أو مساعد الوزير أو وزير -> priority: urgent لجميع المهام
-- إذا رأس الاجتماع أو حضر: د. مرام العتيبي أو د. منار سمان -> priority: urgent لجميع المهام
-- إذا رأس الاجتماع د. وليد الحسن -> priority: high لجميع المهام
-- استخرج التكليفات الواضحة فقط، ولا تخترع مهام
-- أرجع JSON فقط بدون \`\`\`json`
-
-export const ANALYZE_TASK_SYSTEM = `أنت مساعد ذكي لتحليل المهام في بيئة حكومية سعودية (وزارة الصحة).
-حلل عنوان المهمة وأرجع JSON بالشكل التالي بالضبط (بدون أي نص إضافي):
-{
-  "priority": "urgent|medium|low",
-  "category": "work|personal|health",
-  "subcategory": "leaders|team|other|home|business",
-  "person": "اسم الشخص أو فارغ",
-  "projectName": "اسم المشروع أو المبادرة أو null",
-  "reason": "سبب قصير جداً باللغة العربية",
-  "subTasks": ["مهمة فرعية 1", "مهمة فرعية 2"]
-}
-
-الهيكل القيادي لمركز عمليات المختبرات (LOC):
-- د. محمد عبد العال  -> مساعد وزير الصحة (أعلى مستوى)
-- د. مرام العتيبي    -> الرئيس التنفيذي لمركز الخدمات الصحية المساندة
-- د. منار سمان       -> المديرة العامة التنفيذية لمركز عمليات المختبرات
-- د. وليد الحسن      -> مساعد المدير التنفيذي لمركز عمليات المختبرات
-
-قواعد الأولوية (الأهم):
-- إذا ذُكر "د. محمد عبد العال" أو "مساعد الوزير" أو "معالي" أو "وزير" -> priority: urgent، subcategory: leaders
-- إذا ذُكر "د. مرام العتيبي" أو "الرئيس التنفيذي" (للمساندة) -> priority: urgent، subcategory: leaders
-- إذا ذُكر "د. منار سمان" أو "د. منار" أو "المديرة العامة" أو "المدير التنفيذي" للـ LOC -> priority: urgent، subcategory: leaders
-- إذا ذُكر "د. وليد الحسن" أو "د. وليد" أو "مساعد المدير" -> priority: high، subcategory: leaders
-- إذا ذُكر "مجلس الإدارة" أو "القيادة" -> priority: urgent، subcategory: leaders
-- إذا ذُكرت كلمات "عاجل" أو "فوراً" أو "ضروري" أو "اليوم" -> priority: urgent
-
-قواعد المشروع (projectName):
-- إذا كانت المهمة جزءاً من مبادرة أو مشروع -> اذكر اسمه
-- مثال: "تقرير منجزات التحول الرقمي" -> projectName: "مشروع التحول الرقمي"
-- إذا لم تكن جزءاً من مشروع محدد -> projectName: null
-
-قواعد المهام الفرعية (subTasks):
-- إذا كانت المهمة كبيرة وتحتاج خطوات متعددة -> قسّمها لمهام فرعية (3 إلى 5 مهام)
-- إذا كانت المهمة بسيطة وواضحة -> subTasks: []
-- مثال: "تجهيز خطة التحول الرقمي" -> subTasks: ["تحليل الوضع الراهن", "تحديد الأهداف", "إعداد خارطة الطريق", "مراجعة الميزانية"]
-
-أرجع JSON فقط بدون \`\`\`json أو أي نص إضافي`
+export const ANALYZE_TASK_SYSTEM = `أنت مساعد لتحليل مهام LOC. أرجع JSON فقط:
+{"priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "projectName": "", "reason": "", "subTasks": []}`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
   const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-1.5-flash')
@@ -248,125 +134,24 @@ export async function analyzeTaskWithAI(apiKey, taskTitle) {
   }
 }
 
-export const VISUAL_SUMMARY_SYSTEM = `أنت خبير مكتب إدارة المشاريع (PMO) متخصص في مركز عمليات المختبرات بوزارة الصحة السعودية.
+export const VISUAL_SUMMARY_SYSTEM = `أنت خبير مكتب إدارة المشاريع (PMO). حلل المهام وأرجع تقرير JSON يخدم د. منار سمان. 
+أرجع JSON فقط بنفس الهيكل المعتمد مسبقاً وبدون أي نصوص إضافية خارج الـ JSON.`
 
-الهيكل القيادي (مرجع للأولويات والتوصيات):
-- د. محمد عبد العال  -> مساعد وزير الصحة (أعلى جهة إشراف)
-- د. مرام العتيبي    -> الرئيس التنفيذي لمركز الخدمات الصحية المساندة
-- د. منار سمان       -> المديرة العامة التنفيذية لمركز عمليات المختبرات (LOC) — المستفيد الأول من هذا التقرير
-- د. وليد الحسن      -> مساعد المدير التنفيذي لمركز عمليات المختبرات
-
-مهمتك: تحليل مهام مركز عمليات المختبرات وإنتاج تقرير إدارة مهام مختصر ودقيق يمكّن د. منار سمان من اتخاذ القرارات مباشرة وتصعيد ما يستوجب ذلك لد. مرام العتيبي أو مساعد الوزير.
-
-CRITICAL:
-- كل بند يذكر اسم المهمة الفعلي أو اسم الشخص بالتحديد — لا عبارات عامة
-- جميع الأرقام بالأرقام الغربية (0-9) فقط — ممنوع استخدام الأرقام الشرقية (٠-٩)
-- الجمل مختصرة لا تتجاوز 15 كلمة
-- اليوم الحالي يُمرَّر في أول سطر من البيانات بصيغة today=YYYY-MM-DD
-- حقل ca في البيانات = تاريخ إكمال المهمة (YYYY-MM-DD)، فارغ إذا لم تُكتمل بعد
-
-أرجع JSON بهذا الشكل (بدون أي نص خارج JSON):
-{
-  "title": "تقرير إدارة المهام",
-  "kpis": [
-    { "label": "إجمالي المهام",     "value": 25,    "icon": "📋", "color": "blue"   },
-    { "label": "متأخرة",            "value": 3,     "icon": "⚡", "color": "red"    },
-    { "label": "قاربت على التأخر", "value": 2,     "icon": "⚠️", "color": "yellow" },
-    { "label": "على المسار",        "value": 7,     "icon": "✅", "color": "green"  }
-  ],
-  "matrix": {
-    "urgentImportant":    { "count": 3, "items": ["3-6 كلمات من عنوان المهمة", "عنوان ثانٍ"] },
-    "importantNotUrgent": { "count": 2, "items": ["3-6 كلمات من عنوان المهمة"] },
-    "urgentNotImportant": { "count": 1, "items": ["3-6 كلمات من عنوان المهمة"] },
-    "other":              { "count": 4, "items": ["3-6 كلمات من عنوان المهمة"] }
-  },
-  "overview": [
-    "جملة واحدة ≤15 كلمة تذكر رقماً ومهمة أو شخصاً بالاسم",
-    "جملة ثانية ≤15 كلمة عن أبرز خطر أو تأخير بالاسم والتاريخ"
-  ],
-  "accomplishments": [
-    "3-6 كلمات من عنوان مهمة مكتملة حديثاً (d=1)"
-  ],
-  "projectBreakdown": [
-    {
-      "category": "اسم المشروع/المجلد الفعلي من حقل f",
-      "total": 6,
-      "done": 3,
-      "completed": ["3-6 كلمات من عنوان مكتملة", "عنوان ثانٍ"],
-      "pending": ["3-6 كلمات من عنوان معلقة", "عنوان ثانٍ"]
-    }
-  ],
-  "peopleStatus": [
-    {
-      "name": "اسم الشخص الفعلي",
-      "completedCount": 2,
-      "totalCount": 7,
-      "overdueTasks": ["3-6 كلمات من عنوان متأخرة"],
-      "nearDueTasks": ["3-6 كلمات من عنوان قاربت"],
-      "activeTasks":  ["3-6 كلمات من عنوان جارية"],
-      "overdueCount": 1
-    }
-  ],
-  "actionItems": [
-    {
-      "task": "3-6 كلمات من عنوان المهمة",
-      "owner": "اسم المالك",
-      "reason": "سبب محدد ≤10 كلمات",
-      "priority": "urgent"
-    }
-  ],
-  "recommendations": [
-    "توصية PMO مختصرة ≤20 كلمة مبنية على بيانات المختبرات الفعلية"
-  ]
-}
-
-قواعد الحساب (صارمة):
-- kpis[0].value = إجمالي عدد المهام (مكتملة + غير مكتملة)
-- kpis[1].value = عدد المهام التي due < today وd=0
-- kpis[2].value = عدد المهام التي today ≤ due ≤ today+2 وd=0
-- kpis[3].value = عدد المهام التي d=1
-- matrix: urgentImportant(p=urgent,d=0) / importantNotUrgent(p=medium,d=0) / urgentNotImportant(p=low,due≤today+2,d=0) / other
-
-قواعد المحتوى (لا تخالفها):
-- overview: جملتان مختصرتان (≤15 كلمة كل منهما) بأسماء وأرقام فعلية من البيانات
-- accomplishments: أبرز 3-6 مهام مكتملة (d=1)، رتّبها حسب ca تنازلياً (الأحدث أولاً)، إن لم يوجد ca أدرج أي مهام مكتملة — إذا لم توجد مهام مكتملة أرجع []
-- projectBreakdown: اجمع حسب حقل f (اسم المشروع)، إن كان f فارغاً استخدم c، سجّل كل مجموعة فيها مهمتان فأكثر
-- peopleStatus: اجمع حسب (w)، تجاهل w=''، رتّب الأشخاص تنازلياً حسب overdueCount
-  - completedCount: عدد مهام الشخص التي d=1
-  - totalCount: إجمالي مهام الشخص (d=0 + d=1)
-  - overdueTasks: مهام due < today وd=0
-  - nearDueTasks: مهام today ≤ due ≤ today+2 وd=0
-  - activeTasks: مهام d=0 غير المتأخرة وغير القريبة
-- actionItems: 3-5 مهام تحتاج قرار القيادة، أولويتها urgent أو medium فقط
-- recommendations: 3 توصيات PMO (≤20 كلمة) مبنية على واقع المهام الفعلي
-- items في matrix وكل عناوين المهام: 3-6 كلمات فعلية من عنوان المهمة، لا عبارات عامة
-- جميع الأرقام غربية (0-9) بدون استثناء
-- جميع النصوص بالعربية الفصحى
-أرجع JSON فقط بدون \`\`\`json`
-
-// أسماء صاحبة التقرير — تُحذف من المهام المشتركة حتى لا تظهر في قسم الفريق
 const REPORT_OWNER_PATTERNS = ['منار', 'د. منار', 'منار سمان', 'د. منار سمان']
 
 function stripOwnerFromPerson(personStr) {
   if (!personStr) return ''
   const parts = personStr.split(/[،,]/).map(p => p.trim()).filter(Boolean)
   if (parts.length <= 1) return personStr   
-  const filtered = parts.filter(p =>
-    !REPORT_OWNER_PATTERNS.some(pat => p.includes(pat))
-  )
+  const filtered = parts.filter(p => !REPORT_OWNER_PATTERNS.some(pat => p.includes(pat)))
   return filtered.length > 0 ? filtered.join('، ') : personStr
 }
 
 export async function generateVisualSummary(apiKey, tasks) {
   const today = new Date().toISOString().slice(0, 10)
   const slim = tasks.map(t => ({
-    t: t.title,
-    p: t.priority,
-    c: t.category,
-    f: t.projectName || '',
-    w: stripOwnerFromPerson(t.person || ''),
-    d: t.done ? 1 : 0,
-    due: t.dueDate || '',
+    t: t.title, p: t.priority, c: t.category, f: t.projectName || '',
+    w: stripOwnerFromPerson(t.person || ''), d: t.done ? 1 : 0, due: t.dueDate || '',
     ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
   
@@ -374,23 +159,17 @@ export async function generateVisualSummary(apiKey, tasks) {
   const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-1.5-pro');
   
   try {
-     const text = raw.replace(/```json/g, '').replace(/```/g, '');
-     return JSON.parse(text);
+     return JSON.parse(raw.replace(/```json/g, '').replace(/```/g, ''));
   } catch (error) {
-     console.error("Error parsing visual summary:", error);
      throw new Error("فشل في استخراج التقرير المرئي.");
   }
 }
 
 export async function reviewByTaskExpert(apiKey, promptText) {
-  const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). 
-  قم بمراجعة المهام المعطاة وقدم ملاحظات احترافية ومختصرة لتحسين سير العمل وتحديد الأولويات.`;
-  
+  const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). قدم ملاحظات احترافية ومختصرة.`;
   try {
-     const text = await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-1.5-pro');
-     return text;
+     return await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-1.5-pro');
   } catch (error) {
-     console.error("Error in reviewByTaskExpert:", error);
      return "تعذر إكمال مراجعة الخبير في الوقت الحالي.";
   }
 }
