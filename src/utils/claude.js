@@ -384,3 +384,18 @@ export async function generateVisualSummary(apiKey, tasks) {
      throw new Error("فشل في استخراج التقرير المرئي.");
   }
 }
+
+// تمت إضافة هذه الدالة لحل مشكلة Vercel ولتعمل مراجعة الخبير عبر جيميناي
+export async function reviewByTaskExpert(apiKey, promptText) {
+  const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). 
+  قم بمراجعة المهام المعطاة وقدم ملاحظات احترافية ومختصرة لتحسين سير العمل وتحديد الأولويات.`;
+  
+  try {
+     // نستخدم دالة callClaude المعدلة التي تنادي جيميناي 1.5 برو للتحليل المعقد
+     const text = await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-1.5-pro');
+     return text;
+  } catch (error) {
+     console.error("Error in reviewByTaskExpert:", error);
+     return "تعذر إكمال مراجعة الخبير في الوقت الحالي.";
+  }
+}
