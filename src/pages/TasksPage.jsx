@@ -283,7 +283,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   function exportExcel() {
     try {
-      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task title','Task description','What\'s Done','Type','Due date','Completion %', 'First Owner']
+      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task Title','Task Description','What\'s Done','Type','Due Date','Completion %', 'First Owner']
       const dataToExport = tasks.map(t => {
         let finalDueDate = t.dueDate;
         if (!finalDueDate) {
@@ -359,7 +359,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       } else {
         for (const name of workbook.SheetNames) {
           const tempRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { defval: '' })
-          if (tempRows.length > 0 && (tempRows[0]['Task Description'] !== undefined || tempRows[0]['Task Title'] !== undefined || tempRows[0]['Task description'] !== undefined)) {
+          if (tempRows.length > 0) {
             targetRows = tempRows
             break
           }
@@ -373,31 +373,45 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
       let added = 0, updated = 0
 
-      for (const row of targetRows) {
-        const title = (row['Task Description'] || row['Task description'] || '').trim()
+      for (const rawRow of targetRows) {
+        // خطوة التنظيف الذكية: تحويل كل أسماء الأعمدة لسمول وإزالة المسافات
+        const row = {};
+        for (const key in rawRow) {
+          if (Object.prototype.hasOwnProperty.call(rawRow, key)) {
+            row[key.trim().toLowerCase()] = rawRow[key];
+          }
+        }
+
+        // قراءة البيانات من المفاتيح المنظفة
+        const title = (row['task description'] || row['عنوان المهمة'] || '').toString().trim()
         if (!title) continue
 
-        const completion = row['Completion %']
-        const status = row['Status'] || row['الحالة']
+        const completion = row['completion %'] || row['نسبة الإنجاز']
+        const status = (row['status'] || row['الحالة'] || '').toString().toLowerCase()
         const done = (typeof completion === 'number' && completion >= 1) ||
                      (typeof completion === 'string' && completion.includes('100')) ||
-                     (status === 'Completed' || status === 'مكتملة');
+                     (status === 'completed' || status === 'مكتملة');
 
-        const sourceTitle = (row['Task Title'] || row['Task title'] || '').trim();
-        const sourceType  = (row['Channel'] || row['channel'] || '').trim();
-        const person      = (row['First Owner'] || row['first owner'] || row['Owner'] || '').trim();
-        const projectName = (row['Type'] || row['type'] || '').trim();
-        const closeNote   = (row["What's Done"] || row["what's done"] || '').trim();
-        const dueDate     = parseExcelDate(row['Due Date'] || row['Due date']);
-
-        const updateData = { done };
+        const sourceTitle = (row['task title'] || row['عنوان المصدر'] || '').toString().trim();
+        const sourceType  = (row['channel'] || row['مصدر المهمة'] || '').toString().trim();
+        const person      = (row['first owner'] || row['owner'] || row['الشخص المسؤول'] || '').toString().trim();
+        const projectName = (row['type'] || row['نوع المهمة'] || row['المشروع'] || '').toString().trim();
+        const closeNote   = (row["what's done"] || row['ملاحظات الإنجاز'] || '').toString().trim();
         
-        if (sourceTitle) updateData.sourceTitle = sourceTitle;
-        if (sourceType)  updateData.sourceType = sourceType;
-        if (person)      updateData.person = person;
-        if (projectName) updateData.projectName = projectName;
-        if (closeNote)   updateData.closeNote = closeNote;
-        if (dueDate)     updateData.dueDate = dueDate;
+        let dueDate = '';
+        if (row['due date']) dueDate = parseExcelDate(row['due date']);
+        else if (row['تاريخ الاستحقاق']) dueDate = parseExcelDate(row['تاريخ الاستحقاق']);
+
+        // تحديث إجباري وشامل للبيانات
+        const updateData = { 
+          done,
+          sourceTitle,
+          sourceType,
+          person,
+          projectName,
+          closeNote,
+          dueDate
+        };
 
         const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
 
@@ -408,13 +422,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           await dbAddTask({
             title,
             priority: 'medium',
-            sourceTitle: sourceTitle || '',
-            sourceType: sourceType || '',
-            person: person || '',
-            projectName: projectName || '',
-            closeNote: closeNote || '',
-            dueDate: dueDate || '',
-            done
+            ...updateData
           })
           added++
         }
