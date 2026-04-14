@@ -175,7 +175,7 @@ function AppShell() {
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
     ...(!isUser ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []), // تظهر فقط للمدير والمشرف
     { id: 'contacts',label: 'جهات',   icon: '👥' },
-    { id: 'reports', label: 'تقرير',  icon: '📊' },
+        ...(isAdmin ? [{ id: 'reports', label: 'تقرير',  icon: '📊' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
   ]
 
