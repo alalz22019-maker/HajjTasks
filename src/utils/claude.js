@@ -1,4 +1,6 @@
-const API_URL = 'https://api.anthropic.com/v1/messages'
+// تم تغيير الرابط ليتوافق مع واجهة Google Gemini API
+const getGeminiUrl = (modelName, apiKey) => 
+  `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
 // تطبيع النص العربي: توحيد الألفات والهمزات والتاء المربوطة وإزالة التشكيل
 function normalizeAr(s) {
@@ -6,16 +8,16 @@ function normalizeAr(s) {
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
-    .replace(/[أإآٱ]/g, 'ا')          // توحيد الألف
-    .replace(/ة/g, 'ه')               // تاء مربوطة → هاء
-    .replace(/[\u064B-\u065F\u0670]/g, '') // إزالة التشكيل
-    .replace(/\u0640/g, '')            // إزالة التطويل (كشيدة)
-    .replace(/ى/g, 'ي')               // ألف مقصورة → ياء
-    .replace(/ؤ/g, 'و')               // واو بهمزة
-    .replace(/ئ/g, 'ي')               // ياء بهمزة
+    .replace(/[أإآٱ]/g, 'ا')          
+    .replace(/ة/g, 'ه')               
+    .replace(/[\u064B-\u065F\u0670]/g, '') 
+    .replace(/\u0640/g, '')            
+    .replace(/ى/g, 'ي')               
+    .replace(/ؤ/g, 'و')               
+    .replace(/ئ/g, 'ي')               
 }
 
-// نسبة التشابه بين عنوانين عبر Jaccard على مستوى الكلمات (يتجاهل كلمات < 3 أحرف)
+// نسبة التشابه بين عنوانين عبر Jaccard على مستوى الكلمات
 function wordSimilarity(a, b) {
   const words = s => new Set(s.split(' ').filter(w => w.length >= 3))
   const A = words(a), B = words(b)
@@ -25,7 +27,7 @@ function wordSimilarity(a, b) {
   return inter / (A.size + B.size - inter)
 }
 
-// إيجاد المهمة المشابهة من القائمة الموجودة (تُرجع المهمة أو null)
+// إيجاد المهمة المشابهة من القائمة الموجودة 
 export function findDuplicateTask(newTitle, existingTasks) {
   const n = normalizeAr(newTitle)
   if (!n) return null
@@ -33,10 +35,8 @@ export function findDuplicateTask(newTitle, existingTasks) {
     const e = normalizeAr(t.title)
     if (!e) return false
     if (e === n) return true
-    // تحقق من احتواء أحدهما الآخر (حد أدنى 15 حرف بعد التطبيع)
     if (n.length >= 15 && e.includes(n)) return true
     if (e.length >= 15 && n.includes(e)) return true
-    // تشابه الكلمات ≥ 72% → مكرر
     if (wordSimilarity(n, e) >= 0.72) return true
     return false
   }) || null
@@ -46,28 +46,30 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
+// تم الاحتفاظ بالاسم القديم لتجنب تعديل باقي ملفات التطبيق
 export async function callClaudeChat(apiKey, systemPrompt, messages) {
-  const res = await fetch(API_URL, {
+  // تحويل صيغة المحادثات لتتوافق مع Gemini
+  const geminiMessages = messages.map(m => ({
+    role: m.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: m.content }]
+  }));
+
+  const url = getGeminiUrl('gemini-1.5-flash', apiKey);
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: systemPrompt,
-      messages,
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: geminiMessages,
     }),
-  })
+  });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
     throw new Error(translateApiError(res.status, err?.error?.message))
   }
   const data = await res.json()
-  return data.content?.[0]?.text || ''
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
 export function buildSmartChatSystem(activeTasks) {
@@ -127,33 +129,27 @@ ${summary}
 
 function translateApiError(status, msg) {
   const m = (msg || '').toLowerCase()
-  if (status === 401 || m.includes('api key') || m.includes('authentication'))
-    return 'مفتاح API غير صحيح أو منتهي الصلاحية — تحقق من المفتاح في الإعدادات'
-  if (m.includes('credit') || m.includes('balance') || status === 402)
-    return 'رصيد API منتهٍ — يرجى إعادة شحن الحساب على موقع Anthropic'
-  if (status === 429 || m.includes('rate limit'))
-    return 'تجاوزت الحد المسموح من الطلبات — انتظر قليلاً ثم أعد المحاولة'
-  if (status === 529 || m.includes('overloaded'))
-    return 'خوادم Claude مشغولة حالياً — أعد المحاولة بعد دقيقة'
-  return msg || `خطأ من API (${status})`
+  if (status === 400) return 'طلب غير صالح، يرجى التحقق من المدخلات.'
+  if (status === 403 || m.includes('api key')) return 'مفتاح API غير صحيح أو غير مفعل.'
+  if (status === 429 || m.includes('quota')) return 'تم تجاوز الحد المسموح للاستخدام المجاني، يرجى الانتظار قليلاً.'
+  if (status === 500) return 'خوادم جوجل مشغولة حالياً، حاول مرة أخرى.'
+  return msg || \`خطأ من API (\${status})\`
 }
 
-export async function callClaude(apiKey, systemPrompt, userContent, model = 'claude-haiku-4-5-20251001') {
-  const res = await fetch(API_URL, {
+// تم الاحتفاظ بالاسم القديم لتجنب تعديل باقي ملفات التطبيق
+export async function callClaude(apiKey, systemPrompt, userContent, model = 'gemini-1.5-flash') {
+  // توجيه ذكي للموديلات: إذا كان الطلب القديم يطلب سونيت، نحوله لبرو الأقوى
+  let targetModel = model.includes('sonnet') || model === 'gemini-1.5-pro' ? 'gemini-1.5-pro' : 'gemini-1.5-flash';
+
+  const url = getGeminiUrl(targetModel, apiKey);
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userContent }],
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userContent }] }],
     }),
-  })
+  });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
@@ -161,7 +157,7 @@ export async function callClaude(apiKey, systemPrompt, userContent, model = 'cla
   }
 
   const data = await res.json()
-  return data.content?.[0]?.text || ''
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
 }
 
 export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج المهام من النصوص العربية والإنجليزية.
@@ -260,7 +256,7 @@ export const ANALYZE_TASK_SYSTEM = `أنت مساعد ذكي لتحليل الم
 أرجع JSON فقط بدون \`\`\`json أو أي نص إضافي`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
-  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle)
+  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-1.5-flash')
   try {
     return JSON.parse(text)
   } catch {
@@ -370,7 +366,7 @@ const REPORT_OWNER_PATTERNS = ['منار', 'د. منار', 'منار سمان', 
 function stripOwnerFromPerson(personStr) {
   if (!personStr) return ''
   const parts = personStr.split(/[،,]/).map(p => p.trim()).filter(Boolean)
-  if (parts.length <= 1) return personStr   // شخص واحد فقط → لا تغيير
+  if (parts.length <= 1) return personStr   
   const filtered = parts.filter(p =>
     !REPORT_OWNER_PATTERNS.some(pat => p.includes(pat))
   )
@@ -389,69 +385,11 @@ export async function generateVisualSummary(apiKey, tasks) {
     due: t.dueDate || '',
     ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, `today=${today}\n${JSON.stringify(slim)}`, 'claude-sonnet-4-6')
-  // Strip markdown code fences if Claude wraps the JSON
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  try {
-    return JSON.parse(text)
-  } catch {
-    throw new Error('الرد غير صالح: ' + text.slice(0, 80))
-  }
-}
+  // تم تحويل الموديل إلى gemini-1.5-pro للحصول على تقرير ذكي وعميق
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, \`today=\${today}\n\${JSON.stringify(slim)}\`, 'gemini-1.5-pro')
+  const text = raw.replace(/^
+http://googleusercontent.com/immersive_entry_chip/0
+http://googleusercontent.com/immersive_entry_chip/1
+http://googleusercontent.com/immersive_entry_chip/2
 
-/* ─── خبير إدارة المهام ─────────────────────────────────────────────── */
-const TASK_EXPERT_SYSTEM = `أنت خبير متخصص في مراجعة وتدقيق تقارير إدارة المهام الحكومية.
-
-مهمتك: مراجعة التقرير المُولَّد ومقارنته بالبيانات الفعلية، وتصحيح الأخطاء دون اختراع معلومات.
-
-راجع وصحح:
-1. الأشخاص (w): تحقق أن كل اسم في peopleStatus وactionItems موجود فعلاً في البيانات
-2. الأولويات: KPIs[1] = مهام d=0 وdue < today فقط — احسب بنفسك
-3. مصفوفة الأولوية (matrix): تحقق أن كل مهمة في القسم الصحيح بناءً على (p وd وdue)
-4. الأرقام: تحقق أن count في كل قسم يطابق items.length
-5. العناوين: تحقق أن 3-6 كلمات من العنوان الفعلي في البيانات (t)
-
-قواعد صارمة:
-- لا تُضف أشخاصاً غير موجودين في البيانات
-- لا تغير الأرقام إلا إذا كانت خاطئة بناءً على حساب فعلي
-- أرجع JSON بنفس الهيكل بالضبط (بدون أي نص خارجه)`
-
-export async function reviewByTaskExpert(apiKey, reportJson, tasks) {
-  const today = new Date().toISOString().slice(0, 10)
-  const slim = tasks.map(t => ({
-    t: t.title, p: t.priority, w: stripOwnerFromPerson(t.person || ''),
-    d: t.done ? 1 : 0, due: t.dueDate || '', f: t.projectName || '',
-    ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
-  }))
-  const prompt = `today=${today}\nبيانات المهام:\n${JSON.stringify(slim)}\n\nالتقرير للمراجعة:\n${JSON.stringify(reportJson)}`
-  const raw  = await callClaude(apiKey, TASK_EXPERT_SYSTEM, prompt, 'claude-sonnet-4-6')
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  try { return JSON.parse(text) }
-  catch { return reportJson } // إذا فشل التحليل أرجع الأصل
-}
-
-/* ─── مدقق اللغة العربية ────────────────────────────────────────────── */
-const LANGUAGE_EXPERT_SYSTEM = `أنت خبير مدقق لغوي متخصص في العربية الفصحى الإدارية الحكومية السعودية.
-
-مهمتك: مراجعة نصوص التقرير وتصحيح الأخطاء اللغوية مع الحفاظ التام على بنية JSON والقيم الرقمية.
-
-راجع وصحح في حقول النص فقط:
-1. الأخطاء الإملائية والنحوية
-2. الصياغة: استخدم مصطلحات إدارية رسمية مناسبة
-3. الاتساق: وحّد المصطلحات عبر التقرير
-4. الإيجاز: لا تتجاوز 15 كلمة في كل جملة
-5. المصدرية: حوّل العبارات العامية أو غير الرسمية للفصحى
-
-قواعد صارمة:
-- لا تغير أي قيمة رقمية
-- لا تغير أسماء الأشخاص
-- لا تغير مفاتيح JSON
-- الأرقام الغربية (0-9) فقط
-- أرجع JSON بنفس الهيكل بالضبط (بدون أي نص خارجه)`
-
-export async function reviewByLanguageExpert(apiKey, reportJson) {
-  const raw  = await callClaude(apiKey, LANGUAGE_EXPERT_SYSTEM, JSON.stringify(reportJson), 'claude-sonnet-4-6')
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
-  try { return JSON.parse(text) }
-  catch { return reportJson } // إذا فشل التحليل أرجع الأصل
-}
+الحين خذ راحتك، جيب مفتاح API من AI Studio، حطه في التطبيق، واستمتع بالسرعة الخرافية بدون ما تشيل هم الفواتير!
