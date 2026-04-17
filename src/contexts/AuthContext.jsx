@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signInWithPopup, signInWithEmailAndPassword, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../firebase'
 
@@ -11,6 +11,13 @@ export function AuthProvider({ children }) {
   const [authError, setAuthError]       = useState('')
 
   useEffect(() => {
+    // Handle redirect result (for iOS PWA + Staging domains)
+    getRedirectResult(auth).catch(e => {
+      if (e.code !== 'auth/popup-closed-by-user') {
+        console.error('Redirect error:', e)
+      }
+    })
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (!fbUser) {
         setFirebaseUser(null)
@@ -72,10 +79,18 @@ export function AuthProvider({ children }) {
   async function loginWithGoogle() {
     setAuthError('')
     try {
+      // Try popup first (works on desktop browsers)
       await signInWithPopup(auth, googleProvider)
     } catch (e) {
-      if (e.code !== 'auth/popup-closed-by-user') {
-        setAuthError('فشل تسجيل الدخول. حاول مجدداً.')
+      if (e.code === 'auth/popup-blocked' || e.code === 'auth/unauthorized-domain' || e.code === 'auth/operation-not-supported-in-this-environment') {
+        // Fallback to redirect (works on iOS PWA + unauthorized domains)
+        try {
+          await signInWithRedirect(auth, googleProvider)
+        } catch (redirectErr) {
+          setAuthError('فشل تسجيل الدخول. حاول بالإيميل وكلمة المرور.')
+        }
+      } else if (e.code !== 'auth/popup-closed-by-user') {
+        setAuthError('فشل تسجيل الدخول. حاول بالإيميل وكلمة المرور.')
       }
     }
   }
