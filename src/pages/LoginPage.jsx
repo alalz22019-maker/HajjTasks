@@ -46,13 +46,15 @@ export default function LoginPage() {
           const querySnapshot = await getDocs(collection(db, 'users'))
           const takenNames = querySnapshot.docs.map(doc => doc.data().name)
           
-          const available = INITIAL_TEAM_MAP.filter(item => {
-            // Allow the current user to reclaim their name even if taken by old UID
-            const existingDoc = querySnapshot.docs.find(doc => doc.data().name === item.name)
-            if (!existingDoc) return true // name not taken
-            if (existingDoc.data().email === firebaseUser.email) return true // same email = reclaim
-            return false
-          })
+          const ADMIN_EMAILS = ['alalz22019@gmail.com']
+          let available
+          if (ADMIN_EMAILS.includes(firebaseUser.email)) {
+            // Admin can pick any name
+            available = INITIAL_TEAM_MAP
+          } else {
+            const takenNames = querySnapshot.docs.map(doc => doc.data().name)
+            available = INITIAL_TEAM_MAP.filter(item => !takenNames.includes(item.name))
+          }
           setAvailableNames(available)
         } catch (error) {
           console.error("Error fetching users:", error)
