@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
+import MyDashboard from './pages/MyDashboard'
 import NotesPage from './pages/NotesPage'
 import UploadPage from './pages/UploadPage'
 import ContactsPage from './pages/ContactsPage'
@@ -17,7 +18,7 @@ import {
 
 function AppShell() {
   const { firebaseUser, userProfile, logout, isAdmin, isUser, loading } = useAuth()
-  const [page, setPage]   = useState('tasks')
+  const [page, setPage]   = useState('dashboard')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
@@ -171,6 +172,7 @@ function AppShell() {
 
   /* ── Build nav ── */
   const NAV = [
+    { id: 'dashboard', label: 'لوحتي', icon: '🏠' },
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
     ...(!isUser ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []), // تظهر فقط للمدير والمشرف
@@ -214,6 +216,13 @@ function AppShell() {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {page === 'dashboard' && (
+          <MyDashboard
+            tasks={tasks}
+            showToast={showToast}
+            onNavigate={setPage}
+          />
+        )}
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
