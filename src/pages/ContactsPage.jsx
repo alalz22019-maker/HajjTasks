@@ -28,7 +28,9 @@ function applyMerge(tasks, selectedNames, canonical) {
   })
 }
 
-export default function ContactsPage({ contacts, tasks, setTasks, showToast }) {
+import { updateTask as dbUpdateTask } from '../utils/db'
+
+export default function ContactsPage({ contacts, tasks, showToast }) {
   const { isUser } = useAuth() // 🔴 جلب صلاحية الموظف
 
   const [mergeOpen, setMergeOpen]     = useState(false)
@@ -48,11 +50,20 @@ export default function ContactsPage({ contacts, tasks, setTasks, showToast }) {
     })
   }
 
-  function doMerge() {
+  async function doMerge() {
     if (selected.size < 2 || !canonical.trim()) return
     const updated = applyMerge(tasks, [...selected], canonical.trim())
-    setTasks(updated)
-    showToast(`✓ تم دمج ${selected.size} أسماء في "${canonical.trim()}"`)
+    try {
+      for (const t of updated) {
+        const orig = tasks.find(o => o.id === t.id)
+        if (orig && orig.person !== t.person) {
+          await dbUpdateTask(t.id, { person: t.person })
+        }
+      }
+      showToast(`✓ تم دمج ${selected.size} أسماء في "${canonical.trim()}"`)
+    } catch (e) {
+      showToast('❌ خطأ في الدمج')
+    }
     setSelected(new Set())
     setCanonical('')
     setMergeOpen(false)

@@ -683,7 +683,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       {showForm && (
         <TaskForm 
           onClose={() => setShowForm(false)} 
-          onSubmit={addTask} 
+          onSave={addTask} 
         />
       )}
 
@@ -691,7 +691,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <TaskForm 
           task={editTask} 
           onClose={() => setEditTask(null)} 
-          onSubmit={updateTaskHandler} 
+          onSave={updateTaskHandler} 
         />
       )}
 

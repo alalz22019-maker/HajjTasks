@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { deduplicateTasks } from '../utils/dedup'
+import { addTask as dbAddTask } from '../utils/db'
 import PullToRefresh from '../components/PullToRefresh'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
 }
 
-export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToast }) {
+export default function NotesPage({ tasks, apiKey, setApiKey, showToast }) {
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
   const [extracted, setExtracted] = useState([])
@@ -28,25 +29,28 @@ export default function NotesPage({ tasks, setTasks, apiKey, setApiKey, showToas
     }
   }
 
-  function addAll() {
+  async function addAll() {
     const allNew = extracted.map(t => ({
       ...t,
-      id: genId(),
       done: false,
-      createdAt: Date.now(),
       subcategory: t.subcategory || 'other',
       recurrence: t.recurrence || '',
       reminderTime: '',
+      taskType: 'task',
     }))
     const newTasks = deduplicateTasks(allNew, tasks)
     const skipped = allNew.length - newTasks.length
-    setTasks([...newTasks, ...tasks])
-    setExtracted([])
-    setText('')
-    if (newTasks.length === 0) {
-      showToast('⚠️ جميع المهام موجودة مسبقاً')
-    } else {
-      showToast(`✅ تمت إضافة ${newTasks.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+    try {
+      for (const t of newTasks) await dbAddTask(t)
+      setExtracted([])
+      setText('')
+      if (newTasks.length === 0) {
+        showToast('⚠️ جميع المهام موجودة مسبقاً')
+      } else {
+        showToast(`✅ تمت إضافة ${newTasks.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+      }
+    } catch (e) {
+      showToast('❌ خطأ في الإضافة')
     }
   }
 

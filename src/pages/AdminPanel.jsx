@@ -391,7 +391,7 @@ function RequestCard({ req, loading, onApprove, onReject, formatTs }) {
           onClick={onApprove}
           disabled={loading}
           style={{
-            flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+            flex: 1, padding: '10px', borderRadius: 10,
             background: loading ? 'var(--bg3)' : 'rgba(16,185,129,0.15)',
             color: '#10b981', fontSize: 13, fontWeight: 700,
             cursor: loading ? 'default' : 'pointer', fontFamily: 'var(--font)',
