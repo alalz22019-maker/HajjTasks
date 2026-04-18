@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
@@ -97,6 +97,18 @@ function AppShell() {
   }
 
   const contacts = deriveContacts(tasks)
+
+  // Notifications: overdue tasks + pending requests
+  const overdueTasks = useMemo(() => {
+    const today = new Date(); today.setHours(0,0,0,0)
+    return tasks.filter(t => {
+      if (t.done || !t.dueDate) return false
+      const d = new Date(t.dueDate); d.setHours(0,0,0,0)
+      return d < today
+    })
+  }, [tasks])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const notifCount = overdueTasks.length + pendingCount
 
   /* ── Loading splash ── */
   if (loading) {
@@ -208,11 +220,30 @@ function AppShell() {
             }}>{ROLE_LABEL[userProfile.role]}</span>
           </div>
         </div>
-        <button onClick={logout} style={{
-          background: 'var(--bg3)', border: '1px solid var(--border)',
-          borderRadius: 8, padding: '4px 10px',
-          color: 'var(--text2)', fontSize: 11, fontWeight: 600,
-        }}>خروج</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 🔔 Notification bell */}
+          <button onClick={() => setShowNotifications(s => !s)} style={{
+            background: 'var(--bg3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '4px 8px', position: 'relative',
+            color: 'var(--text2)', fontSize: 16, cursor: 'pointer',
+          }}>
+            🔔
+            {notifCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#ef4444', color: '#fff',
+                borderRadius: '50%', width: 16, height: 16,
+                fontSize: 9, fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{notifCount > 9 ? '9+' : notifCount}</span>
+            )}
+          </button>
+          <button onClick={logout} style={{
+            background: 'var(--bg3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '4px 10px',
+            color: 'var(--text2)', fontSize: 11, fontWeight: 600,
+          }}>خروج</button>
+        </div>
       </div>
 
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -283,6 +314,61 @@ function AppShell() {
           </button>
         ))}
       </nav>
+
+      {/* Notifications Panel */}
+      {showNotifications && (
+        <>
+          <div onClick={() => setShowNotifications(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+          <div style={{
+            position: 'fixed', top: 50, left: 16, right: 16, zIndex: 999,
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: 16, maxHeight: '60vh', overflowY: 'auto',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              🔔 التنبيهات
+              {notifCount > 0 && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{notifCount}</span>}
+            </div>
+
+            {overdueTasks.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--orange)', marginBottom: 6 }}>⚠️ مهام متأخرة ({overdueTasks.length})</div>
+                {overdueTasks.slice(0, 5).map(t => (
+                  <div key={t.id} style={{
+                    padding: '8px 10px', borderRadius: 10, marginBottom: 4,
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)',
+                    fontSize: 12, color: 'var(--text)',
+                  }}>
+                    <div style={{ fontWeight: 600 }}>{t.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                      📅 {t.dueDate} {t.person ? `• 👤 ${t.person}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {isAdmin && pendingCount > 0 && (
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📨 طلبات معلقة ({pendingCount})</div>
+                <button onClick={() => { setPage('admin'); setShowNotifications(false) }} style={{
+                  padding: '8px 14px', borderRadius: 10, width: '100%',
+                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
+                  color: 'var(--blue)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  عرض الطلبات في لوحة الإدارة →
+                </button>
+              </div>
+            )}
+
+            {notifCount === 0 && (
+              <div style={{ textAlign: 'center', padding: 20, color: 'var(--text3)', fontSize: 13 }}>
+                ✨ لا توجد تنبيهات
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

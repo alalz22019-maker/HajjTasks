@@ -1478,3 +1478,10 @@ select.form-input option {
 .bubble-person { font-size: 12px; color: var(--text2); margin-top: 2px; }
 .bubble-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .bubble-empty { font-size: 12px; color: var(--text3); text-align: center; padding: 8px 0; }
+
+/* ─── QuickAddMenu Animations ─── */
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes fadeOut { from { opacity: 1 } to { opacity: 0 } }
+@keyframes slideUp { from { transform: translateY(60px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+@keyframes slideDown { from { transform: translateY(0); opacity: 1 } to { transform: translateY(60px); opacity: 0 } }
+@keyframes pulse { 0%, 100% { transform: scale(1) } 50% { transform: scale(1.08) } }

@@ -29,27 +29,15 @@ const SOURCE_TYPES = [
   { value: 'minutes', label: 'محضر' },
   { value: 'directive', label: 'توجيه مباشر' },
   { value: 'email', label: 'إيميل' },
-  { value: 'system', label: 'نظام' },
-  { value: 'escalation', label: 'تصعيد' },
 ]
 
-const CATEGORIES = [
-  { value: '', label: '— بدون تصنيف —' },
-  { value: 'operations', label: '⚙️ عمليات تشغيلية' },
-  { value: 'quality', label: '✅ جودة ومطابقة' },
-  { value: 'coordination', label: '🤝 تنسيق وتواصل' },
-  { value: 'planning', label: '📋 تخطيط ومتابعة' },
-  { value: 'reports', label: '📊 تقارير وإحصائيات' },
-  { value: 'training', label: '📚 تدريب وتطوير' },
-  { value: 'procurement', label: '📦 تموين وإمداد' },
-  { value: 'technical', label: '🔧 دعم فني' },
-  { value: 'admin', label: '🏢 إدارية' },
-]
-
-const REPORT_STATUSES = [
-  { value: 'draft', label: 'مسودة' },
-  { value: 'review', label: 'قيد المراجعة' },
-  { value: 'submitted', label: 'مُسلّم' },
+export const STATUS_OPTIONS = [
+  { value: 'new',         label: 'جديدة',              color: '#6b7280' },
+  { value: 'studying',    label: 'قيد الدراسة',        color: '#8b5cf6' },
+  { value: 'in_progress', label: 'قيد التنفيذ',        color: '#3b82f6' },
+  { value: 'waiting',     label: 'بانتظار جهة خارجية', color: '#f59e0b' },
+  { value: 'review',      label: 'قيد المراجعة',       color: '#06b6d4' },
+  { value: 'done',        label: 'مكتملة',             color: '#10b981' },
 ]
 
 const TEAM_MEMBERS = [
@@ -63,15 +51,15 @@ const TEAM_MEMBERS = [
 const DEFAULT_TASK = {
   title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
   reminderTime: '', projectName: '', sourceType: '', sourceTitle: '', done: false,
-  taskType: 'task', category: '', reportStatus: '', closeNote: '',
+  taskType: 'task', status: 'new', closeNote: '',
 }
 
-export default function TaskForm({ task, onSave, onClose, apiKey }) {
+export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskType }) {
   const { isUser, userProfile } = useAuth()
   
   const [form, setForm] = useState(() => {
-    if (task) return { ...task, projectName: task.projectName || '' }
-    return { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '' }
+    if (task) return { ...task, projectName: task.projectName || '', status: task.status || (task.done ? 'done' : 'new') }
+    return { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '', taskType: defaultTaskType || 'task' }
   })
   
   const [saving, setSaving] = useState(false)
@@ -100,7 +88,13 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
   }, [])
 
   function set(field, value) {
-    setForm(f => ({ ...f, [field]: value }))
+    setForm(f => {
+      const updated = { ...f, [field]: value }
+      if (field === 'status') {
+        updated.done = value === 'done'
+      }
+      return updated
+    })
   }
 
   async function analyzeTask() {
@@ -133,6 +127,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
     setSaving(true)
     const finalForm = { ...form }
     if (isUser) finalForm.person = userProfile?.name || ''
+    finalForm.done = finalForm.status === 'done'
     onSave(finalForm, selectedSubTasks)
   }
 
@@ -140,7 +135,6 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
     <div 
       className="modal-overlay" 
       onClick={onClose}
-      /* 🔴 تطبيق الحماية للحواف والتوافق مع جميع الشاشات */
       style={{ 
         alignItems: 'flex-start', 
         paddingTop: 'env(safe-area-inset-top, 60px)',
@@ -191,23 +185,22 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
           </div>
         </div>
 
+        {/* حالة المهمة المتقدمة */}
         <div className="form-group">
-          <label className="form-label">التصنيف</label>
-          <select className="form-input" value={form.category || ''} onChange={e => set('category', e.target.value)}>
-            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        </div>
-
-        {form.taskType === 'report' && (
-          <div className="form-group">
-            <label className="form-label">حالة التقرير</label>
-            <div className="seg-control">
-              {REPORT_STATUSES.map(s => (
-                <button key={s.value} className={`seg-btn${form.reportStatus === s.value ? ' active' : ''}`} onClick={() => set('reportStatus', s.value)}>{s.label}</button>
-              ))}
-            </div>
+          <label className="form-label">حالة المهمة</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {STATUS_OPTIONS.map(s => (
+              <button key={s.value} onClick={() => set('status', s.value)} style={{
+                padding: '5px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                fontFamily: 'inherit', cursor: 'pointer',
+                border: form.status === s.value ? `2px solid ${s.color}` : '1px solid var(--border)',
+                background: form.status === s.value ? `${s.color}20` : 'var(--bg)',
+                color: form.status === s.value ? s.color : 'var(--text2)',
+                transition: 'all 0.15s',
+              }}>{s.label}</button>
+            ))}
           </div>
-        )}
+        </div>
 
         <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>

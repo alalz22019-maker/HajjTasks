@@ -58,6 +58,53 @@ function getMotivation(weekDone) {
   return { text: 'ابدأ يومك بإنجاز أول مهمة', icon: '🚀' }
 }
 
+/* ─── Streak calculation ────────────────────────── */
+function calcStreak(tasks, userName) {
+  const src = tasks.filter(t => t.done && t.completedAt && (!userName || (t.person && t.person.includes(userName))))
+  if (src.length === 0) return 0
+
+  // Group by date
+  const dateSet = new Set()
+  src.forEach(t => {
+    const d = new Date(t.completedAt)
+    dateSet.add(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)
+  })
+
+  let streak = 0
+  const check = new Date(TODAY)
+  // Check today first
+  const todayStr = `${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`
+  if (!dateSet.has(todayStr)) {
+    // Maybe streak ended yesterday, check from yesterday
+    check.setDate(check.getDate() - 1)
+  }
+  
+  while (true) {
+    const ds = `${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`
+    if (dateSet.has(ds)) {
+      streak++
+      check.setDate(check.getDate() - 1)
+    } else break
+  }
+  return streak
+}
+
+/* ─── Team ranking ──────────────────────────────── */
+function getTeamRanking(tasks) {
+  const map = {}
+  tasks.forEach(t => {
+    if (!t.person || !t.person.trim()) return
+    const name = t.person.trim()
+    if (!map[name]) map[name] = { name, total: 0, done: 0, weekDone: 0 }
+    map[name].total++
+    if (t.done) map[name].done++
+    if (completedThisWeek(t)) map[name].weekDone++
+  })
+  return Object.values(map)
+    .map(m => ({ ...m, pct: m.total ? Math.round((m.done / m.total) * 100) : 0 }))
+    .sort((a, b) => b.weekDone - a.weekDone || b.pct - a.pct)
+}
+
 /* ─── Routine tracking ─────────────────────────── */
 function getRoutineStats(tasks) {
   const routines = tasks.filter(t => t.recurrence && t.recurrence !== '')
@@ -67,7 +114,6 @@ function getRoutineStats(tasks) {
   return { routines, completed, total, pct }
 }
 
-/* ─── Report tasks detection ──────────────────── */
 function isReportTask(t) {
   if (t.taskType === 'report') return true
   const title = (t.title || '').toLowerCase()
@@ -77,20 +123,18 @@ function isReportTask(t) {
 
 /* ─── Component ────────────────────────────────── */
 export default function MyDashboard({ tasks, showToast, onNavigate }) {
-  const { userProfile } = useAuth()
+  const { userProfile, isAdmin } = useAuth()
   const userName = userProfile?.name || 'مستخدم'
   const firstName = userName.split(' ').pop() || userName
 
   const [activeSection, setActiveSection] = useState('overview')
 
-  // Filter tasks for current user
   const myTasks = useMemo(() => 
     tasks.filter(t => t.person && t.person.includes(userName))
   , [tasks, userName])
 
-  const allTasks = tasks // for admin view
+  const allTasks = tasks
 
-  // Stats
   const stats = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     const total = src.length
@@ -107,9 +151,14 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
   }, [myTasks, allTasks])
 
   const motivation = getMotivation(stats.weekDone)
+  const streak = useMemo(() => calcStreak(tasks, userName), [tasks, userName])
+  const teamRanking = useMemo(() => getTeamRanking(allTasks), [allTasks])
+  const myRank = useMemo(() => {
+    const idx = teamRanking.findIndex(m => userName.includes(m.name) || m.name.includes(userName))
+    return idx >= 0 ? idx + 1 : null
+  }, [teamRanking, userName])
   const routine = useMemo(() => getRoutineStats(myTasks.length > 0 ? myTasks : allTasks), [myTasks, allTasks])
 
-  // Today's agenda
   const todayAgenda = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     return src
@@ -122,13 +171,11 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
       .slice(0, 8)
   }, [myTasks, allTasks])
 
-  // Overdue tasks
   const overdueTasks = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     return src.filter(isOverdue).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 5)
   }, [myTasks, allTasks])
 
-  // Recent completions
   const recentDone = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     return src.filter(completedThisWeek)
@@ -136,13 +183,11 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
       .slice(0, 5)
   }, [myTasks, allTasks])
 
-  // Report tasks
   const reportTasks = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     return src.filter(isReportTask).slice(0, 5)
   }, [myTasks, allTasks])
 
-  // Projects breakdown
   const projects = useMemo(() => {
     const src = myTasks.length > 0 ? myTasks : allTasks
     const map = {}
@@ -161,10 +206,12 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
   const SECTIONS = [
     { id: 'overview', label: 'نظرة عامة', icon: '📊' },
     { id: 'today',    label: 'اليوم',     icon: '📅' },
+    { id: 'streak',   label: 'الإنجاز',   icon: '🔥' },
     { id: 'routine',  label: 'الروتين',   icon: '🔄' },
-    { id: 'reports',  label: 'التقارير',  icon: '📋' },
     { id: 'projects', label: 'المشاريع',  icon: '📁' },
   ]
+
+  const RANK_MEDALS = ['🥇','🥈','🥉']
 
   return (
     <PullToRefresh onRefresh={() => showToast('✓ محدّث')}>
@@ -176,6 +223,17 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
             </div>
             <div className="header-sub">{motivation.text}</div>
           </div>
+          {/* Streak badge */}
+          {streak > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: 20,
+              background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)',
+            }}>
+              <span style={{ fontSize: 16 }}>🔥</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b' }}>{streak}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -238,7 +296,6 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
         {/* ─── Overview Section ─── */}
         {activeSection === 'overview' && (
           <div style={{ padding: '0 16px' }}>
-            {/* Today's Agenda */}
             <SectionHeader icon="📅" title="أجندة اليوم" count={todayAgenda.length} />
             {todayAgenda.length === 0 ? (
               <EmptyState text="لا توجد مهام مستحقة اليوم" icon="✨" />
@@ -248,7 +305,6 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
               </div>
             )}
 
-            {/* Overdue */}
             {overdueTasks.length > 0 && (
               <>
                 <SectionHeader icon="⚠️" title="متأخرة" count={overdueTasks.length} color="var(--orange)" />
@@ -258,7 +314,6 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
               </>
             )}
 
-            {/* Recent Done */}
             {recentDone.length > 0 && (
               <>
                 <SectionHeader icon="✅" title="آخر الإنجازات" count={stats.weekDone} color="var(--green)" />
@@ -308,33 +363,7 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
               )}
             </div>
 
-            {/* Week ahead */}
             <SectionHeader icon="📆" title="هذا الأسبوع" count={stats.weekDue} />
-
-            {/* Today's meetings */}
-            {(() => {
-              const src = myTasks.length > 0 ? myTasks : allTasks
-              const meetings = src.filter(t => t.taskType === 'meeting' && !t.done && (isToday(t.dueDate) || isThisWeek(t.dueDate)))
-              if (meetings.length === 0) return null
-              return (
-                <>
-                  <SectionHeader icon="🗓" title="الاجتماعات القادمة" count={meetings.length} color="var(--purple-light)" />
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
-                    {meetings.map(t => (
-                      <div key={t.id} style={{
-                        padding: '10px 14px', borderRadius: 12,
-                        background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
-                      }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>🗓 {t.title}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                          {t.meetingTime ? `⏰ ${t.meetingTime}` : ''} {t.dueDate ? `📅 ${formatDate(t.dueDate)}` : ''} {t.person ? `👤 ${t.person.split('/')[0].trim()}` : ''}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )
-            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
               {(myTasks.length > 0 ? myTasks : allTasks)
                 .filter(t => !t.done && isThisWeek(t.dueDate) && !isToday(t.dueDate))
@@ -345,12 +374,64 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
           </div>
         )}
 
+        {/* ─── Streak + Team Ranking Section ─── */}
+        {activeSection === 'streak' && (
+          <div style={{ padding: '0 16px' }}>
+            {/* Streak card */}
+            <div style={{
+              background: 'var(--card)', borderRadius: 16, padding: 20,
+              border: '1px solid var(--border)', marginBottom: 16, textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 48, marginBottom: 8 }}>🔥</div>
+              <div style={{ fontSize: 36, fontWeight: 800, color: '#f59e0b' }}>{streak}</div>
+              <div style={{ fontSize: 14, color: 'var(--text2)', marginTop: 4 }}>
+                {streak === 0 ? 'أنجز مهمة اليوم لبدء السلسلة!' : `يوم متتالي من الإنجاز`}
+              </div>
+              {myRank && (
+                <div style={{ fontSize: 13, color: 'var(--text2)', marginTop: 8, padding: '6px 12px', borderRadius: 10, background: 'var(--bg3)', display: 'inline-block' }}>
+                  مركزك في الفريق: <span style={{ fontWeight: 800, color: myRank <= 3 ? '#f59e0b' : 'var(--text)' }}>{RANK_MEDALS[myRank-1] || `#${myRank}`}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Team leaderboard */}
+            <SectionHeader icon="🏆" title="ترتيب الفريق (هذا الأسبوع)" count={teamRanking.length} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+              {teamRanking.slice(0, 10).map((member, idx) => {
+                const isMe = userName.includes(member.name) || member.name.includes(userName)
+                return (
+                  <div key={member.name} style={{
+                    padding: '10px 14px', borderRadius: 12,
+                    background: isMe ? 'rgba(59,130,246,0.1)' : 'var(--card)',
+                    border: `1px solid ${isMe ? 'rgba(59,130,246,0.3)' : 'var(--border)'}`,
+                    display: 'flex', alignItems: 'center', gap: 10,
+                  }}>
+                    <span style={{ fontSize: 18, width: 28, textAlign: 'center' }}>
+                      {RANK_MEDALS[idx] || `${idx + 1}`}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                        {member.name} {isMe ? '(أنت)' : ''}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                        {member.weekDone} إنجاز هذا الأسبوع • {member.pct}% إجمالي
+                      </div>
+                    </div>
+                    <div style={{
+                      fontSize: 16, fontWeight: 800,
+                      color: member.weekDone > 0 ? 'var(--green)' : 'var(--text3)',
+                    }}>{member.weekDone}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* ─── Routine Section ─── */}
         {activeSection === 'routine' && (
           <div style={{ padding: '0 16px' }}>
             <SectionHeader icon="🔄" title="المهام الروتينية" count={routine.total} />
-            
-            {/* Routine completion rate */}
             <div style={{
               background: 'var(--card)', borderRadius: 16, padding: 16,
               border: '1px solid var(--border)', marginBottom: 16,
@@ -374,7 +455,6 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
               </div>
             </div>
 
-            {/* Routine tasks list */}
             {routine.routines.length === 0 ? (
               <EmptyState text="لا توجد مهام متكررة بعد" icon="🔄" />
             ) : (
@@ -388,58 +468,16 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
                     <div style={{
                       width: 32, height: 32, borderRadius: 10,
                       background: t.done ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 14,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
                     }}>
-                      {t.done ? '✅' : t.recurrence === 'daily' ? '📆' : t.recurrence === 'weekly' ? '📅' : '🗓'}
+                      {t.done ? '✅' : '📆'}
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{
-                        fontSize: 13, fontWeight: 600, color: 'var(--text)',
-                        textDecoration: t.done ? 'line-through' : 'none',
-                        opacity: t.done ? 0.6 : 1,
-                      }}>{t.title}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: t.done ? 'line-through' : 'none', opacity: t.done ? 0.6 : 1 }}>{t.title}</div>
                       <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
                         {t.recurrence === 'daily' ? 'يومي' : t.recurrence === 'weekly' ? 'أسبوعي' : 'شهري'}
                         {t.dueDate ? ` • ${formatDate(t.dueDate)}` : ''}
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── Reports Section ─── */}
-        {activeSection === 'reports' && (
-          <div style={{ padding: '0 16px' }}>
-            <SectionHeader icon="📋" title="التقارير" count={reportTasks.length} />
-            
-            {reportTasks.length === 0 ? (
-              <EmptyState text="لا توجد مهام تقارير" icon="📋" />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                {reportTasks.map(t => (
-                  <div key={t.id} style={{
-                    padding: '12px 14px', borderRadius: 12,
-                    background: 'var(--card)', border: `1px solid ${t.done ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
-                          {t.person ? `👤 ${t.person}` : ''}
-                          {t.dueDate ? ` • 📅 ${formatDate(t.dueDate)}` : ''}
-                        </div>
-                      </div>
-                      <span style={{
-                        padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
-                        background: t.done ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                        color: t.done ? 'var(--green)' : 'var(--orange)',
-                      }}>
-                        {t.done ? 'مُسلّم' : 'قيد الإعداد'}
-                      </span>
                     </div>
                   </div>
                 ))}
@@ -588,7 +626,7 @@ function TimelineItem({ task, time, color, icon }) {
       </div>
       <div style={{
         flex: 1, padding: '10px 14px', borderRadius: 12,
-        background: 'var(--card)', border: `1px solid var(--border)`,
+        background: 'var(--card)', border: '1px solid var(--border)',
       }}>
         <div style={{ fontSize: 11, color, fontWeight: 600, marginBottom: 4 }}>{time}</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{task.title}</div>

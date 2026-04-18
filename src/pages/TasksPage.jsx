@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import SmartChat from '../components/SmartChat'
+import QuickAddMenu from '../components/QuickAddMenu'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -12,7 +13,7 @@ import {
   createRequest,
 } from '../utils/db'
 
-// --- دوال منع التكرار (مدمجة هنا لتجنب خطأ الاستيراد) ---
+// --- دوال منع التكرار ---
 function normalizeAr(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
     .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه')
@@ -40,16 +41,17 @@ function deduplicateTasks(newTasks, existingTasks) {
   });
   return unique;
 }
-// ----------------------------------------------------
 
 const FILTERS = [
   { id: 'all',      label: 'الكل' },
-  { id: 'active',   label: 'قيد التنفيذ' },
+  { id: 'active',   label: 'نشطة' },
   { id: 'done',     label: 'مكتملة' },
   { id: 'urgent',   label: 'عاجل' },
   { id: 'mine',     label: 'مهامي' },
   { id: 'meetings', label: 'اجتماعات' },
   { id: 'reports',  label: 'تقارير' },
+  { id: 'waiting',  label: 'بانتظار' },
+  { id: 'review',   label: 'مراجعة' },
 ]
 
 function genId() {
@@ -87,10 +89,13 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [showForm, setShowForm]   = useState(false)
   const [editTask, setEditTask]   = useState(null)
   const [showSmartChat, setShowSmartChat] = useState(false)
+  const [showQuickMenu, setShowQuickMenu] = useState(false)
+  const [defaultTaskType, setDefaultTaskType] = useState('task')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [viewMode, setViewMode]   = useState('list')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [subtaskParent, setSubtaskParent] = useState(null) // for branching
 
   const [pendingRequest, setPendingRequest] = useState(null)
   const [requestNote, setRequestNote] = useState('')
@@ -101,7 +106,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     { id: 'compact', icon: '☰', label: 'مضغوط' },
     { id: 'grouped', icon: '👥', label: 'حسب الشخص' },
     { id: 'kanban',  icon: '⬛', label: 'كانبان' },
-    { id: 'bubbles', icon: '◉', label: 'فقاعات' },
   ]
   
   function cycleView() {
@@ -119,6 +123,29 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     })
   }
 
+  // Handle QuickAddMenu option
+  function handleQuickOption(option, data) {
+    if (option === 'chat') {
+      setShowSmartChat(true)
+    } else if (option === 'task') {
+      setDefaultTaskType('task')
+      setShowForm(true)
+    } else if (option === 'meeting') {
+      setDefaultTaskType('meeting')
+      setShowForm(true)
+    } else if (option === 'report') {
+      setDefaultTaskType('report')
+      setShowForm(true)
+    } else if (option === 'voice_result') {
+      // Got voice transcript — send to SmartChat
+      setShowSmartChat(true)
+      // We pass transcript via a small trick - store it temporarily
+      window.__voiceTranscript = data
+    } else if (option === 'voice_fallback') {
+      showToast('⚠️ المتصفح لا يدعم الإدخال الصوتي')
+    }
+  }
+
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     return tasks.filter(t => {
@@ -129,6 +156,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       else if (filter === 'mine'     && (!t.person || t.person.trim() !== userProfile?.name)) return false
       else if (filter === 'meetings' && t.taskType !== 'meeting') return false
       else if (filter === 'reports'  && t.taskType !== 'report') return false
+      else if (filter === 'waiting'  && t.status !== 'waiting') return false
+      else if (filter === 'review'   && t.status !== 'review') return false
       
       if (!q) return true
       return (t.title || '').toLowerCase().includes(q)
@@ -148,6 +177,17 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     return map
   }, [tasks])
 
+  // Calculate child progress for each parent
+  const childProgressMap = useMemo(() => {
+    const map = {}
+    Object.entries(childrenMap).forEach(([parentId, children]) => {
+      if (children.length === 0) { map[parentId] = 0; return }
+      const done = children.filter(c => c.done).length
+      map[parentId] = Math.round((done / children.length) * 100)
+    })
+    return map
+  }, [childrenMap])
+
   const taskGroups = useMemo(() => (
     filtered.filter(t => !t.parentId).map(t => ({ task: t, children: childrenMap[t.id] || [] }))
   ), [filtered, childrenMap])
@@ -156,12 +196,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     { id: 'urgent', label: 'عاجل 🔴', tasks: filtered.filter(t => t.priority === 'urgent' && !t.done) },
     { id: 'active', label: 'قيد التنفيذ 🔵', tasks: filtered.filter(t => t.priority !== 'urgent' && !t.done) },
     { id: 'done',   label: 'مكتملة ✅', tasks: filtered.filter(t => t.done) },
-  ], [filtered])
-
-  const bubbleGroups = useMemo(() => [
-    { id: 'urgent', label: 'عاجل',    color: 'var(--red)',    tasks: filtered.filter(t => t.priority === 'urgent') },
-    { id: 'medium', label: 'متوسطة',  color: 'var(--orange)', tasks: filtered.filter(t => t.priority === 'medium') },
-    { id: 'low',    label: 'منخفضة',  color: 'var(--green)',  tasks: filtered.filter(t => t.priority === 'low') },
   ], [filtered])
 
   const groupedByPerson = useMemo(() => {
@@ -220,7 +254,11 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     try {
-      await dbAddTask({ ...form, done: false })
+      const taskData = { ...form, done: form.status === 'done', status: form.status || 'new' }
+      if (subtaskParent) {
+        taskData.parentId = subtaskParent.id
+      }
+      const newId = await dbAddTask(taskData)
       if (subTaskTitles.length > 0) {
         for (const title of subTaskTitles) {
           await dbAddTask({
@@ -228,6 +266,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
             dueDate: '', recurrence: '', reminderTime: '',
             projectName: form.projectName || form.title,
             sourceType: form.sourceType, sourceTitle: form.sourceTitle, done: false,
+            status: 'new', parentId: newId || '',
           })
         }
         showToast(`✅ أضيفت المهمة و${subTaskTitles.length} مهام فرعية`)
@@ -236,6 +275,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       }
     } catch (e) { showToast('❌ خطأ في إضافة المهمة') }
     setShowForm(false)
+    setSubtaskParent(null)
   }
 
   async function updateTaskHandler(form) {
@@ -253,6 +293,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     }
     try {
       const { id, ...data } = form
+      data.done = data.status === 'done'
+      if (data.done && !data.completedAt) data.completedAt = new Date().toISOString()
+      if (!data.done) data.completedAt = null
       await dbUpdateTask(id, data)
       showToast('✏️ تم تعديل المهمة')
     } catch (e) { showToast('❌ خطأ في التعديل') }
@@ -267,10 +310,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     const done = !task.done
-    const updates = { done }
+    const updates = { done, status: done ? 'done' : 'new' }
     if (done && task.recurrence) {
       const newDue = calcNextDue(task.dueDate, task.recurrence)
-      Object.assign(updates, { done: false, dueDate: newDue, completedAt: null })
+      Object.assign(updates, { done: false, status: 'new', dueDate: newDue, completedAt: null })
       showToast('🔄 تجددت المهمة المتكررة')
     } else if (done) {
       updates.completedAt = new Date().toISOString()
@@ -290,9 +333,16 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الإضافة المباشرة'); return }
     const deduped = deduplicateTasks(newTasks, tasks)
     const skipped = newTasks.length - deduped.length
-    for (const t of deduped) await dbAddTask({ ...t, done: false })
+    for (const t of deduped) await dbAddTask({ ...t, done: false, status: 'new' })
     if (deduped.length === 0) showToast('⚠️ جميع المهام موجودة مسبقاً')
     else showToast(`✅ تمت إضافة ${deduped.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
+  }
+
+  // Subtask branching
+  function handleAddSubtask(parentTask) {
+    setSubtaskParent(parentTask)
+    setDefaultTaskType('task')
+    setShowForm(true)
   }
 
   function exportJSON() {
@@ -308,9 +358,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   }
 
   function exportCSV() {
-    const headers = ['العنوان','الأولوية','الفئة','الشخص','تاريخ الاستحقاق','الحالة','المشروع']
+    const headers = ['العنوان','الأولوية','الحالة','الشخص','تاريخ الاستحقاق','الإنجاز','المشروع']
     const rows = tasks.map(t => [
-      `"${(t.title||'').replace(/"/g,'""')}"`, t.priority||'', t.category||'',
+      `"${(t.title||'').replace(/"/g,'""')}"`, t.priority||'', t.status||'new',
       `"${(t.person||'').replace(/"/g,'""')}"`, t.dueDate||'',
       t.done ? 'مكتملة' : 'معلقة',
       `"${(t.projectName||'').replace(/"/g,'""')}"`,
@@ -331,13 +381,19 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       const dataToExport = tasks.map(t => {
         let finalDueDate = t.dueDate;
         if (!finalDueDate) {
-          const d = new Date(t.createdAt || Date.now());
-          let addedDays = 0;
-          while (addedDays < 5) {
-            d.setDate(d.getDate() + 1);
-            if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
+          try {
+            const created = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : new Date())
+            if (isNaN(created.getTime())) throw new Error('invalid')
+            const d = new Date(created)
+            let addedDays = 0;
+            while (addedDays < 5) {
+              d.setDate(d.getDate() + 1);
+              if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
+            }
+            finalDueDate = d.toISOString().split('T')[0];
+          } catch {
+            finalDueDate = new Date().toISOString().split('T')[0];
           }
-          finalDueDate = d.toISOString().split('T')[0];
         }
         return {
           [EXCEL_COLUMNS[0]]: t.sourceType || '', 
@@ -351,6 +407,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           [EXCEL_COLUMNS[8]]: t.person || '' 
         };
       });
+
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
@@ -377,12 +434,20 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   function parseExcelDate(raw) {
     if (!raw) return ''
-    if (raw instanceof Date) return raw.toISOString().split('T')[0]
+    if (raw instanceof Date) {
+      if (isNaN(raw.getTime())) return ''
+      return raw.toISOString().split('T')[0]
+    }
     if (typeof raw === 'number') {
       const jsDate = new Date(Math.round((raw - 25569) * 86400 * 1000))
+      if (isNaN(jsDate.getTime())) return ''
       return jsDate.toISOString().split('T')[0]
     }
-    if (typeof raw === 'string') return raw.substring(0, 10)
+    if (typeof raw === 'string') {
+      const d = new Date(raw)
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0]
+      return raw.substring(0, 10)
+    }
     return ''
   }
 
@@ -429,10 +494,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         if (!title) continue
 
         const completion = row['completion %'] || row['نسبة الإنجاز']
-        const status = (row['status'] || row['الحالة'] || '').toString().toLowerCase()
+        const statusRaw = (row['status'] || row['الحالة'] || '').toString().toLowerCase()
         const done = (typeof completion === 'number' && completion >= 1) ||
                      (typeof completion === 'string' && completion.includes('100')) ||
-                     (status === 'completed' || status === 'مكتملة');
+                     (statusRaw === 'completed' || statusRaw === 'مكتملة');
 
         const sourceTitle = (row['task title'] || row['عنوان المصدر'] || '').toString().trim();
         const sourceType  = (row['channel'] || row['مصدر المهمة'] || '').toString().trim();
@@ -445,7 +510,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         else if (row['تاريخ الاستحقاق']) dueDate = parseExcelDate(row['تاريخ الاستحقاق']);
 
         const updateData = { 
-          done, sourceTitle, sourceType, person, projectName, closeNote, dueDate
+          done, sourceTitle, sourceType, person, projectName, closeNote, dueDate,
+          status: done ? 'done' : 'new',
         };
 
         const existingTask = tasks.find(t => (t.title || '').trim().toLowerCase() === title.toLowerCase())
@@ -483,7 +549,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         if (!imported.length) { showToast('❌ لا توجد مهام في الملف'); return }
         const existing = new Set(tasks.map(t => t.title.trim().toLowerCase()))
         const newOnes  = imported.filter(t => !existing.has((t.title||'').trim().toLowerCase()))
-        for (const t of newOnes) await dbAddTask({ ...t, done: t.done || false })
+        for (const t of newOnes) await dbAddTask({ ...t, done: t.done || false, status: t.status || 'new' })
         showToast(`✅ استُعيد ${newOnes.length} مهمة جديدة`)
       } catch { showToast('❌ ملف JSON غير صحيح') }
     }
@@ -556,7 +622,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               <span style={{ fontSize: 11 }}>{VIEW_MODES.find(v => v.id === viewMode)?.label}</span>
             </button>
             
-            
           </div>
         </div>
       </div>
@@ -619,7 +684,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           <div className="task-list">
             {taskGroups.map(({ task, children }) => (
               <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} />
+                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
                     {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
@@ -670,20 +735,25 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
         ) : null}
 
-        <button className="fab" onClick={() => setShowForm(true)} aria-label="إضافة مهمة" style={{ bottom: 90, zIndex: 100 }}>
+        {/* زر (+) الذكي — يفتح QuickAddMenu */}
+        <button className="fab" onClick={() => setShowQuickMenu(true)} aria-label="إضافة" style={{ bottom: 90, zIndex: 100 }}>
           +
-        </button>
-        
-        <button className="fab" onClick={() => setShowSmartChat(true)} aria-label="المحادثة الذكية" style={{ bottom: 150, zIndex: 100, background: 'var(--purple)', color: '#fff' }}>
-          ✨
         </button>
 
       </div>
 
+      {showQuickMenu && (
+        <QuickAddMenu
+          onOption={handleQuickOption}
+          onClose={() => setShowQuickMenu(false)}
+        />
+      )}
+
       {showForm && (
         <TaskForm 
-          onClose={() => setShowForm(false)} 
-          onSave={addTask} 
+          onClose={() => { setShowForm(false); setSubtaskParent(null) }} 
+          onSave={addTask}
+          defaultTaskType={defaultTaskType}
         />
       )}
 
@@ -694,8 +764,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           onSave={updateTaskHandler} 
         />
       )}
-
-      
 
       {showSmartChat && (
         <SmartChat 
