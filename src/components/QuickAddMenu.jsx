@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 
 export default function QuickAddMenu({ onOption, onClose }) {
@@ -6,11 +6,20 @@ export default function QuickAddMenu({ onOption, onClose }) {
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const recognitionRef = useRef(null)
+  const finalTranscriptRef = useRef('')
+  const closedRef = useRef(false)
 
-  function close() {
+  const close = useCallback(() => {
+    if (closedRef.current) return
+    closedRef.current = true
+    // Kill mic immediately
+    if (recognitionRef.current) {
+      try { recognitionRef.current.abort() } catch {}
+      recognitionRef.current = null
+    }
     setClosing(true)
-    setTimeout(onClose, 200)
-  }
+    setTimeout(onClose, 180)
+  }, [onClose])
 
   function pick(option) {
     if (option === 'voice') {
@@ -18,21 +27,24 @@ export default function QuickAddMenu({ onOption, onClose }) {
       return
     }
     close()
-    onOption(option)
+    setTimeout(() => onOption(option), 200)
   }
 
   function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
-      onOption('voice_fallback')
       close()
+      setTimeout(() => onOption('voice_fallback'), 200)
       return
     }
+
     const recognition = new SR()
     recognition.lang = 'ar-SA'
     recognition.continuous = false
     recognition.interimResults = true
+    recognition.maxAlternatives = 1
     recognitionRef.current = recognition
+    finalTranscriptRef.current = ''
 
     recognition.onresult = (e) => {
       let final = ''
@@ -41,25 +53,28 @@ export default function QuickAddMenu({ onOption, onClose }) {
         if (e.results[i].isFinal) final += e.results[i][0].transcript
         else interim += e.results[i][0].transcript
       }
+      if (final) finalTranscriptRef.current = final
       setTranscript(final || interim)
     }
 
     recognition.onend = () => {
       setListening(false)
-      // If we have transcript, pass it
-      const txt = transcript || ''
-      if (txt.trim()) {
+      const txt = finalTranscriptRef.current.trim()
+      recognitionRef.current = null
+      if (txt) {
         close()
-        onOption('voice_result', txt.trim())
+        setTimeout(() => onOption('voice_result', txt), 200)
       }
     }
 
     recognition.onerror = (e) => {
-      console.error('Speech error:', e.error)
       setListening(false)
-      if (e.error === 'not-allowed') {
-        onOption('voice_fallback')
+      recognitionRef.current = null
+      if (e.error === 'not-allowed' || e.error === 'no-speech') {
         close()
+        if (e.error === 'not-allowed') {
+          setTimeout(() => onOption('voice_fallback'), 200)
+        }
       }
     }
 
@@ -70,33 +85,17 @@ export default function QuickAddMenu({ onOption, onClose }) {
 
   function stopVoice() {
     if (recognitionRef.current) {
-      recognitionRef.current.stop()
+      try { recognitionRef.current.stop() } catch {}
     }
   }
 
-  // Handle transcript change after listening ends
-  const lastTranscript = useRef('')
-  useEffect(() => {
-    lastTranscript.current = transcript
-  }, [transcript])
-
-  useEffect(() => {
-    if (recognitionRef.current) {
-      const orig = recognitionRef.current.onend
-      recognitionRef.current.onend = () => {
-        setListening(false)
-        const txt = lastTranscript.current
-        if (txt && txt.trim()) {
-          close()
-          onOption('voice_result', txt.trim())
-        }
-      }
-    }
-  })
-
+  // Cleanup on unmount — kill mic
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) recognitionRef.current.abort()
+      if (recognitionRef.current) {
+        try { recognitionRef.current.abort() } catch {}
+        recognitionRef.current = null
+      }
     }
   }, [])
 
@@ -113,60 +112,61 @@ export default function QuickAddMenu({ onOption, onClose }) {
       onClick={close}
       style={{
         position: 'fixed', inset: 0, zIndex: 9998,
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(0,0,0,0.55)',
+        backdropFilter: 'blur(3px)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-        animation: closing ? 'fadeOut 0.2s ease' : 'fadeIn 0.2s ease',
-        paddingBottom: 100,
+        opacity: closing ? 0 : 1,
+        transition: 'opacity 0.18s ease',
+        paddingBottom: 90,
       }}
     >
       <div onClick={e => e.stopPropagation()} style={{
-        display: 'flex', flexDirection: 'column', gap: 10,
-        padding: 16, width: '85%', maxWidth: 320,
-        animation: closing ? 'slideDown 0.2s ease' : 'slideUp 0.3s ease',
+        display: 'flex', flexDirection: 'column', gap: 6,
+        width: '80%', maxWidth: 280,
+        transform: closing ? 'translateY(30px)' : 'translateY(0)',
+        transition: 'transform 0.18s ease',
       }}>
         {listening ? (
           <div style={{
-            background: 'var(--card)', borderRadius: 16, padding: 24,
+            background: 'var(--card)', borderRadius: 16, padding: 20,
             border: '1px solid var(--border)', textAlign: 'center',
           }}>
             <div style={{
-              width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px',
+              width: 48, height: 48, borderRadius: '50%', margin: '0 auto 12px',
               background: 'rgba(239,68,68,0.15)', border: '2px solid #ef4444',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 28, animation: 'pulse 1.5s infinite',
+              fontSize: 22, animation: 'pulse 1.5s infinite',
             }}>🎤</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
               جاري الاستماع...
             </div>
             {transcript && (
               <div style={{
-                fontSize: 14, color: 'var(--text2)', marginBottom: 12,
-                padding: '8px 12px', background: 'var(--bg)', borderRadius: 10,
-                direction: 'rtl', lineHeight: 1.6, minHeight: 40,
+                fontSize: 13, color: 'var(--text2)', marginBottom: 10,
+                padding: '6px 10px', background: 'var(--bg)', borderRadius: 8,
+                direction: 'rtl', lineHeight: 1.5,
               }}>{transcript}</div>
             )}
             <button onClick={stopVoice} style={{
-              padding: '10px 24px', borderRadius: 10,
+              padding: '8px 20px', borderRadius: 8,
               background: '#ef4444', color: '#fff', border: 'none',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
             }}>⏹ إيقاف</button>
           </div>
         ) : (
           OPTIONS.map(o => (
             <button key={o.id} onClick={() => pick(o.id)} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '14px 16px', borderRadius: 14,
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', borderRadius: 12,
               background: 'var(--card)', border: '1px solid var(--border)',
-              color: 'var(--text)', fontSize: 15, fontWeight: 600,
+              color: 'var(--text)', fontSize: 14, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
-              transition: 'transform 0.1s',
             }}>
               <span style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: `${o.color}20`, color: o.color,
+                width: 30, height: 30, borderRadius: 8,
+                background: `${o.color}18`, color: o.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 20, flexShrink: 0,
+                fontSize: 15, flexShrink: 0,
               }}>{o.icon}</span>
               <span>{o.label}</span>
             </button>

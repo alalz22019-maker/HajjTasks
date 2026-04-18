@@ -8,7 +8,7 @@ function genId() {
 
 const PRIORITY_LABELS = { urgent: '🔴 عاجل', medium: '🟡 متوسط', low: '🟢 منخفض' }
 
-export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
+export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialText }) {
   const [messages, setMessages]         = useState([])    // {role, text, parsed?}
   const [input, setInput]               = useState('')
   const [loading, setLoading]           = useState(false)
@@ -17,6 +17,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
   const historyRef = useRef([])
   const scrollRef  = useRef(null)
   const inputRef   = useRef(null)
+  const initialSent = useRef(false)
 
   const activeTasks = tasks.filter(t => !t.done)
 
@@ -25,6 +26,15 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey }) {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, loading])
+
+  // Auto-send voice transcript when SmartChat opens with initialText
+  useEffect(() => {
+    if (initialText && initialText.trim() && !initialSent.current) {
+      initialSent.current = true
+      // Small delay to let component render
+      setTimeout(() => send(initialText.trim()), 300)
+    }
+  }, [initialText])
 
   async function send(text) {
     if (!text.trim() || loading) return

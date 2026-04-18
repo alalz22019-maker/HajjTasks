@@ -96,6 +96,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [subtaskParent, setSubtaskParent] = useState(null) // for branching
+  const [voiceText, setVoiceText] = useState('') // voice transcript for SmartChat
 
   const [pendingRequest, setPendingRequest] = useState(null)
   const [requestNote, setRequestNote] = useState('')
@@ -126,6 +127,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   // Handle QuickAddMenu option
   function handleQuickOption(option, data) {
     if (option === 'chat') {
+      setVoiceText('')
       setShowSmartChat(true)
     } else if (option === 'task') {
       setDefaultTaskType('task')
@@ -137,10 +139,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setDefaultTaskType('report')
       setShowForm(true)
     } else if (option === 'voice_result') {
-      // Got voice transcript — send to SmartChat
+      // Got voice transcript — open SmartChat with the text pre-filled
+      setVoiceText(data || '')
       setShowSmartChat(true)
-      // We pass transcript via a small trick - store it temporarily
-      window.__voiceTranscript = data
     } else if (option === 'voice_fallback') {
       showToast('⚠️ المتصفح لا يدعم الإدخال الصوتي')
     }
@@ -769,9 +770,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <SmartChat 
           tasks={tasks}
           apiKey={currentApiKey} 
-          onClose={() => setShowSmartChat(false)} 
+          onClose={() => { setShowSmartChat(false); setVoiceText('') }} 
           onAddTasks={handleSmartChatAdd} 
-          showToast={showToast} 
+          showToast={showToast}
+          initialText={voiceText}
         />
       )}
 

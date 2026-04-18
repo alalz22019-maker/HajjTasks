@@ -73,27 +73,30 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
 
 export function buildSmartChatSystem(activeTasks) {
   const summary = activeTasks.length
-    ? activeTasks.map(t =>
+    ? activeTasks.slice(0, 30).map(t =>
         `- ${t.title}${t.projectName ? ` [${t.projectName}]` : ''}${t.person ? ` (${t.person})` : ''}`
       ).join('\n')
     : 'لا توجد مهام نشطة'
 
   return `أنت مساعد ذكي لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
 
-المهام النشطة الموجودة حالياً:
+⚠️ قواعد مهمة جداً:
+- استخرج فقط المهام الجديدة من كلام المستخدم. لا ترجع المهام الموجودة مسبقاً.
+- "tasks" تحتوي فقط على المهام الجديدة المستخرجة من رسالة المستخدم الحالية.
+- لو ما فيه مهام جديدة، ارجع tasks فارغة [].
+- لو المستخدم ذكر شخص (مثل سعد)، حاول مطابقته مع أسماء الفريق.
+
+المهام الموجودة (للمقارنة وكشف التكرار فقط — لا ترجعها):
 ${summary}
 
-مهمتك:
-1. استخرج المهام واقترح صياغتها.
-2. قارن المعنى والقصد لكشف التكرار.
-3. أرجع JSON فقط بهذا الشكل:
+أرجع JSON فقط بهذا الشكل:
 {
-  "message": "رسالة موجزة",
+  "message": "رسالة موجزة تشرح ماذا فعلت",
   "tasks": [
-    { "id": "t1", "title": "عنوان", "priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "dueDate": "", "projectName": "" }
+    { "id": "t1", "title": "عنوان المهمة الجديدة", "priority": "urgent|medium|low", "person": "", "dueDate": "", "projectName": "" }
   ],
   "questions": [],
-  "duplicates": [],
+  "duplicates": [{ "taskId": "t1", "existingTitle": "مهمة مشابهة موجودة", "reason": "سبب التشابه" }],
   "ready": false
 }`
 }
