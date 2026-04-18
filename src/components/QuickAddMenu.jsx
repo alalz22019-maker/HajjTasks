@@ -6,19 +6,18 @@ export default function QuickAddMenu({ onOption, onClose }) {
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const recognitionRef = useRef(null)
-  const finalTranscriptRef = useRef('')
+  const transcriptRef = useRef('')
   const closedRef = useRef(false)
 
-  const close = useCallback(() => {
+  const doClose = useCallback(() => {
     if (closedRef.current) return
     closedRef.current = true
-    // Kill mic immediately
     if (recognitionRef.current) {
       try { recognitionRef.current.abort() } catch {}
       recognitionRef.current = null
     }
     setClosing(true)
-    setTimeout(onClose, 180)
+    setTimeout(onClose, 150)
   }, [onClose])
 
   function pick(option) {
@@ -26,15 +25,15 @@ export default function QuickAddMenu({ onOption, onClose }) {
       startVoice()
       return
     }
-    close()
-    setTimeout(() => onOption(option), 200)
+    doClose()
+    setTimeout(() => onOption(option), 160)
   }
 
   function startVoice() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
-      close()
-      setTimeout(() => onOption('voice_fallback'), 200)
+      doClose()
+      setTimeout(() => onOption('voice_fallback'), 160)
       return
     }
 
@@ -42,9 +41,8 @@ export default function QuickAddMenu({ onOption, onClose }) {
     recognition.lang = 'ar-SA'
     recognition.continuous = false
     recognition.interimResults = true
-    recognition.maxAlternatives = 1
     recognitionRef.current = recognition
-    finalTranscriptRef.current = ''
+    transcriptRef.current = ''
 
     recognition.onresult = (e) => {
       let final = ''
@@ -53,28 +51,29 @@ export default function QuickAddMenu({ onOption, onClose }) {
         if (e.results[i].isFinal) final += e.results[i][0].transcript
         else interim += e.results[i][0].transcript
       }
-      if (final) finalTranscriptRef.current = final
-      setTranscript(final || interim)
+      const text = final || interim
+      transcriptRef.current = text
+      setTranscript(text)
     }
 
     recognition.onend = () => {
       setListening(false)
-      const txt = finalTranscriptRef.current.trim()
       recognitionRef.current = null
+      // Don't send if user closed the menu manually
+      if (closedRef.current) return
+      const txt = transcriptRef.current.trim()
       if (txt) {
-        close()
-        setTimeout(() => onOption('voice_result', txt), 200)
+        doClose()
+        setTimeout(() => onOption('voice_result', txt), 160)
       }
     }
 
     recognition.onerror = (e) => {
       setListening(false)
       recognitionRef.current = null
-      if (e.error === 'not-allowed' || e.error === 'no-speech') {
-        close()
-        if (e.error === 'not-allowed') {
-          setTimeout(() => onOption('voice_fallback'), 200)
-        }
+      if (e.error === 'not-allowed') {
+        doClose()
+        setTimeout(() => onOption('voice_fallback'), 160)
       }
     }
 
@@ -89,7 +88,6 @@ export default function QuickAddMenu({ onOption, onClose }) {
     }
   }
 
-  // Cleanup on unmount — kill mic
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -109,22 +107,22 @@ export default function QuickAddMenu({ onOption, onClose }) {
 
   return createPortal(
     <div
-      onClick={close}
+      onClick={doClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 9998,
         background: 'rgba(0,0,0,0.55)',
         backdropFilter: 'blur(3px)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         opacity: closing ? 0 : 1,
-        transition: 'opacity 0.18s ease',
+        transition: 'opacity 0.15s ease',
         paddingBottom: 90,
       }}
     >
       <div onClick={e => e.stopPropagation()} style={{
         display: 'flex', flexDirection: 'column', gap: 6,
         width: '80%', maxWidth: 280,
-        transform: closing ? 'translateY(30px)' : 'translateY(0)',
-        transition: 'transform 0.18s ease',
+        transform: closing ? 'translateY(20px)' : 'translateY(0)',
+        transition: 'transform 0.15s ease',
       }}>
         {listening ? (
           <div style={{

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { analyzeTaskWithAI } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
 import { getFirestore, collection, getDocs } from 'firebase/firestore'
@@ -29,6 +29,7 @@ const SOURCE_TYPES = [
   { value: 'minutes', label: 'محضر' },
   { value: 'directive', label: 'توجيه مباشر' },
   { value: 'email', label: 'إيميل' },
+  { value: 'routine', label: 'مهمة روتينية' },
 ]
 
 export const STATUS_OPTIONS = [
@@ -51,15 +52,25 @@ const TEAM_MEMBERS = [
 const DEFAULT_TASK = {
   title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
   reminderTime: '', projectName: '', sourceType: '', sourceTitle: '', done: false,
-  taskType: 'task', status: 'new', closeNote: '',
+  taskType: 'task', status: 'new', closeNote: '', parentId: '',
 }
 
-export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskType }) {
+export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskType, parentTask, allTasks = [] }) {
   const { isUser, userProfile } = useAuth()
+  const envApiKey = import.meta.env.VITE_GEMINI_API_KEY
+  const currentApiKey = apiKey || envApiKey || ''
   
   const [form, setForm] = useState(() => {
     if (task) return { ...task, projectName: task.projectName || '', status: task.status || (task.done ? 'done' : 'new') }
-    return { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '', taskType: defaultTaskType || 'task' }
+    const base = { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '', taskType: defaultTaskType || 'task' }
+    if (parentTask) {
+      base.parentId = parentTask.id
+      base.projectName = parentTask.projectName || ''
+      base.sourceType = parentTask.sourceType || ''
+      base.sourceTitle = parentTask.sourceTitle || ''
+      base.person = parentTask.person || base.person
+    }
+    return base
   })
   
   const [saving, setSaving] = useState(false)
@@ -67,9 +78,15 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
   const [aiReason, setAiReason] = useState('')
   const [subTasks, setSubTasks] = useState([])
   const [selectedSubTasks, setSelectedSubTasks] = useState([])
+  const [duplicateWarning, setDuplicateWarning] = useState(null)
 
   const [existingProjects, setExistingProjects] = useState([])
   const [isNewProject, setIsNewProject] = useState(false)
+
+  // Parent task candidates for merge/reparent
+  const parentCandidates = useMemo(() => {
+    return allTasks.filter(t => !t.parentId && t.id !== task?.id).slice(0, 50)
+  }, [allTasks, task])
 
   useEffect(() => {
     async function fetchProjects() {
@@ -87,21 +104,30 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
     fetchProjects()
   }, [])
 
+  // Check for duplicates when title changes
+  useEffect(() => {
+    if (!form.title.trim() || task) { setDuplicateWarning(null); return }
+    const norm = form.title.trim().toLowerCase()
+    const dup = allTasks.find(t => {
+      const e = (t.title || '').trim().toLowerCase()
+      return e === norm || (norm.length >= 10 && e.includes(norm)) || (e.length >= 10 && norm.includes(e))
+    })
+    setDuplicateWarning(dup || null)
+  }, [form.title, allTasks, task])
+
   function set(field, value) {
     setForm(f => {
       const updated = { ...f, [field]: value }
-      if (field === 'status') {
-        updated.done = value === 'done'
-      }
+      if (field === 'status') updated.done = value === 'done'
       return updated
     })
   }
 
   async function analyzeTask() {
-    if (!form.title.trim()) return
+    if (!form.title.trim() || !currentApiKey) return
     setAnalyzing(true); setAiReason(''); setSubTasks([]); setSelectedSubTasks([])
     try {
-      const result = await analyzeTaskWithAI(apiKey, form.title)
+      const result = await analyzeTaskWithAI(currentApiKey, form.title)
       if (result) {
         setForm(f => ({
           ...f, priority: result.priority || f.priority,
@@ -131,6 +157,8 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
     onSave(finalForm, selectedSubTasks)
   }
 
+  const formTitle = task ? 'تعديل المهمة' : parentTask ? `إضافة فرعية لـ: ${parentTask.title}` : 'إضافة مهمة جديدة'
+
   return (
     <div 
       className="modal-overlay" 
@@ -146,27 +174,49 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
         onClick={e => e.stopPropagation()}
         style={{ 
           width: '100%', maxWidth: '450px', margin: '0 auto',
-          maxHeight: '85vh', overflowY: 'auto',
-          boxSizing: 'border-box'
+          maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box'
         }}
       >
         <div className="modal-handle" />
-        <h2 className="modal-title">{task ? 'تعديل المهمة' : 'إضافة مهمة جديدة'}</h2>
+        <h2 className="modal-title">{formTitle}</h2>
 
+        {/* عنوان المهمة + تحليل ذكي */}
         <div className="form-group">
           <label className="form-label">عنوان المهمة *</label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input className="form-input" style={{ flex: 1 }} value={form.title} onChange={e => set('title', e.target.value)} placeholder="اكتب المهمة..." />
-            <button className="ai-analyze-btn" onClick={analyzeTask} disabled={!form.title.trim() || analyzing || !apiKey} title={!apiKey ? 'يلزم إعداد مفتاح API أولاً' : 'تحليل ذكي'}>
+            <button className="ai-analyze-btn" onClick={analyzeTask} disabled={!form.title.trim() || analyzing || !currentApiKey} title="تحليل ذكي">
               {analyzing ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
             </button>
           </div>
         </div>
 
+        {/* تحذير تكرار */}
+        {duplicateWarning && (
+          <div style={{
+            margin: '0 0 12px', padding: '8px 12px', borderRadius: 10,
+            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
+            fontSize: 12, color: 'var(--orange)', lineHeight: 1.6,
+          }}>
+            ⚠️ مهمة مشابهة موجودة: "{duplicateWarning.title}"
+            <div style={{ marginTop: 6, display: 'flex', gap: 6 }}>
+              <button onClick={() => setDuplicateWarning(null)} style={{
+                padding: '3px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'inherit',
+                background: 'rgba(245,158,11,0.15)', border: '1px solid var(--orange)', color: 'var(--orange)', cursor: 'pointer',
+              }}>إضافة كجديدة</button>
+              <button onClick={onClose} style={{
+                padding: '3px 10px', borderRadius: 6, fontSize: 11, fontFamily: 'inherit',
+                background: 'var(--bg3)', border: '1px solid var(--border)', color: 'var(--text2)', cursor: 'pointer',
+              }}>تجاهل</button>
+            </div>
+          </div>
+        )}
+
         {aiReason && (
           <div className="ai-reason-box"><span style={{ fontSize: 13 }}>🤖</span><span>{aiReason}</span></div>
         )}
 
+        {/* الأولوية */}
         <div className="form-group">
           <label className="form-label">الأولوية</label>
           <div className="seg-control">
@@ -176,6 +226,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         </div>
 
+        {/* نوع المهمة */}
         <div className="form-group">
           <label className="form-label">نوع المهمة</label>
           <div className="seg-control">
@@ -185,7 +236,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         </div>
 
-        {/* حالة المهمة المتقدمة */}
+        {/* حالة المهمة */}
         <div className="form-group">
           <label className="form-label">حالة المهمة</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -196,12 +247,26 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
                 border: form.status === s.value ? `2px solid ${s.color}` : '1px solid var(--border)',
                 background: form.status === s.value ? `${s.color}20` : 'var(--bg)',
                 color: form.status === s.value ? s.color : 'var(--text2)',
-                transition: 'all 0.15s',
               }}>{s.label}</button>
             ))}
           </div>
         </div>
 
+        {/* مصدر المهمة + عنوان المصدر */}
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">مصدر المهمة</label>
+            <select className="form-input" value={form.sourceType} onChange={e => set('sourceType', e.target.value)}>
+              {SOURCE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">عنوان المصدر</label>
+            <input className="form-input" value={form.sourceTitle} onChange={e => set('sourceTitle', e.target.value)} placeholder="رقم المحضر..." />
+          </div>
+        </div>
+
+        {/* المشروع */}
         <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>
           {!isNewProject ? (
@@ -213,20 +278,21 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
               <option value="">— بدون مشروع —</option>
               {existingProjects.map(p => <option key={p} value={p}>{p}</option>)}
               {form.projectName && !existingProjects.includes(form.projectName) && form.projectName !== 'NEW_PROJECT' && (<option value={form.projectName}>{form.projectName}</option>)}
-              <option value="NEW_PROJECT" style={{ fontWeight: 'bold', color: 'var(--primary)' }}>+ إضافة مشروع/مبادرة جديدة</option>
+              <option value="NEW_PROJECT">+ إضافة مشروع جديد</option>
             </select>
           ) : (
             <div style={{ display: 'flex', gap: 8 }}>
               <input className="form-input" style={{ flex: 1 }} value={form.projectName} onChange={e => set('projectName', e.target.value)} placeholder="اسم المشروع..." autoFocus />
-              <button type="button" onClick={() => { setIsNewProject(false); set('projectName', ''); }} style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}>إلغاء</button>
+              <button type="button" onClick={() => { setIsNewProject(false); set('projectName', ''); }} style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}>✕</button>
             </div>
           )}
         </div>
 
+        {/* المسؤول */}
         <div className="form-group">
-          <label className="form-label">الشخص المسؤول / المتابع</label>
+          <label className="form-label">الشخص المسؤول</label>
           {isUser ? (
-            <input className="form-input" value={userProfile?.name || ''} disabled style={{ background: 'var(--bg3)', cursor: 'not-allowed', opacity: 0.7, color: 'var(--text)' }} />
+            <input className="form-input" value={userProfile?.name || ''} disabled style={{ background: 'var(--bg3)', opacity: 0.7, color: 'var(--text)' }} />
           ) : (
             <select className="form-input" value={form.person} onChange={e => set('person', e.target.value)}>
               <option value="">— اختر المسؤول —</option>
@@ -235,6 +301,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           )}
         </div>
 
+        {/* تاريخ + تنبيه */}
         <div className="form-row">
           <div className="form-group">
             <label className="form-label">تاريخ الاستحقاق</label>
@@ -246,6 +313,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         </div>
 
+        {/* التكرار */}
         <div className="form-group">
           <label className="form-label">التكرار</label>
           <div className="seg-control">
@@ -255,6 +323,20 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         </div>
 
+        {/* مهمة أم — ربط بمهمة موجودة */}
+        {!parentTask && !task?.parentId && parentCandidates.length > 0 && (
+          <div className="form-group">
+            <label className="form-label">ربط كفرعية لمهمة (اختياري)</label>
+            <select className="form-input" value={form.parentId || ''} onChange={e => set('parentId', e.target.value)}>
+              <option value="">— مهمة مستقلة —</option>
+              {parentCandidates.map(t => (
+                <option key={t.id} value={t.id}>{t.title.substring(0, 50)}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* المهام الفرعية المقترحة من AI */}
         {subTasks.length > 0 && (
           <div className="subtasks-panel">
             <div className="subtasks-title">📋 المهام الفرعية المقترحة<span className="subtasks-hint">اختر ما تريد إضافته</span></div>
@@ -267,19 +349,6 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         )}
 
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">مصدر المهمة</label>
-            <select className="form-input" value={form.sourceType} onChange={e => set('sourceType', e.target.value)}>
-              {SOURCE_TYPES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">عنوان المصدر</label>
-            <input className="form-input" value={form.sourceTitle} onChange={e => set('sourceTitle', e.target.value)} placeholder="رقم المحضر..." disabled={!form.sourceType} />
-          </div>
-        </div>
-
         {form.taskType === 'meeting' && (
           <div className="form-group">
             <label className="form-label">وقت الاجتماع</label>
@@ -287,6 +356,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         )}
 
+        {/* ملاحظات */}
         <div className="form-group">
           <label className="form-label">ملاحظات الإنجاز</label>
           <textarea className="form-input" value={form.closeNote || ''} onChange={e => set('closeNote', e.target.value)} 
@@ -294,7 +364,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
         </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
-          {task ? 'حفظ التغييرات' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} مهام فرعية` : 'إضافة المهمة'}
+          {task ? 'حفظ التغييرات' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
         </button>
         <button className="cancel-btn" onClick={onClose} style={{ marginBottom: '10px' }}>إلغاء</button>
       </div>

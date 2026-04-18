@@ -9,32 +9,35 @@ function genId() {
 const PRIORITY_LABELS = { urgent: '🔴 عاجل', medium: '🟡 متوسط', low: '🟢 منخفض' }
 
 export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialText }) {
-  const [messages, setMessages]         = useState([])    // {role, text, parsed?}
+  const [messages, setMessages]         = useState([])
   const [input, setInput]               = useState('')
   const [loading, setLoading]           = useState(false)
-  const [pendingTasks, setPendingTasks] = useState([])    // مهام مقترحة من Claude
-  const [skipped, setSkipped]           = useState(new Set()) // ids المتجاهلة
+  const [pendingTasks, setPendingTasks] = useState([])
+  const [skipped, setSkipped]           = useState(new Set())
   const historyRef = useRef([])
   const scrollRef  = useRef(null)
   const inputRef   = useRef(null)
-  const initialSent = useRef(false)
+  const initialTextRef = useRef(initialText || '')
 
   const activeTasks = tasks.filter(t => !t.done)
 
-  // تمرير تلقائي للأسفل
   useEffect(() => {
     if (scrollRef.current)
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, loading])
 
-  // Auto-send voice transcript when SmartChat opens with initialText
+  // Auto-send voice text
   useEffect(() => {
-    if (initialText && initialText.trim() && !initialSent.current) {
-      initialSent.current = true
-      // Small delay to let component render
-      setTimeout(() => send(initialText.trim()), 300)
+    const txt = initialTextRef.current
+    if (txt && txt.trim()) {
+      const timer = setTimeout(() => {
+        sendMessage(txt.trim())
+      }, 400)
+      return () => clearTimeout(timer)
     }
-  }, [initialText])
+  }, []) // eslint-disable-line
+
+  async function sendMessage(text) { return send(text) }
 
   async function send(text) {
     if (!text.trim() || loading) return

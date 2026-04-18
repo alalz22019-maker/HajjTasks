@@ -256,7 +256,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     }
     try {
       const taskData = { ...form, done: form.status === 'done', status: form.status || 'new' }
-      if (subtaskParent) {
+      // parentId comes from form (dropdown) or from subtaskParent (button)
+      if (subtaskParent && !taskData.parentId) {
         taskData.parentId = subtaskParent.id
       }
       const newId = await dbAddTask(taskData)
@@ -265,12 +266,12 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           await dbAddTask({
             title, priority: form.priority, person: form.person,
             dueDate: '', recurrence: '', reminderTime: '',
-            projectName: form.projectName || form.title,
+            projectName: form.projectName || '',
             sourceType: form.sourceType, sourceTitle: form.sourceTitle, done: false,
             status: 'new', parentId: newId || '',
           })
         }
-        showToast(`✅ أضيفت المهمة و${subTaskTitles.length} مهام فرعية`)
+        showToast(`✅ أضيفت المهمة و${subTaskTitles.length} فرعية`)
       } else {
         showToast('✅ تمت إضافة المهمة')
       }
@@ -755,6 +756,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           onClose={() => { setShowForm(false); setSubtaskParent(null) }} 
           onSave={addTask}
           defaultTaskType={defaultTaskType}
+          apiKey={currentApiKey}
+          parentTask={subtaskParent}
+          allTasks={tasks}
         />
       )}
 
@@ -762,7 +766,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <TaskForm 
           task={editTask} 
           onClose={() => setEditTask(null)} 
-          onSave={updateTaskHandler} 
+          onSave={updateTaskHandler}
+          apiKey={currentApiKey}
+          allTasks={tasks}
         />
       )}
 
