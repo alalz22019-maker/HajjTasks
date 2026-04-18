@@ -1,20 +1,50 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+/**
+ * Claude API utilities — calls Vercel serverless function at /api/chat
+ * which proxies to Anthropic Claude API (key stays server-side)
+ */
 
-// نظام ذكي لاستدعاء المفتاح (Lazy Loading) يمنع انهيار التطبيق
-function getGenAI() {
-  const key = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!key) {
-    throw new Error("❌ فشل الاتصال: مفتاح VITE_GEMINI_API_KEY غير موجود في إعدادات Vercel. تأكد من إضافته وإعادة البناء.");
+// ─── Core API call ──────────────────────────────────────────
+async function callAPI(messages, system, model) {
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages, system, model }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || `API error: ${response.status}`)
   }
-  return new GoogleGenerativeAI(key);
+
+  const data = await response.json()
+  return data.text || ''
 }
 
-// تطبيع النص العربي
+// ─── Chat (multi-turn) ─────────────────────────────────────
+export async function callClaudeChat(apiKey, systemPrompt, messages) {
+  // apiKey param kept for backward compatibility but not used (key is server-side)
+  const claudeMessages = messages.map(m => ({
+    role: m.role === 'assistant' ? 'assistant' : 'user',
+    content: m.content,
+  }))
+  return callAPI(claudeMessages, systemPrompt)
+}
+
+// ─── Single message ─────────────────────────────────────────
+export async function callClaude(apiKey, systemPrompt, userContent, modelName) {
+  return callAPI(
+    [{ role: 'user', content: userContent }],
+    systemPrompt,
+    modelName // ignored on server, always uses sonnet
+  )
+}
+
+// ─── Dedup helpers ──────────────────────────────────────────
 function normalizeAr(s) {
   return (s || '').trim().replace(/\s+/g, ' ').toLowerCase()
-    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه')               
-    .replace(/[\u064B-\u065F\u0670]/g, '').replace(/\u0640/g, '')            
-    .replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')               
+    .replace(/[أإآٱ]/g, 'ا').replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670]/g, '').replace(/\u0640/g, '')
+    .replace(/ى/g, 'ي').replace(/ؤ/g, 'و').replace(/ئ/g, 'ي')
 }
 
 function wordSimilarity(a, b) {
@@ -44,33 +74,7 @@ export function isDuplicateTask(newTitle, existingTasks) {
   return findDuplicateTask(newTitle, existingTasks) !== null
 }
 
-// محادثة جيميناي
-export async function callClaudeChat(apiKey, systemPrompt, messages) {
-  try {
-    const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-2.5-flash",
-        systemInstruction: systemPrompt 
-    });
-
-    const geminiMessages = messages.map(m => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
-    }));
-
-    const chat = model.startChat({
-        history: geminiMessages.slice(0, -1), 
-    });
-
-    const lastMessage = geminiMessages[geminiMessages.length - 1].parts[0].text;
-    const result = await chat.sendMessage(lastMessage);
-    return result.response.text();
-  } catch (error) {
-    console.error("Gemini Chat Error:", error);
-    throw new Error(error.message || "حدث خطأ غير معروف في المحادثة.");
-  }
-}
-
+// ─── Smart Chat System Prompt ───────────────────────────────
 export function buildSmartChatSystem(activeTasks) {
   const tasksSummary = activeTasks.length
     ? activeTasks.slice(0, 25).map(t =>
@@ -125,42 +129,40 @@ ${tasksSummary}
 - كن مختصر ومفيد.`
 }
 
-export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-2.5-flash') {
-  try {
-     const genAI = getGenAI();
-     const model = genAI.getGenerativeModel({ 
-        model: modelName,
-        systemInstruction: systemPrompt 
-    });
-    
-    const result = await model.generateContent(userContent);
-    return result.response.text();
-  } catch (error) {
-     console.error("Gemini API Error:", error);
-     throw new Error(error.message || "حدث خطأ في معالجة الطلب.");
-  }
-}
-
-export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج المهام من النصوص. أرجع JSON array فقط:
-[{"title": "مهمة", "priority": "urgent|medium|low", "category": "work|personal|health", "subcategory": "leaders", "person": "", "dueDate": ""}]`
+// ─── Extract tasks from text (Notes page) ───────────────────
+export const EXTRACT_SYSTEM = `أنت مساعد ذكي لاستخراج المهام من النصوص العربية. حلل النص واستخرج كل مهمة واضحة.
+أرجع JSON array فقط بدون أي نص إضافي:
+[{"title": "عنوان المهمة", "priority": "urgent|medium|low", "person": "", "dueDate": "", "projectName": ""}]`
 
 export const EXTRACT_SYSTEM_EN = EXTRACT_SYSTEM
 
-export const PDF_MEETING_SYSTEM = `أنت مساعد لاستخراج مهام مركز عمليات المختبرات (LOC). أرجع JSON فقط:
-{"meetingTitle": "اسم", "chairperson": "اسم", "suggestedProject": "مشروع", "tasks": []}`
+// ─── Analyze single task ────────────────────────────────────
+export const ANALYZE_TASK_SYSTEM = `أنت مساعد لتحليل مهام مركز عمليات المختبرات بوزارة الصحة. حلل عنوان المهمة واقترح:
+- الأولوية المناسبة
+- الشخص المسؤول من الفريق (لو واضح من السياق)
+- اسم المشروع المناسب
+- مهام فرعية مقترحة
+- سبب مختصر لاختياراتك
 
-export const ANALYZE_TASK_SYSTEM = `أنت مساعد لتحليل مهام LOC. أرجع JSON فقط:
-{"priority": "urgent|medium|low", "category": "work", "subcategory": "leaders", "person": "", "projectName": "", "reason": "", "subTasks": []}`
+أعضاء الفريق: م. علي الزهراني، د. منار سمان، د. وليد الحسن، أ. عبير الشدوخي، د. حامد الزهراني، أ. حماد المظيبري، أ. محمد القرشي، أ. محمد الحجيلي، أ. سعد القرشي، أ. أميرة التميمي، د. مرام الشهراني، أ. وفاء آل إسماعيل، د. سمية الغريب، أ. مشاعل المطيري، أ. صفاء الشهري، أ. أمجاد المطيري، أ. مي الأسمري، أ. شادي نبيل
+
+أرجع JSON فقط:
+{"priority": "urgent|medium|low", "person": "", "projectName": "", "reason": "", "subTasks": ["فرعية 1", "فرعية 2"]}`
 
 export async function analyzeTaskWithAI(apiKey, taskTitle) {
-  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle, 'gemini-2.5-flash')
+  const text = await callClaude(apiKey, ANALYZE_TASK_SYSTEM, taskTitle)
   try {
-    return JSON.parse(text.replace(/```json/g, '').replace(/```/g, ''))
+    return JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim())
   } catch {
     return null
   }
 }
 
+// ─── PDF Meeting extraction ─────────────────────────────────
+export const PDF_MEETING_SYSTEM = `أنت مساعد لاستخراج مهام مركز عمليات المختبرات (LOC). أرجع JSON فقط:
+{"meetingTitle": "اسم", "chairperson": "اسم", "suggestedProject": "مشروع", "tasks": []}`
+
+// ─── Visual Summary ─────────────────────────────────────────
 export const VISUAL_SUMMARY_SYSTEM = `أنت خبير مكتب إدارة المشاريع (PMO). حلل المهام وأرجع تقرير JSON يخدم د. منار سمان. 
 أرجع JSON فقط بنفس الهيكل المعتمد مسبقاً وبدون أي نصوص إضافية خارج الـ JSON.`
 
@@ -177,26 +179,26 @@ function stripOwnerFromPerson(personStr) {
 export async function generateVisualSummary(apiKey, tasks) {
   const today = new Date().toISOString().slice(0, 10)
   const slim = tasks.map(t => ({
-    t: t.title, p: t.priority, c: t.category, f: t.projectName || '',
+    t: t.title, p: t.priority, f: t.projectName || '',
     w: stripOwnerFromPerson(t.person || ''), d: t.done ? 1 : 0, due: t.dueDate || '',
     ca: t.completedAt ? t.completedAt.slice(0, 10) : '',
   }))
   
-  const promptText = `today=${today}\n${JSON.stringify(slim)}`;
-  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText, 'gemini-2.5-flash');
+  const promptText = `today=${today}\n${JSON.stringify(slim)}`
+  const raw = await callClaude(apiKey, VISUAL_SUMMARY_SYSTEM, promptText)
   
   try {
-     return JSON.parse(raw.replace(/```json/g, '').replace(/```/g, ''));
-  } catch (error) {
-     throw new Error("فشل في استخراج التقرير المرئي.");
+    return JSON.parse(raw.replace(/```json/g, '').replace(/```/g, '').trim())
+  } catch {
+    throw new Error("فشل في استخراج التقرير المرئي.")
   }
 }
 
 export async function reviewByTaskExpert(apiKey, promptText) {
-  const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). قدم ملاحظات احترافية ومختصرة.`;
+  const systemPrompt = `أنت خبير مكتب إدارة المشاريع (PMO). قدم ملاحظات احترافية ومختصرة بالعربي.`
   try {
-     return await callClaude(apiKey, systemPrompt, JSON.stringify(promptText), 'gemini-2.5-flash');
-  } catch (error) {
-     return "تعذر إكمال مراجعة الخبير في الوقت الحالي.";
+    return await callClaude(apiKey, systemPrompt, JSON.stringify(promptText))
+  } catch {
+    return "تعذر إكمال مراجعة الخبير في الوقت الحالي."
   }
 }

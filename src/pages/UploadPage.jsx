@@ -3,7 +3,6 @@ import { callClaude, EXTRACT_SYSTEM, PDF_MEETING_SYSTEM, isDuplicateTask, findDu
 import DuplicateConflictModal from '../components/DuplicateConflictModal'
 import PullToRefresh from '../components/PullToRefresh'
 import { addTask } from '../utils/db'
-import { GoogleGenerativeAI } from "@google/generative-ai"
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -52,14 +51,10 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
     setExtracted([])
     setMeetingMeta(null)
     try {
-      const geminiKey = import.meta.env.VITE_GEMINI_API_KEY
-      if (!geminiKey) throw new Error('مفتاح Gemini API غير موجود في إعدادات Vercel')
-      
-      const genAI = new GoogleGenerativeAI(geminiKey)
       let content
       let isPdfMeeting = false
 
-      if (file.type.startsWith('image/')) {
+      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
         const reader = new FileReader()
         const base64 = await new Promise((res, rej) => {
           reader.onload = e => res(e.target.result.split(',')[1])
@@ -67,40 +62,26 @@ export default function UploadPage({ tasks, apiKey, setApiKey, showToast }) {
           reader.readAsDataURL(file)
         })
         
-        const model = genAI.getGenerativeModel({ 
-          model: 'gemini-2.5-flash',
-          systemInstruction: UPLOAD_SYSTEM
+        isPdfMeeting = file.type === 'application/pdf'
+        
+        const response = await fetch('/api/vision', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            base64,
+            mimeType: file.type,
+            system: isPdfMeeting ? PDF_MEETING_SYSTEM : UPLOAD_SYSTEM,
+            prompt: isPdfMeeting ? 'استخرج المهام والتكليفات من هذا المحضر' : 'استخرج المهام من هذه الصورة',
+          }),
         })
         
-        const result = await model.generateContent([
-          { inlineData: { mimeType: file.type, data: base64 } },
-          { text: 'استخرج المهام من هذه الصورة' }
-        ])
-        content = result.response.text()
-
-      } else if (file.type === 'application/pdf') {
-        const reader = new FileReader()
-        const base64 = await new Promise((res, rej) => {
-          reader.onload = e => res(e.target.result.split(',')[1])
-          reader.onerror = rej
-          reader.readAsDataURL(file)
-        })
-        isPdfMeeting = true
-        
-        const model = genAI.getGenerativeModel({ 
-          model: 'gemini-2.5-flash',
-          systemInstruction: PDF_MEETING_SYSTEM
-        })
-        
-        const result = await model.generateContent([
-          { inlineData: { mimeType: 'application/pdf', data: base64 } },
-          { text: 'استخرج المهام والتكليفات من هذا المحضر' }
-        ])
-        content = result.response.text()
+        if (!response.ok) throw new Error('فشل في تحليل الملف')
+        const data = await response.json()
+        content = data.text
 
       } else {
         const text = await file.text()
-        content = await callClaude(apiKey, EXTRACT_SYSTEM, text.slice(0, 4000))
+        content = await callClaude(null, EXTRACT_SYSTEM, text.slice(0, 4000))
       }
       
       if (isPdfMeeting) {
