@@ -157,7 +157,9 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
     onSave(finalForm, selectedSubTasks)
   }
 
-  const formTitle = task ? 'تعديل المهمة' : parentTask ? `إضافة فرعية لـ: ${parentTask.title}` : 'إضافة مهمة جديدة'
+  const typeIcons = { task: '📝', meeting: '📅', report: '📊' }
+  const typeLabels = { task: 'مهمة جديدة', meeting: 'اجتماع جديد', report: 'تقرير جديد' }
+  const formTitle = task ? 'تعديل المهمة' : parentTask ? `🔀 فرعية لـ: ${parentTask.title.substring(0, 30)}` : `${typeIcons[form.taskType] || '📝'} ${typeLabels[form.taskType] || 'مهمة جديدة'}`
 
   return (
     <div 
@@ -290,40 +292,101 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
 
         {/* المسؤول */}
         <div className="form-group">
-          <label className="form-label">الشخص المسؤول</label>
+          <label className="form-label">{form.taskType === 'meeting' ? 'رئيس الاجتماع' : 'الشخص المسؤول'}</label>
           {isUser ? (
             <input className="form-input" value={userProfile?.name || ''} disabled style={{ background: 'var(--bg3)', opacity: 0.7, color: 'var(--text)' }} />
           ) : (
             <select className="form-input" value={form.person} onChange={e => set('person', e.target.value)}>
-              <option value="">— اختر المسؤول —</option>
+              <option value="">— اختر —</option>
               {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           )}
         </div>
 
-        {/* تاريخ + تنبيه */}
-        <div className="form-row">
-          <div className="form-group">
-            <label className="form-label">تاريخ الاستحقاق</label>
-            <input className="form-input" type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">وقت التنبيه</label>
-            <input className="form-input" type="time" value={form.reminderTime} onChange={e => set('reminderTime', e.target.value)} />
-          </div>
-        </div>
+        {/* ── حقول خاصة بالاجتماع ── */}
+        {form.taskType === 'meeting' && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">📅 تاريخ الاجتماع</label>
+                <input className="form-input" type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">⏰ وقت الاجتماع</label>
+                <input className="form-input" type="time" value={form.meetingTime || ''} onChange={e => set('meetingTime', e.target.value)} />
+              </div>
+            </div>
 
-        {/* التكرار */}
-        <div className="form-group">
-          <label className="form-label">التكرار</label>
-          <div className="seg-control">
-            {RECURRENCES.map(r => (
-              <button key={r.value} className={`seg-btn${form.recurrence === r.value ? ' active' : ''}`} onClick={() => set('recurrence', r.value)}>{r.label}</button>
-            ))}
-          </div>
-        </div>
+            <div className="form-group">
+              <label className="form-label">📍 المكان / رابط الاجتماع</label>
+              <input className="form-input" value={form.meetingLocation || ''} onChange={e => set('meetingLocation', e.target.value)} placeholder="قاعة الاجتماعات / رابط Teams..." />
+            </div>
 
-        {/* مهمة أم — ربط بمهمة موجودة */}
+            <div className="form-group">
+              <label className="form-label">نوع الحضور</label>
+              <div className="seg-control">
+                <button className={`seg-btn${(form.meetingRole || 'attend') === 'attend' ? ' active' : ''}`} onClick={() => set('meetingRole', 'attend')}>✋ حضور فقط</button>
+                <button className={`seg-btn${form.meetingRole === 'minutes' ? ' active' : ''}`} onClick={() => set('meetingRole', 'minutes')}>📝 حضور + محضر</button>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">👥 الحضور (اختياري)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {TEAM_MEMBERS.filter(m => m !== form.person).map(m => {
+                  const selected = (form.attendees || []).includes(m)
+                  return (
+                    <button key={m} onClick={() => {
+                      const cur = form.attendees || []
+                      set('attendees', selected ? cur.filter(a => a !== m) : [...cur, m])
+                    }} style={{
+                      padding: '4px 8px', borderRadius: 6, fontSize: 10, fontFamily: 'inherit',
+                      background: selected ? 'rgba(59,130,246,0.15)' : 'var(--bg3)',
+                      border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
+                      color: selected ? 'var(--blue-light)' : 'var(--text2)', cursor: 'pointer',
+                    }}>{selected ? '✓ ' : ''}{m.split(' ').pop()}</button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">الدورية</label>
+              <div className="seg-control">
+                {RECURRENCES.map(r => (
+                  <button key={r.value} className={`seg-btn${form.recurrence === r.value ? ' active' : ''}`} onClick={() => set('recurrence', r.value)}>{r.label}</button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── حقول المهمة/التقرير العادية ── */}
+        {form.taskType !== 'meeting' && (
+          <>
+            <div className="form-row">
+              <div className="form-group">
+                <label className="form-label">تاريخ الاستحقاق</label>
+                <input className="form-input" type="date" value={form.dueDate} onChange={e => set('dueDate', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">وقت التنبيه</label>
+                <input className="form-input" type="time" value={form.reminderTime} onChange={e => set('reminderTime', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">التكرار</label>
+              <div className="seg-control">
+                {RECURRENCES.map(r => (
+                  <button key={r.value} className={`seg-btn${form.recurrence === r.value ? ' active' : ''}`} onClick={() => set('recurrence', r.value)}>{r.label}</button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ربط كفرعية */}
         {!parentTask && !task?.parentId && parentCandidates.length > 0 && (
           <div className="form-group">
             <label className="form-label">ربط كفرعية لمهمة (اختياري)</label>
@@ -349,22 +412,16 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         )}
 
-        {form.taskType === 'meeting' && (
-          <div className="form-group">
-            <label className="form-label">وقت الاجتماع</label>
-            <input className="form-input" type="time" value={form.meetingTime || ''} onChange={e => set('meetingTime', e.target.value)} />
-          </div>
-        )}
-
         {/* ملاحظات */}
         <div className="form-group">
-          <label className="form-label">ملاحظات الإنجاز</label>
+          <label className="form-label">{form.taskType === 'meeting' && form.meetingRole === 'minutes' ? 'المحضر / الملاحظات' : 'ملاحظات الإنجاز'}</label>
           <textarea className="form-input" value={form.closeNote || ''} onChange={e => set('closeNote', e.target.value)} 
-            placeholder="ماذا تم إنجازه..." style={{ minHeight: 60, resize: 'vertical' }} />
+            placeholder={form.taskType === 'meeting' ? 'محضر الاجتماع أو ملاحظات...' : 'ماذا تم إنجازه...'}
+            style={{ minHeight: 60, resize: 'vertical' }} />
         </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
-          {task ? 'حفظ التغييرات' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
+          {task ? 'حفظ التغييرات' : form.taskType === 'meeting' ? '📅 حفظ الاجتماع' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
         </button>
         <button className="cancel-btn" onClick={onClose} style={{ marginBottom: '10px' }}>إلغاء</button>
       </div>

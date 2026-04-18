@@ -72,33 +72,57 @@ export async function callClaudeChat(apiKey, systemPrompt, messages) {
 }
 
 export function buildSmartChatSystem(activeTasks) {
-  const summary = activeTasks.length
-    ? activeTasks.slice(0, 30).map(t =>
-        `- ${t.title}${t.projectName ? ` [${t.projectName}]` : ''}${t.person ? ` (${t.person})` : ''}`
+  const tasksSummary = activeTasks.length
+    ? activeTasks.slice(0, 25).map(t =>
+        `- ${t.title}${t.projectName ? ` [${t.projectName}]` : ''}${t.person ? ` (${t.person})` : ''}${t.status ? ` {${t.status}}` : ''}`
       ).join('\n')
     : 'لا توجد مهام نشطة'
 
-  return `أنت مساعد ذكي لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
+  const stats = {
+    total: activeTasks.length,
+    urgent: activeTasks.filter(t => t.priority === 'urgent').length,
+    byPerson: {},
+    byProject: {},
+  }
+  activeTasks.forEach(t => {
+    if (t.person) stats.byPerson[t.person] = (stats.byPerson[t.person] || 0) + 1
+    if (t.projectName) stats.byProject[t.projectName] = (stats.byProject[t.projectName] || 0) + 1
+  })
 
-⚠️ قواعد مهمة جداً:
-- استخرج فقط المهام الجديدة من كلام المستخدم. لا ترجع المهام الموجودة مسبقاً.
-- "tasks" تحتوي فقط على المهام الجديدة المستخرجة من رسالة المستخدم الحالية.
-- لو ما فيه مهام جديدة، ارجع tasks فارغة [].
-- لو المستخدم ذكر شخص (مثل سعد)، حاول مطابقته مع أسماء الفريق.
+  return `أنت مساعد ذكي اسمك "مهامي" لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
 
-المهام الموجودة (للمقارنة وكشف التكرار فقط — لا ترجعها):
-${summary}
+## دورك:
+أنت مساعد شامل — تجاوب أسئلة، تساعد في الصياغة، تقترح تصنيفات، وتستخرج مهام.
 
-أرجع JSON فقط بهذا الشكل:
-{
-  "message": "رسالة موجزة تشرح ماذا فعلت",
-  "tasks": [
-    { "id": "t1", "title": "عنوان المهمة الجديدة", "priority": "urgent|medium|low", "person": "", "dueDate": "", "projectName": "" }
-  ],
-  "questions": [],
-  "duplicates": [{ "taskId": "t1", "existingTitle": "مهمة مشابهة موجودة", "reason": "سبب التشابه" }],
-  "ready": false
-}`
+## إحصائيات سريعة:
+- إجمالي المهام النشطة: ${stats.total}
+- مهام عاجلة: ${stats.urgent}
+- حسب الشخص: ${JSON.stringify(stats.byPerson)}
+- حسب المشروع: ${JSON.stringify(stats.byProject)}
+
+## المهام النشطة (للمرجعية):
+${tasksSummary}
+
+## أعضاء الفريق المتاحين:
+م. علي الزهراني، د. منار سمان، د. وليد الحسن، أ. عبير الشدوخي، د. حامد الزهراني، أ. حماد المظيبري، أ. محمد القرشي، أ. محمد الحجيلي، أ. سعد القرشي، أ. أميرة التميمي، د. مرام الشهراني، أ. وفاء آل إسماعيل، د. سمية الغريب، أ. مشاعل المطيري، أ. صفاء الشهري، أ. أمجاد المطيري، أ. مي الأسمري، أ. شادي نبيل
+
+## طريقة الرد:
+1. لو المستخدم يسأل سؤال عادي (كم مهمة عندي؟ وش المهام العاجلة؟ كيف أضيف فرعية؟) → رد بشكل طبيعي بالعربي. لا ترجع JSON.
+
+2. لو المستخدم يبي يضيف مهمة أو يحتاج مساعدة في صياغة مهمة → ساعده في الصياغة واقترح التصنيف والمسؤول، ثم ضع المهام الجاهزة في JSON بنهاية ردك هكذا:
+\`\`\`json
+{"tasks": [{"id": "t1", "title": "عنوان المهمة", "priority": "medium", "person": "", "dueDate": "", "projectName": ""}]}
+\`\`\`
+
+3. لو المستخدم لصق محضر اجتماع أو نص طويل → استخرج المهام الجديدة فقط ورتبها، ثم ضعها في JSON.
+
+4. لو فيه مهمة مشابهة موجودة → نبّه المستخدم قبل الإضافة.
+
+## مهم جداً:
+- لا ترجع المهام الموجودة مسبقاً في tasks — فقط الجديدة.
+- رد بالعربي دائماً.
+- لو المستخدم كتب بالعامية، افهمه وجاوبه بالعامية.
+- كن مختصر ومفيد.`
 }
 
 export async function callClaude(apiKey, systemPrompt, userContent, modelName = 'gemini-2.5-flash') {

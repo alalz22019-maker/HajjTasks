@@ -9,23 +9,33 @@ export default function QuickAddMenu({ onOption, onClose }) {
   const transcriptRef = useRef('')
   const closedRef = useRef(false)
 
-  const doClose = useCallback(() => {
-    if (closedRef.current) return
-    closedRef.current = true
+  // Kill mic completely
+  const killMic = useCallback(() => {
     if (recognitionRef.current) {
+      recognitionRef.current.onresult = null
+      recognitionRef.current.onend = null
+      recognitionRef.current.onerror = null
       try { recognitionRef.current.abort() } catch {}
       recognitionRef.current = null
     }
+    setListening(false)
+  }, [])
+
+  const doClose = useCallback(() => {
+    if (closedRef.current) return
+    closedRef.current = true
+    killMic()
     setClosing(true)
     setTimeout(onClose, 150)
-  }, [onClose])
+  }, [onClose, killMic])
 
   function pick(option) {
     if (option === 'voice') {
       startVoice()
       return
     }
-    doClose()
+    const closeFn = doClose
+    closeFn()
     setTimeout(() => onOption(option), 160)
   }
 
@@ -59,18 +69,20 @@ export default function QuickAddMenu({ onOption, onClose }) {
     recognition.onend = () => {
       setListening(false)
       recognitionRef.current = null
-      // Don't send if user closed the menu manually
       if (closedRef.current) return
       const txt = transcriptRef.current.trim()
       if (txt) {
-        doClose()
-        setTimeout(() => onOption('voice_result', txt), 160)
+        closedRef.current = true
+        setClosing(true)
+        setTimeout(() => {
+          onOption('voice_result', txt)
+          onClose()
+        }, 160)
       }
     }
 
     recognition.onerror = (e) => {
-      setListening(false)
-      recognitionRef.current = null
+      killMic()
       if (e.error === 'not-allowed') {
         doClose()
         setTimeout(() => onOption('voice_fallback'), 160)
@@ -83,26 +95,37 @@ export default function QuickAddMenu({ onOption, onClose }) {
   }
 
   function stopVoice() {
+    // abort() immediately kills mic and releases the orange indicator
     if (recognitionRef.current) {
-      try { recognitionRef.current.stop() } catch {}
+      const txt = transcriptRef.current.trim()
+      // Remove handlers first to prevent onend from firing
+      recognitionRef.current.onresult = null
+      recognitionRef.current.onend = null
+      recognitionRef.current.onerror = null
+      try { recognitionRef.current.abort() } catch {}
+      recognitionRef.current = null
+      setListening(false)
+      
+      if (txt && !closedRef.current) {
+        closedRef.current = true
+        setClosing(true)
+        setTimeout(() => {
+          onOption('voice_result', txt)
+          onClose()
+        }, 160)
+      }
     }
   }
 
-  useEffect(() => {
-    return () => {
-      if (recognitionRef.current) {
-        try { recognitionRef.current.abort() } catch {}
-        recognitionRef.current = null
-      }
-    }
-  }, [])
+  // Cleanup on unmount
+  useEffect(() => { return killMic }, [killMic])
 
   const OPTIONS = [
     { id: 'voice',   icon: '🎤', label: 'إدخال صوتي',    color: '#ef4444' },
-    { id: 'chat',    icon: '✨', label: 'محادثة ذكية',    color: '#8b5cf6' },
+    { id: 'chat',    icon: '💬', label: 'محادثة ذكية',    color: '#8b5cf6' },
     { id: 'task',    icon: '📝', label: 'مهمة جديدة',     color: '#3b82f6' },
     { id: 'meeting', icon: '📅', label: 'اجتماع جديد',    color: '#f59e0b' },
-    { id: 'report',  icon: '📋', label: 'تقرير جديد',     color: '#10b981' },
+    { id: 'report',  icon: '📊', label: 'تقرير جديد',     color: '#10b981' },
   ]
 
   return createPortal(
@@ -110,8 +133,8 @@ export default function QuickAddMenu({ onOption, onClose }) {
       onClick={doClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 9998,
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(3px)',
+        background: 'rgba(0,0,0,0.5)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
         opacity: closing ? 0 : 1,
         transition: 'opacity 0.15s ease',
@@ -120,51 +143,52 @@ export default function QuickAddMenu({ onOption, onClose }) {
     >
       <div onClick={e => e.stopPropagation()} style={{
         display: 'flex', flexDirection: 'column', gap: 6,
-        width: '80%', maxWidth: 280,
-        transform: closing ? 'translateY(20px)' : 'translateY(0)',
+        width: '78%', maxWidth: 260,
+        transform: closing ? 'translateY(20px) scale(0.95)' : 'translateY(0) scale(1)',
         transition: 'transform 0.15s ease',
       }}>
         {listening ? (
           <div style={{
             background: 'var(--card)', borderRadius: 16, padding: 20,
-            border: '1px solid var(--border)', textAlign: 'center',
+            border: '1px solid rgba(239,68,68,0.3)', textAlign: 'center',
           }}>
             <div style={{
-              width: 48, height: 48, borderRadius: '50%', margin: '0 auto 12px',
-              background: 'rgba(239,68,68,0.15)', border: '2px solid #ef4444',
+              width: 44, height: 44, borderRadius: '50%', margin: '0 auto 10px',
+              background: 'rgba(239,68,68,0.12)', border: '2px solid #ef4444',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, animation: 'pulse 1.5s infinite',
+              fontSize: 20, animation: 'pulse 1.5s infinite',
             }}>🎤</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
               جاري الاستماع...
             </div>
             {transcript && (
               <div style={{
-                fontSize: 13, color: 'var(--text2)', marginBottom: 10,
-                padding: '6px 10px', background: 'var(--bg)', borderRadius: 8,
-                direction: 'rtl', lineHeight: 1.5,
+                fontSize: 13, color: 'var(--text)', marginBottom: 10,
+                padding: '8px 10px', background: 'var(--bg3)', borderRadius: 8,
+                direction: 'rtl', lineHeight: 1.6, textAlign: 'right',
               }}>{transcript}</div>
             )}
             <button onClick={stopVoice} style={{
               padding: '8px 20px', borderRadius: 8,
               background: '#ef4444', color: '#fff', border: 'none',
               fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-            }}>⏹ إيقاف</button>
+            }}>⏹ إيقاف وإرسال</button>
           </div>
         ) : (
-          OPTIONS.map(o => (
+          OPTIONS.map((o, i) => (
             <button key={o.id} onClick={() => pick(o.id)} style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              padding: '10px 14px', borderRadius: 12,
+              padding: '11px 14px', borderRadius: 12,
               background: 'var(--card)', border: '1px solid var(--border)',
               color: 'var(--text)', fontSize: 14, fontWeight: 600,
               cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right',
+              animationDelay: `${i * 40}ms`,
             }}>
               <span style={{
-                width: 30, height: 30, borderRadius: 8,
-                background: `${o.color}18`, color: o.color,
+                width: 32, height: 32, borderRadius: 10,
+                background: `${o.color}15`, color: o.color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 15, flexShrink: 0,
+                fontSize: 16, flexShrink: 0,
               }}>{o.icon}</span>
               <span>{o.label}</span>
             </button>

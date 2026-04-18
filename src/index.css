@@ -363,10 +363,16 @@ input, textarea, select {
   border-radius: var(--radius);
   padding: 14px;
   transition: all 0.2s;
+  border-right: 3px solid var(--border);
 }
 
+.task-card.priority-urgent { border-right-color: #ef4444; }
+.task-card.priority-medium { border-right-color: #f59e0b; }
+.task-card.priority-low { border-right-color: #10b981; }
+
 .task-card.done {
-  opacity: 0.5;
+  opacity: 0.45;
+  border-right-color: var(--border);
 }
 
 .task-top {
@@ -423,15 +429,16 @@ input, textarea, select {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 3px 8px;
-  border-radius: 6px;
+  padding: 3px 9px;
+  border-radius: 8px;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
-.badge-urgent { background: rgba(239,68,68,0.15); color: #ef4444; }
-.badge-medium { background: rgba(245,158,11,0.15); color: #f59e0b; }
-.badge-low    { background: rgba(16,185,129,0.15); color: #10b981; }
+.badge-urgent { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+.badge-medium { background: rgba(245,158,11,0.12); color: #fbbf24; border: 1px solid rgba(245,158,11,0.2); }
+.badge-low    { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
 .badge-work   { background: rgba(59,130,246,0.15); color: #60a5fa; }
 .badge-personal { background: rgba(139,92,246,0.15); color: #a78bfa; }
 .badge-health { background: rgba(16,185,129,0.15); color: #10b981; }
@@ -476,18 +483,18 @@ input, textarea, select {
   left: 20px;
   width: 52px;
   height: 52px;
-  border-radius: 50%;
+  border-radius: 16px;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
   color: #fff;
   font-size: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 20px rgba(59,130,246,0.4);
+  box-shadow: 0 4px 20px rgba(59,130,246,0.35);
   z-index: 15;
-  transition: transform 0.2s;
+  transition: transform 0.15s;
 }
-.fab:active { transform: scale(0.95); }
+.fab:active { transform: scale(0.92); }
 
 /* Extract FAB */
 .extract-fab {

@@ -51,21 +51,43 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
     try {
       const system = buildSmartChatSystem(activeTasks)
       const raw    = await callClaudeChat(apiKey, system, historyRef.current)
-      const clean  = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+      
+      // Try to extract JSON block from response (may be mixed with text)
+      let message = raw
+      let tasks = []
+      
+      // Look for ```json ... ``` block
+      const jsonMatch = raw.match(/```json\s*([\s\S]*?)```/)
+      if (jsonMatch) {
+        try {
+          const jsonData = JSON.parse(jsonMatch[1].trim())
+          tasks = jsonData.tasks || []
+          // Remove JSON block from message
+          message = raw.replace(/```json[\s\S]*?```/, '').trim()
+        } catch {}
+      } else {
+        // Try parsing entire response as JSON (legacy format)
+        try {
+          const clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim()
+          const parsed = JSON.parse(clean)
+          message = parsed.message || ''
+          tasks = parsed.tasks || []
+        } catch {
+          // It's just plain text — that's fine
+          message = raw
+        }
+      }
 
-      let parsed
-      try { parsed = JSON.parse(clean) }
-      catch { parsed = { message: clean, tasks: [], questions: [], duplicates: [], ready: false } }
-
+      const parsed = { message, tasks }
       historyRef.current = [...historyRef.current, { role: 'assistant', content: raw }]
-      setMessages(prev => [...prev, { role: 'assistant', text: parsed.message || '...', parsed }])
+      setMessages(prev => [...prev, { role: 'assistant', text: message || '...', parsed }])
 
-      // دمج المهام الجديدة مع الموجودة
-      if (parsed.tasks?.length) {
+      // Add new tasks to pending
+      if (tasks.length > 0) {
         setPendingTasks(prev => {
           const map = Object.fromEntries(prev.map(t => [t.id, t]))
-          parsed.tasks.forEach(nt => {
-            map[nt.id] = { ...map[nt.id], ...nt }
+          tasks.forEach(nt => {
+            map[nt.id || `t${Date.now()}_${Math.random().toString(36).slice(2,5)}`] = nt
           })
           return Object.values(map)
         })
@@ -136,9 +158,9 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
         flexShrink: 0,
       }}>
         <div>
-          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>💬 محادثة ذكية</div>
+          <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)' }}>💬 مساعد مهامي</div>
           <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>
-            {activeTasks.length} مهمة نشطة للمقارنة
+            اسأل أي شي أو أضف مهام
           </div>
         </div>
         <button onClick={onClose} style={{
@@ -154,14 +176,17 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
       }}>
 
         {messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 16px', color: 'var(--text2)' }}>
-            <div style={{ fontSize: 44, marginBottom: 12 }}>💬</div>
+          <div style={{ textAlign: 'center', padding: '40px 16px', color: 'var(--text2)' }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
-              الصق نصاً أو محادثة
+              مساعدك الذكي
             </div>
-            <div style={{ fontSize: 13, lineHeight: 1.6 }}>
-         سيحلل المحتوى ويقترح المهام<br />
-              مع كشف التكرار والأسئلة قبل أي إضافة
+            <div style={{ fontSize: 13, lineHeight: 1.8 }}>
+              اكتب أي شي تحتاجه:<br/>
+              • "أضف مهمة على سعد بخصوص النقل"<br/>
+              • "كم مهمة عاجلة عندي؟"<br/>
+              • "ساعدني أصيغ مهمة عن تقرير المختبرات"<br/>
+              • أو الصق محضر اجتماع
             </div>
           </div>
         )}
@@ -190,16 +215,15 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
                 </div>
               </div>
 
-              {/* بطاقات المهام — نعرضها فقط تحت آخر رسالة من Claude تحتوي مهاماً */}
+              {/* بطاقات المهام المقترحة */}
               {isLatestAssistant && (
                 <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {pendingTasks.map(t => {
-                    const dup     = parsed.duplicates?.find(d => d.taskId === t.id)
-                    const isOff   = skipped.has(t.id)
+                    const isOff = skipped.has(t.id)
                     return (
                       <div key={t.id} style={{
                         background: isOff ? 'rgba(255,255,255,0.03)' : 'var(--card)',
-                        border: `1px solid ${dup ? 'var(--orange)' : isOff ? 'var(--border)' : 'rgba(139,92,246,0.3)'}`,
+                        border: `1px solid ${isOff ? 'var(--border)' : 'rgba(59,130,246,0.3)'}`,
                         borderRadius: 12, padding: '10px 12px',
                         opacity: isOff ? 0.45 : 1,
                         transition: 'opacity .2s',
@@ -218,37 +242,13 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
                               {t.projectName && <span>📁 {t.projectName}</span>}
                               {t.dueDate     && <span>📅 {t.dueDate}</span>}
                             </div>
-
-                            {/* تحذير التكرار */}
-                            {dup && !isOff && (
-                              <div style={{
-                                marginTop: 7, padding: '7px 9px',
-                                background: 'rgba(245,158,11,0.1)',
-                                borderRadius: 8, fontSize: 11, color: 'var(--orange)',
-                              }}>
-                                ⚠️ مشابهة لـ: "{dup.existingTitle}"
-                                {dup.reason && <span style={{ opacity: 0.8 }}> — {dup.reason}</span>}
-                                <div style={{ marginTop: 5, display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                                  {(dup.options || ['إضافة كجديدة', 'تجاهل']).map(opt => (
-                                    <button key={opt} onClick={() => resolveDuplicate(t.id, opt)} style={{
-                                      padding: '3px 9px', borderRadius: 6,
-                                      border: '1px solid var(--orange)',
-                                      background: 'none', color: 'var(--orange)',
-                                      fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
-                                    }}>{opt}</button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
-
-                          {/* زر تأكيد / تجاهل */}
                           <button onClick={() => toggleSkip(t.id)} style={{
-                            width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                             border: `2px solid ${isOff ? 'var(--border)' : 'var(--green)'}`,
                             background: isOff ? 'none' : 'rgba(16,185,129,0.15)',
                             color: isOff ? 'var(--text2)' : 'var(--green)',
-                            fontSize: 14, cursor: 'pointer',
+                            fontSize: 13, cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             {isOff ? '○' : '✓'}
@@ -257,25 +257,6 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
                       </div>
                     )
                   })}
-                </div>
-              )}
-
-              {/* أسئلة Claude */}
-              {msg.role === 'assistant' && parsed?.questions?.length > 0 && (
-                <div style={{
-                  marginTop: 8, padding: '10px 12px',
-                  background: 'rgba(139,92,246,0.08)',
-                  border: '1px solid rgba(139,92,246,0.25)',
-                  borderRadius: 12,
-                }}>
-                  {parsed.questions.map((q, qi) => (
-                    <div key={qi} style={{
-                      fontSize: 13, color: 'var(--text)', direction: 'rtl',
-                      marginBottom: qi < parsed.questions.length - 1 ? 6 : 0,
-                    }}>
-                      🤔 {q.text}
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
@@ -321,7 +302,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input) } }}
-          placeholder="الصق نصاً أو محادثة أو اكتب سؤالاً..."
+          placeholder="اكتب سؤال أو طلب أو الصق محضر..."
           rows={2}
           style={{
             flex: 1, padding: '10px 12px',

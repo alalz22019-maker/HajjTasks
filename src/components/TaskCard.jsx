@@ -55,7 +55,7 @@ export default function TaskCard({
   }
 
   return (
-    <div className={`task-card${task.done ? ' done' : ''}${isParent ? ' parent-task' : ''}${isSubtask ? ' subtask-card' : ''}`}>
+    <div className={`task-card priority-${task.priority || 'medium'}${task.done ? ' done' : ''}${isParent ? ' parent-task' : ''}${isSubtask ? ' subtask-card' : ''}`}>
       <div className="task-top">
         <button
           className={`task-check${task.done ? ' done' : ''}`}

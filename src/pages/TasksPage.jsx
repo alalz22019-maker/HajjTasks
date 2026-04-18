@@ -95,8 +95,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [viewMode, setViewMode]   = useState('list')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [showExportMenu, setShowExportMenu] = useState(false)
-  const [subtaskParent, setSubtaskParent] = useState(null) // for branching
-  const [voiceText, setVoiceText] = useState('') // voice transcript for SmartChat
+  const [subtaskParent, setSubtaskParent] = useState(null)
+  const [voiceText, setVoiceText] = useState('')
+  const [calendarToast, setCalendarToast] = useState(null) // {title, date, time, location}
 
   const [pendingRequest, setPendingRequest] = useState(null)
   const [requestNote, setRequestNote] = useState('')
@@ -272,6 +273,16 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           })
         }
         showToast(`✅ أضيفت المهمة و${subTaskTitles.length} فرعية`)
+      } else if (form.taskType === 'meeting' && form.dueDate) {
+        // Show calendar toast for meetings
+        setCalendarToast({
+          title: form.title,
+          date: form.dueDate,
+          time: form.meetingTime || '',
+          location: form.meetingLocation || '',
+          person: form.person || '',
+        })
+        showToast('📅 تم حفظ الاجتماع')
       } else {
         showToast('✅ تمت إضافة المهمة')
       }
@@ -814,6 +825,47 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               <button onClick={() => setPendingRequest(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Calendar Toast for meetings */}
+      {calendarToast && (
+        <div style={{
+          position: 'fixed', bottom: 100, left: 16, right: 16, zIndex: 1001,
+          background: 'var(--card)', border: '1px solid rgba(59,130,246,0.3)',
+          borderRadius: 14, padding: '14px 16px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>📅 {calendarToast.title}</div>
+            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>
+              {calendarToast.date} {calendarToast.time ? `• ${calendarToast.time}` : ''}
+            </div>
+          </div>
+          <button onClick={() => {
+            const t = calendarToast
+            const title = encodeURIComponent(t.title)
+            const details = encodeURIComponent(t.person ? `المسؤول: ${t.person}` : '')
+            const location = encodeURIComponent(t.location || '')
+            let dates = ''
+            if (t.date) {
+              const d = t.date.replace(/-/g, '')
+              const time = t.time ? t.time.replace(':', '') + '00' : ''
+              dates = time ? `&dates=${d}T${time}/${d}T${time}` : `&dates=${d}/${d}`
+            }
+            window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}${dates}`, '_blank')
+            setCalendarToast(null)
+          }} style={{
+            padding: '8px 14px', borderRadius: 8,
+            background: 'rgba(59,130,246,0.15)', border: '1px solid rgba(59,130,246,0.3)',
+            color: 'var(--blue-light)', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+          }}>📅 أضف للتقويم</button>
+          <button onClick={() => setCalendarToast(null)} style={{
+            background: 'none', border: 'none', color: 'var(--text3)',
+            fontSize: 16, cursor: 'pointer', padding: 2,
+          }}>✕</button>
         </div>
       )}
     </div>
