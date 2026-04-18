@@ -13,7 +13,15 @@ const RECURRENCES = [
   { value: '', label: 'لا تكرار' },
   { value: 'daily', label: 'يومي' },
   { value: 'weekly', label: 'أسبوعي' },
+  { value: 'biweekly', label: 'كل أسبوعين' },
   { value: 'monthly', label: 'شهري' },
+  { value: 'quarterly', label: 'ربع سنوي' },
+]
+
+const TASK_TYPES = [
+  { value: 'task', label: 'مهمة' },
+  { value: 'report', label: 'تقرير' },
+  { value: 'meeting', label: 'اجتماع' },
 ]
 
 const SOURCE_TYPES = [
@@ -21,6 +29,27 @@ const SOURCE_TYPES = [
   { value: 'minutes', label: 'محضر' },
   { value: 'directive', label: 'توجيه مباشر' },
   { value: 'email', label: 'إيميل' },
+  { value: 'system', label: 'نظام' },
+  { value: 'escalation', label: 'تصعيد' },
+]
+
+const CATEGORIES = [
+  { value: '', label: '— بدون تصنيف —' },
+  { value: 'operations', label: '⚙️ عمليات تشغيلية' },
+  { value: 'quality', label: '✅ جودة ومطابقة' },
+  { value: 'coordination', label: '🤝 تنسيق وتواصل' },
+  { value: 'planning', label: '📋 تخطيط ومتابعة' },
+  { value: 'reports', label: '📊 تقارير وإحصائيات' },
+  { value: 'training', label: '📚 تدريب وتطوير' },
+  { value: 'procurement', label: '📦 تموين وإمداد' },
+  { value: 'technical', label: '🔧 دعم فني' },
+  { value: 'admin', label: '🏢 إدارية' },
+]
+
+const REPORT_STATUSES = [
+  { value: 'draft', label: 'مسودة' },
+  { value: 'review', label: 'قيد المراجعة' },
+  { value: 'submitted', label: 'مُسلّم' },
 ]
 
 const TEAM_MEMBERS = [
@@ -34,6 +63,7 @@ const TEAM_MEMBERS = [
 const DEFAULT_TASK = {
   title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
   reminderTime: '', projectName: '', sourceType: '', sourceTitle: '', done: false,
+  taskType: 'task', category: '', reportStatus: '', closeNote: '',
 }
 
 export default function TaskForm({ task, onSave, onClose, apiKey }) {
@@ -153,6 +183,33 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
         </div>
 
         <div className="form-group">
+          <label className="form-label">نوع المهمة</label>
+          <div className="seg-control">
+            {TASK_TYPES.map(t => (
+              <button key={t.value} className={`seg-btn${form.taskType === t.value ? ' active' : ''}`} onClick={() => set('taskType', t.value)}>{t.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">التصنيف</label>
+          <select className="form-input" value={form.category || ''} onChange={e => set('category', e.target.value)}>
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
+
+        {form.taskType === 'report' && (
+          <div className="form-group">
+            <label className="form-label">حالة التقرير</label>
+            <div className="seg-control">
+              {REPORT_STATUSES.map(s => (
+                <button key={s.value} className={`seg-btn${form.reportStatus === s.value ? ' active' : ''}`} onClick={() => set('reportStatus', s.value)}>{s.label}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="form-group">
           <label className="form-label">اسم المشروع / المبادرة</label>
           {!isNewProject ? (
             <select className="form-input" value={existingProjects.includes(form.projectName) ? form.projectName : (form.projectName ? 'NEW_PROJECT' : '')}
@@ -228,6 +285,19 @@ export default function TaskForm({ task, onSave, onClose, apiKey }) {
             <label className="form-label">عنوان المصدر</label>
             <input className="form-input" value={form.sourceTitle} onChange={e => set('sourceTitle', e.target.value)} placeholder="رقم المحضر..." disabled={!form.sourceType} />
           </div>
+        </div>
+
+        {form.taskType === 'meeting' && (
+          <div className="form-group">
+            <label className="form-label">وقت الاجتماع</label>
+            <input className="form-input" type="time" value={form.meetingTime || ''} onChange={e => set('meetingTime', e.target.value)} />
+          </div>
+        )}
+
+        <div className="form-group">
+          <label className="form-label">ملاحظات الإنجاز</label>
+          <textarea className="form-input" value={form.closeNote || ''} onChange={e => set('closeNote', e.target.value)} 
+            placeholder="ماذا تم إنجازه..." style={{ minHeight: 60, resize: 'vertical' }} />
         </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>

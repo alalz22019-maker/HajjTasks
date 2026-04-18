@@ -1,12 +1,18 @@
 import { useState } from 'react'
 
 const PRIORITY_LABELS = { urgent: 'عاجل', medium: 'متوسطة', low: 'منخفضة' }
-const CATEGORY_LABELS = { work: 'عمل', personal: 'شخصي', health: 'صحة' }
+const CATEGORY_LABELS = { 
+  work: 'عمل', personal: 'شخصي', health: 'صحة',
+  operations: '⚙️ تشغيلية', quality: '✅ جودة', coordination: '🤝 تنسيق',
+  planning: '📋 تخطيط', reports: '📊 تقارير', training: '📚 تدريب',
+  procurement: '📦 تموين', technical: '🔧 فني', admin: '🏢 إدارية',
+}
 const SUBCATEGORY_LABELS = {
   leaders: 'القادة', team: 'الفريق', other: 'أخرى',
   home: 'البيت', business: 'بيزنس'
 }
-const RECURRENCE_LABELS = { daily: 'يومي', weekly: 'أسبوعي', monthly: 'شهري' }
+const RECURRENCE_LABELS = { daily: 'يومي', weekly: 'أسبوعي', biweekly: 'كل أسبوعين', monthly: 'شهري', quarterly: 'ربع سنوي' }
+const TASK_TYPE_ICONS = { task: '', report: '📋', meeting: '🗓' }
 
 function formatDate(d) {
   if (!d) return null
@@ -79,13 +85,20 @@ export default function TaskCard({
             )}
           </div>
           <div className="task-meta">
+            {task.taskType && task.taskType !== 'task' && (
+              <span className="badge badge-date" style={{ background: task.taskType === 'report' ? 'rgba(99,102,241,0.15)' : 'rgba(245,158,11,0.15)', color: task.taskType === 'report' ? '#818cf8' : '#fbbf24' }}>
+                {TASK_TYPE_ICONS[task.taskType]} {task.taskType === 'report' ? 'تقرير' : 'اجتماع'}
+              </span>
+            )}
             <span className={`badge badge-${task.priority}`}>
               {PRIORITY_LABELS[task.priority]}
             </span>
-            <span className={`badge badge-${task.category}`}>
-              {CATEGORY_LABELS[task.category]}
-            </span>
-            {task.subcategory && task.subcategory !== 'other' && (
+            {task.category && CATEGORY_LABELS[task.category] && (
+              <span className="badge badge-date">
+                {CATEGORY_LABELS[task.category]}
+              </span>
+            )}
+            {!task.category && task.subcategory && task.subcategory !== 'other' && (
               <span className="badge badge-date">
                 {SUBCATEGORY_LABELS[task.subcategory] || task.subcategory}
               </span>

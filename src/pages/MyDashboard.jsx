@@ -69,9 +69,10 @@ function getRoutineStats(tasks) {
 
 /* ─── Report tasks detection ──────────────────── */
 function isReportTask(t) {
+  if (t.taskType === 'report') return true
   const title = (t.title || '').toLowerCase()
-  const keywords = ['تقرير', 'report', 'إحصائية', 'ملخص', 'dashboard', 'بيانات', 'إعداد تقرير', 'تقارير']
-  return keywords.some(k => title.includes(k)) || t.taskType === 'report'
+  const keywords = ['تقرير', 'report', 'إحصائية', 'ملخص', 'dashboard', 'إعداد تقرير', 'تقارير']
+  return keywords.some(k => title.includes(k))
 }
 
 /* ─── Component ────────────────────────────────── */
@@ -309,6 +310,31 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
 
             {/* Week ahead */}
             <SectionHeader icon="📆" title="هذا الأسبوع" count={stats.weekDue} />
+
+            {/* Today's meetings */}
+            {(() => {
+              const src = myTasks.length > 0 ? myTasks : allTasks
+              const meetings = src.filter(t => t.taskType === 'meeting' && !t.done && (isToday(t.dueDate) || isThisWeek(t.dueDate)))
+              if (meetings.length === 0) return null
+              return (
+                <>
+                  <SectionHeader icon="🗓" title="الاجتماعات القادمة" count={meetings.length} color="var(--purple-light)" />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                    {meetings.map(t => (
+                      <div key={t.id} style={{
+                        padding: '10px 14px', borderRadius: 12,
+                        background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)',
+                      }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>🗓 {t.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>
+                          {t.meetingTime ? `⏰ ${t.meetingTime}` : ''} {t.dueDate ? `📅 ${formatDate(t.dueDate)}` : ''} {t.person ? `👤 ${t.person.split('/')[0].trim()}` : ''}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
               {(myTasks.length > 0 ? myTasks : allTasks)
                 .filter(t => !t.done && isThisWeek(t.dueDate) && !isToday(t.dueDate))

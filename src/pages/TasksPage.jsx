@@ -48,10 +48,25 @@ const FILTERS = [
   { id: 'done',     label: 'مكتملة' },
   { id: 'urgent',   label: 'عاجل' },
   { id: 'mine',     label: 'مهامي' },
+  { id: 'meetings', label: 'اجتماعات' },
+  { id: 'reports',  label: 'تقارير' },
 ]
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
+}
+
+function calcNextDue(dateStr, recurrence) {
+  const d = dateStr ? new Date(dateStr) : new Date()
+  switch (recurrence) {
+    case 'daily': d.setDate(d.getDate() + 1); break
+    case 'weekly': d.setDate(d.getDate() + 7); break
+    case 'biweekly': d.setDate(d.getDate() + 14); break
+    case 'monthly': d.setMonth(d.getMonth() + 1); break
+    case 'quarterly': d.setMonth(d.getMonth() + 3); break
+    default: d.setDate(d.getDate() + 1)
+  }
+  return d.toISOString().split('T')[0]
 }
 
 const REQUEST_LABELS = {
@@ -112,6 +127,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       else if (filter === 'done'     && !t.done) return false
       else if (filter === 'urgent'   && t.priority !== 'urgent') return false
       else if (filter === 'mine'     && (!t.person || t.person.trim() !== userProfile?.name)) return false
+      else if (filter === 'meetings' && t.taskType !== 'meeting') return false
+      else if (filter === 'reports'  && t.taskType !== 'report') return false
       
       if (!q) return true
       return (t.title || '').toLowerCase().includes(q)
