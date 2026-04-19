@@ -7,6 +7,7 @@ import NotesPage from './pages/NotesPage'
 import UploadPage from './pages/UploadPage'
 import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
+import BusinessReportsPage from './pages/BusinessReportsPage'
 import AdminPanel from './pages/AdminPanel'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
@@ -215,10 +216,10 @@ function AppShell() {
   const NAV = [
     { id: 'dashboard', label: 'لوحتي', icon: '🏠' },
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
+    { id: 'bizreports', label: 'التقارير', icon: '📋' },
+    ...(isAdmin ? [{ id: 'reports', label: 'إحصائيات', icon: '📊' }] : []),
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
     ...(canUpload ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []),
-    { id: 'contacts',label: 'جهات',   icon: '👥' },
-        ...(isAdmin ? [{ id: 'reports', label: 'تقرير',  icon: '📊' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
   ]
 
@@ -327,6 +328,12 @@ function AppShell() {
         )}
         {page === 'contacts' && (
           <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
+        )}
+        {page === 'bizreports' && (
+          <BusinessReportsPage
+            tasks={tasks}
+            showToast={showToast}
+          />
         )}
         {page === 'reports' && (
           <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
