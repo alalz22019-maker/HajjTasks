@@ -129,9 +129,14 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     })
   }
 
+  // المحادثة الذكية والمحضر والصوتي محصورة على: علي، منار، وليد
+  const AI_ALLOWED = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
+  const canUseAI = userProfile && AI_ALLOWED.includes(userProfile.name)
+
   // Handle QuickAddMenu option
   function handleQuickOption(option, data) {
     if (option === 'chat') {
+      if (!canUseAI) { showToast('⚠️ المحادثة الذكية متاحة للمدراء فقط'); return }
       setVoiceText('')
       setShowSmartChat(true)
     } else if (option === 'task') {
@@ -144,12 +149,13 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setDefaultTaskType('report')
       setShowForm(true)
     } else if (option === 'voice_result') {
-      // Got voice transcript — open SmartChat with the text pre-filled
+      if (!canUseAI) { showToast('⚠️ الإدخال الصوتي متاح للمدراء فقط'); return }
       setVoiceText(data || '')
       setShowSmartChat(true)
     } else if (option === 'voice_fallback') {
       showToast('⚠️ المتصفح لا يدعم الإدخال الصوتي')
     } else if (option === 'minutes') {
+      if (!canUseAI) { showToast('⚠️ محضر الاجتماع متاح للمدراء فقط'); return }
       setShowMinutesParser(true)
     }
   }
