@@ -49,7 +49,7 @@ export default function QuickAddMenu({ onOption, onClose }) {
 
     const recognition = new SR()
     recognition.lang = 'ar-SA'
-    recognition.continuous = false
+    recognition.continuous = true
     recognition.interimResults = true
     recognitionRef.current = recognition
     transcriptRef.current = ''
@@ -58,30 +58,26 @@ export default function QuickAddMenu({ onOption, onClose }) {
       let final = ''
       let interim = ''
       for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        if (e.results[i].isFinal) final += e.results[i][0].transcript + ' '
         else interim += e.results[i][0].transcript
       }
-      const text = final || interim
-      transcriptRef.current = text
+      const text = (final + interim).trim()
+      transcriptRef.current = final.trim() || text
       setTranscript(text)
     }
 
     recognition.onend = () => {
+      // continuous mode: browser may stop unexpectedly, restart if user didn't press stop
+      if (recognitionRef.current && !closedRef.current) {
+        try { recognitionRef.current.start() } catch {}
+        return
+      }
       setListening(false)
       recognitionRef.current = null
-      if (closedRef.current) return
-      const txt = transcriptRef.current.trim()
-      if (txt) {
-        closedRef.current = true
-        setClosing(true)
-        setTimeout(() => {
-          onOption('voice_result', txt)
-          onClose()
-        }, 160)
-      }
     }
 
     recognition.onerror = (e) => {
+      if (e.error === 'no-speech' || e.error === 'aborted') return // ignore silence
       killMic()
       if (e.error === 'not-allowed') {
         doClose()

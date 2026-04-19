@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { analyzeTaskWithAI } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
-import { getFirestore, collection, getDocs } from 'firebase/firestore'
 
 const PRIORITIES = [
   { value: 'urgent', label: 'عاجل' },
@@ -44,14 +43,32 @@ export const STATUS_OPTIONS = [
 const TEAM_MEMBERS = [
   'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن', 'أ. عبير الشدوخي',
   'د. حامد الزهراني', 'أ. حماد المظيبري', 'أ. محمد القرشي', 'أ. محمد الحجيلي',
-  'أ. سعد القرشي', 'أ. أميرة التميمي', 'Eksha Mohapatra', 'د. مرام الشهراني',
+  'أ. سعد القرشي', 'أ. أميرة التميمي', 'د. مرام الشهراني',
   'أ. وفاء آل إسماعيل', 'د. سمية الغريب', 'أ. مشاعل المطيري', 'أ. صفاء الشهري',
-  'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل'
+  'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل',
+  'أ. راما القحطاني', 'أ. مها القحطاني', 'د. نجلاء خوجة',
+  'أ. مشاعل الغزولي', 'أ. فدوى النفيسي', 'م. حمادي الشعائره',
+]
+
+export const PROJECT_FILES = [
+  'إدارة المشاريع',
+  'المؤشرات',
+  '937 والبلاغات',
+  'السموم والمضادات',
+  'جاهزية المختبرات',
+  'التموين والإمداد',
+  'عينتي',
+  'التوطين',
+  'فحص الزواج',
+  'السلامة الحيوية',
+  'السياسات والتنظيم',
+  'الاتفاقيات والفعاليات',
+  'أعمال الحج',
 ]
 
 const DEFAULT_TASK = {
   title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
-  reminderTime: '', projectName: '', sourceType: '', sourceTitle: '', done: false,
+  reminderTime: '', projectName: '', projectNames: [], sourceType: '', sourceTitle: '', done: false,
   taskType: 'task', status: 'new', closeNote: '', parentId: '',
 }
 
@@ -61,11 +78,15 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
   const currentApiKey = apiKey || envApiKey || ''
   
   const [form, setForm] = useState(() => {
-    if (task) return { ...task, projectName: task.projectName || '', status: task.status || (task.done ? 'done' : 'new') }
+    if (task) {
+      const pNames = task.projectNames || (task.projectName ? task.projectName.split(',').map(s => s.trim()).filter(Boolean) : [])
+      return { ...task, projectNames: pNames, projectName: task.projectName || pNames.join(', '), status: task.status || (task.done ? 'done' : 'new') }
+    }
     const base = { ...DEFAULT_TASK, person: isUser ? userProfile?.name : '', taskType: defaultTaskType || 'task' }
     if (parentTask) {
       base.parentId = parentTask.id
       base.projectName = parentTask.projectName || ''
+      base.projectNames = parentTask.projectNames || (parentTask.projectName ? parentTask.projectName.split(',').map(s => s.trim()).filter(Boolean) : [])
       base.sourceType = parentTask.sourceType || ''
       base.sourceTitle = parentTask.sourceTitle || ''
       base.person = parentTask.person || base.person
@@ -80,29 +101,10 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
   const [selectedSubTasks, setSelectedSubTasks] = useState([])
   const [duplicateWarning, setDuplicateWarning] = useState(null)
 
-  const [existingProjects, setExistingProjects] = useState([])
-  const [isNewProject, setIsNewProject] = useState(false)
-
   // Parent task candidates for merge/reparent
   const parentCandidates = useMemo(() => {
     return allTasks.filter(t => !t.parentId && t.id !== task?.id).slice(0, 50)
   }, [allTasks, task])
-
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        const db = getFirestore()
-        const snap = await getDocs(collection(db, 'tasks'))
-        const projectsSet = new Set()
-        snap.forEach(doc => {
-          const p = doc.data().projectName
-          if (p && p.trim() !== '') projectsSet.add(p.trim())
-        })
-        setExistingProjects(Array.from(projectsSet))
-      } catch (e) { console.error('Error fetching projects:', e) }
-    }
-    fetchProjects()
-  }, [])
 
   // Check for duplicates when title changes
   useEffect(() => {
@@ -150,10 +152,16 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
 
   function handleSubmit() {
     if (!form.title.trim() || saving) return
+    // sourceTitle إلزامي إلا للروتينية
+    if (form.sourceType !== 'routine' && !form.sourceTitle?.trim() && form.sourceType) {
+      // تحذير بسيط — مو blocking
+    }
     setSaving(true)
     const finalForm = { ...form }
     if (isUser) finalForm.person = userProfile?.name || ''
     finalForm.done = finalForm.status === 'done'
+    // Sync projectNames → projectName string
+    finalForm.projectName = (finalForm.projectNames || []).join(', ')
     onSave(finalForm, selectedSubTasks)
   }
 
@@ -268,26 +276,27 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
           </div>
         </div>
 
-        {/* المشروع */}
+        {/* المشروع / المبادرة — multi-select */}
         <div className="form-group">
-          <label className="form-label">اسم المشروع / المبادرة</label>
-          {!isNewProject ? (
-            <select className="form-input" value={existingProjects.includes(form.projectName) ? form.projectName : (form.projectName ? 'NEW_PROJECT' : '')}
-              onChange={e => {
-                if (e.target.value === 'NEW_PROJECT') { setIsNewProject(true); set('projectName', ''); } 
-                else { set('projectName', e.target.value) }
-              }}>
-              <option value="">— بدون مشروع —</option>
-              {existingProjects.map(p => <option key={p} value={p}>{p}</option>)}
-              {form.projectName && !existingProjects.includes(form.projectName) && form.projectName !== 'NEW_PROJECT' && (<option value={form.projectName}>{form.projectName}</option>)}
-              <option value="NEW_PROJECT">+ إضافة مشروع جديد</option>
-            </select>
-          ) : (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="form-input" style={{ flex: 1 }} value={form.projectName} onChange={e => set('projectName', e.target.value)} placeholder="اسم المشروع..." autoFocus />
-              <button type="button" onClick={() => { setIsNewProject(false); set('projectName', ''); }} style={{ padding: '0 12px', background: 'var(--bg3)', border: '1px solid var(--border)', borderRadius: 12, color: 'var(--text)', cursor: 'pointer' }}>✕</button>
-            </div>
-          )}
+          <label className="form-label">الملف / المبادرة</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {PROJECT_FILES.map(p => {
+              const selected = (form.projectNames || []).includes(p)
+              return (
+                <button key={p} type="button" onClick={() => {
+                  const cur = form.projectNames || []
+                  const next = selected ? cur.filter(x => x !== p) : [...cur, p]
+                  setForm(f => ({ ...f, projectNames: next, projectName: next.join(', ') }))
+                }} style={{
+                  padding: '5px 10px', borderRadius: 8, fontSize: 11, fontFamily: 'inherit',
+                  background: selected ? 'rgba(59,130,246,0.15)' : 'var(--bg3)',
+                  border: `1px solid ${selected ? 'rgba(59,130,246,0.4)' : 'var(--border)'}`,
+                  color: selected ? 'var(--blue-light)' : 'var(--text2)', cursor: 'pointer',
+                  fontWeight: selected ? 700 : 400,
+                }}>{selected ? '✓ ' : ''}{p}</button>
+              )
+            })}
+          </div>
         </div>
 
         {/* المسؤول */}
