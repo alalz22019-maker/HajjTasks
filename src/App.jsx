@@ -218,7 +218,7 @@ function AppShell() {
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'bizreports', label: 'التقارير', icon: '📋' },
     ...(isAdmin ? [{ id: 'reports', label: 'إحصائيات', icon: '📊' }] : []),
-    { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
+    { id: 'contacts',label: 'جهات',   icon: '👥' },
     ...(canUpload ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
   ]

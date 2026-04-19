@@ -148,11 +148,24 @@ export async function requestTaskUpdate({ taskId, taskTitle, requestedFrom, requ
  * الموظف يرد بالتحديث
  */
 export async function respondToUpdateRequest(updateId, response) {
+  // Update the request doc
   await updateDoc(doc(db, 'task_updates', updateId), {
     response,
     status: 'responded',
     respondedAt: serverTimestamp(),
   })
+  // Also save on the task itself (updates array)
+  const reqSnap = await getDoc(doc(db, 'task_updates', updateId))
+  if (reqSnap.exists()) {
+    const data = reqSnap.data()
+    if (data.taskId) {
+      await addUpdateToTask(data.taskId, {
+        from: data.requestedFromName || '',
+        message: response,
+        type: 'update_response',
+      })
+    }
+  }
 }
 
 /**
@@ -164,4 +177,54 @@ export function subscribeToMyUpdateRequests(callback) {
     const updates = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     callback(updates)
   })
+}
+
+/**
+ * لما الموظف يرد — يسجل الرد أيضاً في المهمة نفسها (updates array)
+ */
+export async function addUpdateToTask(taskId, updateEntry) {
+  const ref = doc(db, 'tasks', taskId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const current = snap.data().updates || []
+  await updateDoc(ref, {
+    updates: [...current, { ...updateEntry, timestamp: new Date().toISOString() }]
+  })
+}
+
+/* ─── WEEKLY STAR (نجم الأسبوع) ──────────────────────────── */
+
+const STAR_CATEGORIES = [
+  'Action Accelerator',
+  'Innovation Spark',
+  'Extra Miler',
+  'Collaboration Legend',
+]
+
+export { STAR_CATEGORIES }
+
+export async function saveWeeklyStar({ person, category, achievement, selectedBy }) {
+  await addDoc(collection(db, 'weekly_stars'), {
+    person,
+    category,
+    achievement,
+    selectedBy,
+    createdAt: serverTimestamp(),
+    weekOf: getWeekOfString(),
+  })
+}
+
+export function subscribeToWeeklyStars(callback) {
+  const q = query(collection(db, 'weekly_stars'), orderBy('createdAt', 'desc'))
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+function getWeekOfString() {
+  const now = new Date()
+  const day = now.getDay()
+  const diff = now.getDate() - day
+  const sunday = new Date(now.setDate(diff))
+  return `${sunday.getFullYear()}-${String(sunday.getMonth()+1).padStart(2,'0')}-${String(sunday.getDate()).padStart(2,'0')}`
 }
