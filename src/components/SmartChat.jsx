@@ -8,7 +8,7 @@ function genId() {
 
 const PRIORITY_LABELS = { urgent: '🔴 عاجل', medium: '🟡 متوسط', low: '🟢 منخفض' }
 
-export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialText }) {
+export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialText, userName }) {
   const [messages, setMessages]         = useState([])
   const [input, setInput]               = useState('')
   const [loading, setLoading]           = useState(false)
@@ -49,7 +49,7 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
     setLoading(true)
 
     try {
-      const system = buildSmartChatSystem(activeTasks)
+      const system = buildSmartChatSystem(activeTasks, userName)
       const raw    = await callClaudeChat(apiKey, system, historyRef.current)
       
       // Try to extract JSON block from response (may be mixed with text)

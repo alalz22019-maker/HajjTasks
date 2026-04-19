@@ -75,7 +75,7 @@ export function isDuplicateTask(newTitle, existingTasks) {
 }
 
 // ─── Smart Chat System Prompt ───────────────────────────────
-export function buildSmartChatSystem(activeTasks) {
+export function buildSmartChatSystem(activeTasks, userName) {
   const tasksSummary = activeTasks.length
     ? activeTasks.slice(0, 25).map(t =>
         `- ${t.title}${t.projectName ? ` [${t.projectName}]` : ''}${t.person ? ` (${t.person})` : ''}${t.status ? ` {${t.status}}` : ''}`
@@ -94,6 +94,9 @@ export function buildSmartChatSystem(activeTasks) {
   })
 
   return `أنت مساعد ذكي اسمك "مهامي" لإدارة المهام في مركز عمليات المختبرات بوزارة الصحة السعودية.
+
+## المستخدم الحالي:
+${userName || 'غير محدد'}
 
 ## دورك:
 أنت مساعد شامل — تجاوب أسئلة، تساعد في الصياغة، تقترح تصنيفات، وتستخرج مهام.

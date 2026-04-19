@@ -791,6 +791,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           onAddTasks={handleSmartChatAdd} 
           showToast={showToast}
           initialText={voiceText}
+          userName={userProfile?.name || ''}
         />
       )}
 
