@@ -182,12 +182,16 @@ function AppShell() {
   }
 
 
+  // رفع الملفات محصور على: علي، منار، وليد فقط
+  const UPLOAD_ALLOWED = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
+  const canUpload = userProfile && UPLOAD_ALLOWED.includes(userProfile.name)
+
   /* ── Build nav ── */
   const NAV = [
     { id: 'dashboard', label: 'لوحتي', icon: '🏠' },
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'notes',   label: 'ملاحظة', icon: '✍'  },
-    ...(!isUser ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []), // تظهر فقط للمدير والمشرف
+    ...(canUpload ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []),
     { id: 'contacts',label: 'جهات',   icon: '👥' },
         ...(isAdmin ? [{ id: 'reports', label: 'تقرير',  icon: '📊' }] : []),
     ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
@@ -271,8 +275,8 @@ function AppShell() {
             showToast={showToast}
           />
         )}
-        {/* حماية إضافية: لو حاول يفتحها بطريقة ما، ما راح تفتح له إذا كان موظف */}
-        {page === 'upload' && !isUser && (
+        {/* حماية: رفع الملفات محصور على علي ومنار ووليد فقط */}
+        {page === 'upload' && canUpload && (
           <UploadPage
             tasks={tasks}
             apiKey={apiKey}

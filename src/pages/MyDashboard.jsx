@@ -238,6 +238,44 @@ export default function MyDashboard({ tasks, showToast, onNavigate }) {
       </div>
 
       <div className="page" style={{ paddingBottom: 90 }}>
+
+        {/* ④ الملخص الصباحي الذكي */}
+        <div style={{
+          margin: '12px 16px 0', padding: '14px 16px', borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08))',
+          border: '1px solid rgba(99,102,241,0.15)',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>
+            📋 ملخصك اليوم
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.8 }}>
+            {stats.todayDue > 0 && <span>عندك <b style={{ color: 'var(--blue)' }}>{stats.todayDue}</b> مهمة مستحقة اليوم. </span>}
+            {stats.urgent > 0 && <span><b style={{ color: 'var(--red)' }}>{stats.urgent}</b> عاجلة. </span>}
+            {stats.overdue > 0 && <span style={{ color: 'var(--orange)' }}>⚠️ {stats.overdue} متأخرة تحتاج متابعة. </span>}
+            {stats.todayDue === 0 && stats.urgent === 0 && stats.overdue === 0 && <span>يومك فاضي — استثمره في التخطيط أو المتأخرات ☕</span>}
+            {stats.todayDue === 0 && stats.overdue > 0 && <span>ابدأ بالمتأخرات.</span>}
+            {stats.todayDue > 0 && stats.overdue === 0 && stats.urgent === 0 && <span>يوم هادي — خلّصها وارتاح 💪</span>}
+          </div>
+        </div>
+
+        {/* ⑤ اقتراح المتابعة للمهام المتأخرة */}
+        {overdueTasks.length > 0 && (
+          <div style={{
+            margin: '8px 16px 0', padding: '10px 14px', borderRadius: 12,
+            background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--orange)', marginBottom: 6 }}>
+              💡 مقترح: تابع هذي المهام المتأخرة
+            </div>
+            {overdueTasks.slice(0, 3).map(t => (
+              <div key={t.id} style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 3, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                <span style={{ color: 'var(--orange)', flexShrink: 0 }}>•</span>
+                <span><b style={{ color: 'var(--text)' }}>{t.title.substring(0, 40)}</b> {t.person ? `(${t.person.split(' ').pop()})` : ''} — متأخرة من {t.dueDate}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Quick Stats Strip */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,

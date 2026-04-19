@@ -97,7 +97,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [subtaskParent, setSubtaskParent] = useState(null)
   const [voiceText, setVoiceText] = useState('')
-  const [calendarToast, setCalendarToast] = useState(null) // {title, date, time, location}
+  const [calendarToast, setCalendarToast] = useState(null)
+  const [quickText, setQuickText] = useState('')
+  const [quickLoading, setQuickLoading] = useState(false)
 
   const [pendingRequest, setPendingRequest] = useState(null)
   const [requestNote, setRequestNote] = useState('')
@@ -356,6 +358,64 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     setSubtaskParent(parentTask)
     setDefaultTaskType('task')
     setShowForm(true)
+  }
+
+  // ③ الإضافة السريعة بجملة وحدة
+  async function handleQuickAdd() {
+    if (!quickText.trim() || quickLoading) return
+    if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الإضافة المباشرة'); return }
+    setQuickLoading(true)
+    try {
+      const system = `أنت مساعد لتحويل نص عربي (عامي أو فصيح) إلى مهمة منظمة.
+حلل النص واستخرج: العنوان، الأولوية، الشخص المسؤول، التاريخ، المشروع، نوع المهمة (task/meeting/report).
+أعضاء الفريق: م. علي الزهراني، د. منار سمان، د. وليد الحسن، أ. عبير الشدوخي، د. حامد الزهراني، أ. حماد المظيبري، أ. محمد القرشي، أ. محمد الحجيلي، أ. سعد القرشي، أ. أميرة التميمي، د. مرام الشهراني، أ. وفاء آل إسماعيل، د. سمية الغريب، أ. مشاعل المطيري، أ. صفاء الشهري، أ. أمجاد المطيري، أ. مي الأسمري، أ. شادي نبيل
+لو ذكر اسم مختصر (سعد، حماد، وفاء) طابقه مع الاسم الكامل.
+أرجع JSON فقط بدون أي نص:
+{"title":"","priority":"medium","person":"","dueDate":"","projectName":"","taskType":"task","meetingTime":"","meetingLocation":""}`
+
+      const raw = await callClaude(null, system, quickText.trim())
+      const clean = raw.replace(/```json/g, '').replace(/```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      
+      if (!parsed.title) { showToast('❌ لم أستطع فهم المهمة'); return }
+      
+      // Check duplicate
+      if (isDuplicateTask(parsed.title, tasks)) {
+        showToast('⚠️ مهمة مشابهة موجودة: ' + parsed.title)
+        setQuickLoading(false)
+        return
+      }
+
+      await dbAddTask({
+        ...parsed,
+        done: false,
+        status: 'new',
+        sourceType: '',
+        sourceTitle: '',
+        recurrence: '',
+        reminderTime: '',
+        closeNote: '',
+      })
+      
+      showToast('✅ ' + parsed.title)
+      setQuickText('')
+      
+      // Show calendar toast for meetings
+      if (parsed.taskType === 'meeting' && parsed.dueDate) {
+        setCalendarToast({
+          title: parsed.title,
+          date: parsed.dueDate,
+          time: parsed.meetingTime || '',
+          location: parsed.meetingLocation || '',
+          person: parsed.person || '',
+        })
+      }
+    } catch (e) {
+      console.error('Quick add error:', e)
+      showToast('❌ خطأ في الإضافة السريعة')
+    } finally {
+      setQuickLoading(false)
+    }
   }
 
   function exportJSON() {
@@ -671,6 +731,43 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
             fontSize: 12, color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: 8,
           }}>
             <span>ℹ️</span><span>صلاحيتك: الإضافة / التعديل / الإغلاق تحتاج موافقة المدير</span>
+          </div>
+        )}
+
+        {/* ③ الإضافة السريعة بجملة وحدة */}
+        {canWrite && (
+          <div style={{ padding: '0 16px 8px' }}>
+            <div style={{
+              display: 'flex', gap: 6, alignItems: 'center',
+              background: 'var(--card)', border: '1px solid var(--border)',
+              borderRadius: 12, padding: '4px 4px 4px 12px',
+            }}>
+              <input
+                type="text"
+                value={quickText}
+                onChange={e => setQuickText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleQuickAdd() }}
+                placeholder="⚡ أضف بجملة: اجتماع مع سعد يوم الأربعاء..."
+                style={{
+                  flex: 1, background: 'none', border: 'none', color: 'var(--text)',
+                  fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                }}
+                disabled={quickLoading}
+              />
+              <button
+                onClick={handleQuickAdd}
+                disabled={!quickText.trim() || quickLoading}
+                style={{
+                  width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+                  background: quickText.trim() && !quickLoading ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : 'var(--bg3)',
+                  border: 'none', color: '#fff', fontSize: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: quickText.trim() && !quickLoading ? 'pointer' : 'default',
+                }}
+              >
+                {quickLoading ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '↑'}
+              </button>
+            </div>
           </div>
         )}
 
