@@ -194,6 +194,42 @@ export async function addUpdateToTask(taskId, updateEntry) {
 
 /* ─── WEEKLY STAR (نجم الأسبوع) ──────────────────────────── */
 
+/* ─── BUSINESS REPORTS (تقارير الأعمال) ───────────────────── */
+
+export async function addBusinessReport(reportData) {
+  const ref = await addDoc(collection(db, 'business_reports'), {
+    ...reportData,
+    createdAt: serverTimestamp(),
+  })
+  return ref.id
+}
+
+export async function updateBusinessReport(id, data) {
+  await updateDoc(doc(db, 'business_reports', id), data)
+}
+
+export async function deleteBusinessReport(id) {
+  await deleteDoc(doc(db, 'business_reports', id))
+}
+
+export function subscribeToBusinessReports(callback) {
+  const q = query(collection(db, 'business_reports'), orderBy('createdAt', 'desc'))
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function recordReportDelivery(reportId, delivery) {
+  const ref = doc(db, 'business_reports', reportId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const current = snap.data().deliveries || []
+  await updateDoc(ref, {
+    deliveries: [...current, { ...delivery, timestamp: new Date().toISOString() }],
+    lastDelivered: new Date().toISOString(),
+  })
+}
+
 const STAR_CATEGORIES = [
   'Action Accelerator',
   'Innovation Spark',

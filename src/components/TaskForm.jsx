@@ -19,7 +19,6 @@ const RECURRENCES = [
 
 const TASK_TYPES = [
   { value: 'task', label: 'مهمة' },
-  { value: 'report', label: 'تقرير' },
   { value: 'meeting', label: 'اجتماع' },
 ]
 

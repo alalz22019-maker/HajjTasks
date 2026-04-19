@@ -79,7 +79,7 @@ const REQUEST_LABELS = {
   close:      'إغلاق / إتمام المهمة',
 }
 
-export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile, onRequestUpdate }) {
+export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile, onRequestUpdate, onNavigate }) {
   const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
@@ -146,6 +146,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setDefaultTaskType('meeting')
       setShowForm(true)
     } else if (option === 'report') {
+      if (onNavigate) { onNavigate('bizreports'); setShowQuickMenu(false); return }
       setDefaultTaskType('report')
       setShowForm(true)
     } else if (option === 'voice_result') {

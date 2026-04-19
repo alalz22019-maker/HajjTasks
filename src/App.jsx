@@ -291,6 +291,7 @@ function AppShell() {
             setApiKey={persistApiKey}
             showToast={showToast}
             userProfile={userProfile}
+            onNavigate={setPage}
             onRequestUpdate={isAdmin ? async (task) => {
               try {
                 await requestTaskUpdate({
