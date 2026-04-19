@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
 import SmartChat from '../components/SmartChat'
+import MeetingMinutesParser from '../components/MeetingMinutesParser'
 import QuickAddMenu from '../components/QuickAddMenu'
 import { callClaude, EXTRACT_SYSTEM } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
@@ -97,6 +98,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [subtaskParent, setSubtaskParent] = useState(null)
   const [voiceText, setVoiceText] = useState('')
+  const [showMinutesParser, setShowMinutesParser] = useState(false)
   const [calendarToast, setCalendarToast] = useState(null)
   const [quickText, setQuickText] = useState('')
   const [quickLoading, setQuickLoading] = useState(false)
@@ -147,6 +149,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setShowSmartChat(true)
     } else if (option === 'voice_fallback') {
       showToast('⚠️ المتصفح لا يدعم الإدخال الصوتي')
+    } else if (option === 'minutes') {
+      setShowMinutesParser(true)
     }
   }
 
@@ -889,6 +893,15 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           showToast={showToast}
           initialText={voiceText}
           userName={userProfile?.name || ''}
+        />
+      )}
+
+      {showMinutesParser && (
+        <MeetingMinutesParser
+          apiKey={currentApiKey}
+          onAddTasks={handleSmartChatAdd}
+          onClose={() => setShowMinutesParser(false)}
+          showToast={showToast}
         />
       )}
 

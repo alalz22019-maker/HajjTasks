@@ -45,7 +45,7 @@ function formatShortDate(iso) {
 }
 
 /* ─── Build WhatsApp text ─────────────────────────────────── */
-function buildWhatsAppText(tasks) {
+function buildWhatsAppText(tasks, userName) {
   const all     = tasks
   const urgent  = all.filter(t => t.priority === 'urgent' && !t.done)
   const today   = all.filter(isCompletedToday)
@@ -69,7 +69,7 @@ function buildWhatsAppText(tasks) {
 
   lines.push(`📋 *تقرير المهام اليومي*`)
   lines.push(`🗓 ${formatArabicDate()}`)
-  lines.push(`👤 ${userProfile?.name || 'مستخدم'} | PMO مركز عمليات المختبرات`)
+  lines.push(`👤 ${userName || 'مستخدم'} | PMO مركز عمليات المختبرات`)
   lines.push(sep)
 
   lines.push(`📊 *الملخص التنفيذي*`)
@@ -164,6 +164,117 @@ function buildBriefText(tasks) {
     done24h.forEach(t => {
       lines.push(`✓ ${t.title}`)
       if (t.person) lines.push(`  👤 ${t.person}`)
+    })
+  }
+
+  lines.push(sep)
+  lines.push(`_تم إصداره عبر مهامي Pro_`)
+  return lines.join('\n')
+}
+
+/* ─── Build Weekly Report WhatsApp text ─────────────────── */
+function buildWeeklyReport(tasks, userName) {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  
+  const all = tasks
+  const total = all.length
+  const doneCount = all.filter(t => t.done).length
+  const pct = total ? Math.round((doneCount / total) * 100) : 0
+
+  // Completed this week
+  const completedThisWeek = all.filter(t => {
+    if (!t.done || !t.completedAt) return false
+    return new Date(t.completedAt) >= weekAgo
+  })
+
+  // Overdue
+  const overdue = all.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < now)
+
+  // Urgent pending
+  const urgent = all.filter(t => t.priority === 'urgent' && !t.done)
+
+  // By person
+  const personMap = {}
+  all.forEach(t => {
+    if (!t.person) return
+    t.person.split(/[،,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
+      if (!personMap[p]) personMap[p] = { total: 0, done: 0, thisWeek: 0 }
+      personMap[p].total++
+      if (t.done) personMap[p].done++
+      if (t.done && t.completedAt && new Date(t.completedAt) >= weekAgo) personMap[p].thisWeek++
+    })
+  })
+  const persons = Object.entries(personMap).sort((a, b) => b[1].thisWeek - a[1].thisWeek)
+
+  // By project
+  const projectMap = {}
+  all.forEach(t => {
+    const proj = t.projectName?.trim() || 'بدون مشروع'
+    if (!projectMap[proj]) projectMap[proj] = { total: 0, done: 0 }
+    projectMap[proj].total++
+    if (t.done) projectMap[proj].done++
+  })
+  const projects = Object.entries(projectMap).sort((a, b) => b[1].total - a[1].total)
+
+  const sep = '━━━━━━━━━━━━━━━━'
+  const lines = []
+
+  lines.push(`📊 *التقرير الأسبوعي*`)
+  lines.push(`🗓 ${formatArabicDate()}`)
+  lines.push(`👤 ${userName || 'مستخدم'} | PMO مركز عمليات المختبرات`)
+  lines.push(sep)
+
+  lines.push(`📈 *مؤشرات الأداء*`)
+  lines.push(`• إجمالي المهام: ${total}`)
+  lines.push(`• نسبة الإنجاز الكلية: ${pct}%`)
+  lines.push(`• أنجز هذا الأسبوع: ${completedThisWeek.length}`)
+  lines.push(`• عاجلة معلقة: ${urgent.length}`)
+  lines.push(`• متأخرة: ${overdue.length}`)
+
+  if (completedThisWeek.length) {
+    lines.push(sep)
+    lines.push(`✅ *إنجازات الأسبوع* (${completedThisWeek.length})`)
+    completedThisWeek.slice(0, 15).forEach((t, i) => {
+      lines.push(`${i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+    if (completedThisWeek.length > 15) lines.push(`   ... و${completedThisWeek.length - 15} أخرى`)
+  }
+
+  if (urgent.length) {
+    lines.push(sep)
+    lines.push(`🔴 *عاجلة معلقة* (${urgent.length})`)
+    urgent.slice(0, 8).forEach((t, i) => {
+      lines.push(`${i + 1}. ${t.title}`)
+      if (t.person) lines.push(`   👤 ${t.person}`)
+    })
+  }
+
+  if (overdue.length) {
+    lines.push(sep)
+    lines.push(`⚠️ *متأخرة عن الموعد* (${overdue.length})`)
+    overdue.slice(0, 8).forEach((t, i) => {
+      lines.push(`${i + 1}. ${t.title} — ${formatShortDate(t.dueDate)}`)
+    })
+  }
+
+  if (persons.length) {
+    lines.push(sep)
+    lines.push(`👥 *أداء الفريق هذا الأسبوع*`)
+    persons.slice(0, 10).forEach(([name, v]) => {
+      const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+      const bar = '▓'.repeat(Math.round(p / 20)) + '░'.repeat(5 - Math.round(p / 20))
+      lines.push(`• ${name}: أنجز ${v.thisWeek} هذا الأسبوع (${p}% كلي) ${bar}`)
+    })
+  }
+
+  if (projects.length > 1) {
+    lines.push(sep)
+    lines.push(`📁 *المشاريع*`)
+    projects.slice(0, 6).forEach(([name, v]) => {
+      const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+      lines.push(`• ${name}: ${v.done}/${v.total} (${p}%)`)
     })
   }
 
@@ -514,6 +625,226 @@ function DailyBriefCard({ tasks }) {
 }
 
 /* ─── Main Page ───────────────────────────────────────────── */
+/* ─── WeeklyReportTab ─────────────────────────────────────── */
+function WeeklyReportTab({ tasks, userName }) {
+  const now = new Date()
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  const all = tasks
+  const total = all.length
+  const doneCount = all.filter(t => t.done).length
+  const pct = total ? Math.round((doneCount / total) * 100) : 0
+
+  const completedThisWeek = all.filter(t => {
+    if (!t.done || !t.completedAt) return false
+    return new Date(t.completedAt) >= weekAgo
+  })
+  const overdue = all.filter(t => !t.done && t.dueDate && new Date(t.dueDate) < now)
+  const urgent = all.filter(t => t.priority === 'urgent' && !t.done)
+
+  const personMap = {}
+  all.forEach(t => {
+    if (!t.person) return
+    t.person.split(/[،,]/).map(p => p.trim()).filter(Boolean).forEach(p => {
+      if (!personMap[p]) personMap[p] = { total: 0, done: 0, thisWeek: 0 }
+      personMap[p].total++
+      if (t.done) personMap[p].done++
+      if (t.done && t.completedAt && new Date(t.completedAt) >= weekAgo) personMap[p].thisWeek++
+    })
+  })
+  const persons = Object.entries(personMap).sort((a, b) => b[1].thisWeek - a[1].thisWeek)
+
+  const projectMap = {}
+  all.forEach(t => {
+    const proj = t.projectName?.trim() || 'بدون مشروع'
+    if (!projectMap[proj]) projectMap[proj] = { total: 0, done: 0 }
+    projectMap[proj].total++
+    if (t.done) projectMap[proj].done++
+  })
+  const projects = Object.entries(projectMap).sort((a, b) => b[1].total - a[1].total)
+
+  function shareWeekly() {
+    const text = buildWeeklyReport(tasks, userName)
+    const encoded = encodeURIComponent(text)
+    window.open(`https://wa.me/?text=${encoded}`, '_blank')
+  }
+
+  function copyWeekly() {
+    const text = buildWeeklyReport(tasks, userName)
+    navigator.clipboard?.writeText(text)
+  }
+
+  const kpis = [
+    { label: 'إجمالي',     value: total,                  icon: '📋', color: '#3b82f6' },
+    { label: 'إنجاز كلي',  value: `${pct}%`,              icon: '📊', color: '#10b981' },
+    { label: 'أنجز الأسبوع', value: completedThisWeek.length, icon: '✅', color: '#059669' },
+    { label: 'عاجلة',      value: urgent.length,           icon: '🔴', color: '#ef4444' },
+    { label: 'متأخرة',     value: overdue.length,          icon: '⚠️', color: '#f59e0b' },
+  ]
+
+  return (
+    <div style={{ padding: '0 16px 32px', direction: 'rtl' }}>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button onClick={shareWeekly} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>📤 واتساب</button>
+        <button onClick={copyWeekly} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: '#3b82f6', color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>📋 نسخ</button>
+      </div>
+
+      {/* KPI Grid */}
+      <div style={{
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16,
+      }}>
+        {kpis.map((kpi, i) => (
+          <div key={i} style={{
+            background: 'var(--card)', border: '1px solid var(--border)',
+            borderRadius: 14, padding: '14px 13px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            ...(i === kpis.length - 1 && kpis.length % 2 !== 0 ? { gridColumn: '1 / -1' } : {}),
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: `${kpi.color}12`, border: `1px solid ${kpi.color}25`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, flexShrink: 0,
+            }}>{kpi.icon}</div>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
+              <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{kpi.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Completed this week */}
+      {completedThisWeek.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#059669', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>✅</span> إنجازات الأسبوع
+            <span style={{
+              background: 'rgba(16,185,129,0.12)', borderRadius: 20, padding: '1px 8px',
+              fontSize: 12, fontWeight: 700, color: '#059669',
+            }}>{completedThisWeek.length}</span>
+          </div>
+          {completedThisWeek.slice(0, 10).map(t => (
+            <div key={t.id} style={{
+              background: 'var(--card)', borderRadius: 10, padding: '10px 12px',
+              marginBottom: 6, borderRight: '3px solid #10b981',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</div>
+              {t.person && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 3 }}>👤 {t.person}</div>}
+            </div>
+          ))}
+          {completedThisWeek.length > 10 && (
+            <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', padding: 4 }}>
+              +{completedThisWeek.length - 10} أخرى
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Team performance */}
+      {persons.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#8b5cf6', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>👥</span> أداء الفريق
+          </div>
+          {persons.slice(0, 8).map(([name, v]) => {
+            const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+            return (
+              <div key={name} style={{
+                background: 'var(--card)', borderRadius: 10, padding: '10px 12px',
+                marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                    أنجز {v.thisWeek} هذا الأسبوع • {v.done}/{v.total} كلي
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                  <div style={{ width: 50, height: 5, background: 'var(--bg3)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${p}%`, background: p >= 70 ? '#10b981' : p >= 40 ? '#f59e0b' : '#ef4444', borderRadius: 3 }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text3)', width: 28, textAlign: 'left' }}>{p}%</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Projects */}
+      {projects.length > 1 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#3b82f6', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>📁</span> المشاريع
+          </div>
+          {projects.slice(0, 6).map(([name, v]) => {
+            const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+            return (
+              <div key={name} style={{
+                background: 'var(--card)', borderRadius: 10, padding: '10px 12px',
+                marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{name}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text3)' }}>{v.done}/{v.total}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: p >= 70 ? '#10b981' : '#f59e0b' }}>{p}%</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Urgent */}
+      {urgent.length > 0 && (
+        <div>
+          <div style={{
+            fontSize: 14, fontWeight: 700, color: '#ef4444', marginBottom: 8,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            <span>🔴</span> عاجلة معلقة
+            <span style={{
+              background: 'rgba(239,68,68,0.12)', borderRadius: 20, padding: '1px 8px',
+              fontSize: 12, fontWeight: 700, color: '#ef4444',
+            }}>{urgent.length}</span>
+          </div>
+          {urgent.slice(0, 6).map(t => (
+            <div key={t.id} style={{
+              background: 'var(--card)', borderRadius: 10, padding: '10px 12px',
+              marginBottom: 6, borderRight: '3px solid #ef4444',
+            }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 11, color: 'var(--text2)' }}>
+                {t.person && <span>👤 {t.person}</span>}
+                {t.dueDate && <span>📅 {formatShortDate(t.dueDate)}</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
 
   const { isUser } = useAuth() 
@@ -543,7 +874,7 @@ export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
   }, [all])
 
   function shareWhatsApp() {
-    const text    = buildWhatsAppText(tasks)
+    const text    = buildWhatsAppText(tasks, userProfile?.name)
     const encoded = encodeURIComponent(text)
     window.open(`https://wa.me/?text=${encoded}`, '_blank')
   }
@@ -591,6 +922,12 @@ export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
             className={`report-tab${tab === 'visual' ? ' active' : ''}`}
             onClick={() => setTab('visual')}
           >🎨 بصري</button>
+        )}
+        {!isUser && (
+          <button
+            className={`report-tab${tab === 'weekly' ? ' active' : ''}`}
+            onClick={() => setTab('weekly')}
+          >📊 الأسبوعي</button>
         )}
       </div>
 
@@ -845,6 +1182,10 @@ export default function ReportsPage({ tasks, showToast, apiKey, userProfile }) {
           {visualType === 'executive' && <VisualSummary tasks={tasks} apiKey={apiKey} />}
           {visualType === 'daily'     && <DailyBriefCard tasks={tasks} />}
         </div>
+      )}
+
+      {tab === 'weekly' && !isUser && (
+        <WeeklyReportTab tasks={tasks} userName={userProfile?.name} />
       )}
     </PullToRefresh>
   )

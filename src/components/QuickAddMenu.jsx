@@ -126,6 +126,7 @@ export default function QuickAddMenu({ onOption, onClose }) {
     { id: 'task',    icon: '📝', label: 'مهمة جديدة',     color: '#3b82f6' },
     { id: 'meeting', icon: '📅', label: 'اجتماع جديد',    color: '#f59e0b' },
     { id: 'report',  icon: '📊', label: 'تقرير جديد',     color: '#10b981' },
+    { id: 'minutes', icon: '📋', label: 'محضر → مهام',     color: '#6366f1' },
   ]
 
   return createPortal(
