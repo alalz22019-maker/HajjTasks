@@ -460,36 +460,62 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   function exportExcel() {
     try {
-      const EXCEL_COLUMNS = ['Channel','Sub_Source','Task Title','Task Description','What\'s Done','Type','Due Date','Completion %', 'First Owner']
-      const dataToExport = tasks.map(t => {
-        let finalDueDate = t.dueDate;
-        if (!finalDueDate) {
+      const CHANNEL_MAP = { minutes: 'محضر', directive: 'توجيه مباشر', email: 'إيميل', routine: 'روتينية' }
+      const STATUS_MAP = { new: 'New', studying: 'In Progress', in_progress: 'In Progress', executing: 'In Progress', waiting: 'Delayed', review: 'In Progress', done: 'Completed' }
+      const today = new Date(); today.setHours(0,0,0,0)
+
+      const EXCEL_COLUMNS = ['S No.','Source','Sub_Source','Task Title','Task Description','What\'s Done','Type','Start Date','Due Date','Completion %','Status','First Owner','Secondary Owner','Channel']
+      const dataToExport = tasks.map((t, i) => {
+        // S No.
+        const sno = `T-${String(i + 1).padStart(4, '0')}`
+        // Start Date from createdAt
+        let startDate = ''
+        try {
+          const ca = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null)
+          if (ca && !isNaN(ca.getTime())) startDate = ca.toISOString().split('T')[0]
+        } catch {}
+        // Due Date
+        let finalDueDate = t.dueDate || ''
+        if (!finalDueDate && startDate) {
           try {
-            const created = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : new Date())
-            if (isNaN(created.getTime())) throw new Error('invalid')
-            const d = new Date(created)
-            let addedDays = 0;
-            while (addedDays < 5) {
-              d.setDate(d.getDate() + 1);
-              if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++;
-            }
-            finalDueDate = d.toISOString().split('T')[0];
-          } catch {
-            finalDueDate = new Date().toISOString().split('T')[0];
-          }
+            const d = new Date(startDate)
+            let addedDays = 0
+            while (addedDays < 5) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++ }
+            finalDueDate = d.toISOString().split('T')[0]
+          } catch { finalDueDate = '' }
         }
+        // Status — auto Delayed if overdue
+        let status = STATUS_MAP[t.status] || 'New'
+        if (!t.done && t.dueDate) {
+          const due = new Date(t.dueDate); due.setHours(0,0,0,0)
+          if (due < today) status = 'Delayed'
+        }
+        // Channel
+        const channel = CHANNEL_MAP[t.sourceType] || t.sourceType || ''
+        // First Owner / Secondary Owner
+        const personParts = (t.person || '').split(/[\/,،]/).map(s => s.trim()).filter(Boolean)
+        const firstOwner = personParts[0] || ''
+        const secondOwner = personParts.slice(1).join(', ')
+        // Type (projectNames or projectName)
+        const type = (t.projectNames && t.projectNames.length > 0) ? t.projectNames.join(', ') : (t.projectName || '')
+
         return {
-          [EXCEL_COLUMNS[0]]: t.sourceType || '', 
-          [EXCEL_COLUMNS[1]]: 'مهامي برو',
-          [EXCEL_COLUMNS[2]]: t.sourceTitle || '', 
-          [EXCEL_COLUMNS[3]]: t.title || '', 
-          [EXCEL_COLUMNS[4]]: t.closeNote || '', 
-          [EXCEL_COLUMNS[5]]: t.projectName || '', 
-          [EXCEL_COLUMNS[6]]: finalDueDate,
-          [EXCEL_COLUMNS[7]]: t.done ? '100%' : '50%',
-          [EXCEL_COLUMNS[8]]: t.person || '' 
-        };
-      });
+          [EXCEL_COLUMNS[0]]: sno,
+          [EXCEL_COLUMNS[1]]: '',
+          [EXCEL_COLUMNS[2]]: 'مهامي برو',
+          [EXCEL_COLUMNS[3]]: t.sourceTitle || '',
+          [EXCEL_COLUMNS[4]]: t.title || '',
+          [EXCEL_COLUMNS[5]]: t.closeNote || '',
+          [EXCEL_COLUMNS[6]]: type,
+          [EXCEL_COLUMNS[7]]: startDate,
+          [EXCEL_COLUMNS[8]]: finalDueDate,
+          [EXCEL_COLUMNS[9]]: t.done ? '100%' : '50%',
+          [EXCEL_COLUMNS[10]]: status,
+          [EXCEL_COLUMNS[11]]: firstOwner,
+          [EXCEL_COLUMNS[12]]: secondOwner,
+          [EXCEL_COLUMNS[13]]: channel,
+        }
+      })
 
       const worksheet = XLSX.utils.json_to_sheet(dataToExport);
       const workbook = XLSX.utils.book_new();
