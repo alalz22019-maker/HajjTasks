@@ -79,7 +79,7 @@ const REQUEST_LABELS = {
   close:      'إغلاق / إتمام المهمة',
 }
 
-export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile }) {
+export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile, onRequestUpdate }) {
   const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
@@ -798,7 +798,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           <div className="task-list">
             {taskGroups.map(({ task, children }) => (
               <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} />
+                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
                     {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}

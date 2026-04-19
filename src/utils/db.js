@@ -79,7 +79,7 @@ export async function deleteUser(uid) {
 /* ─── REQUESTS ───────────────────────────────────────────── */
 
 /**
- * type: 'add' | 'edit_title' | 'edit_date' | 'close'
+ * type: 'add' | 'edit_title' | 'edit_date' | 'close' | 'request_update'
  * payload: data relevant to the request
  */
 export async function createRequest({ type, payload, requestedBy, requestedByName }) {
@@ -122,4 +122,46 @@ export async function approveRequest(requestId, requestData) {
 
 export async function rejectRequest(requestId) {
   await updateDoc(doc(db, 'requests', requestId), { status: 'rejected' })
+}
+
+/* ─── TASK UPDATES (طلب تحديث من الموظف) ─────────────────── */
+
+/**
+ * المدير يطلب تحديث من الموظف على مهمة معينة
+ */
+export async function requestTaskUpdate({ taskId, taskTitle, requestedFrom, requestedFromName, requestedBy, requestedByName, message }) {
+  await addDoc(collection(db, 'task_updates'), {
+    taskId,
+    taskTitle,
+    requestedFrom,      // UID of employee
+    requestedFromName,  // name of employee
+    requestedBy,        // UID of manager
+    requestedByName,    // name of manager
+    message: message || 'يرجى تقديم تحديث عن حالة هذه المهمة',
+    response: '',
+    status: 'pending',  // pending → responded
+    createdAt: serverTimestamp(),
+  })
+}
+
+/**
+ * الموظف يرد بالتحديث
+ */
+export async function respondToUpdateRequest(updateId, response) {
+  await updateDoc(doc(db, 'task_updates', updateId), {
+    response,
+    status: 'responded',
+    respondedAt: serverTimestamp(),
+  })
+}
+
+/**
+ * اشترك في طلبات التحديث الموجهة لمستخدم معين (الموظف)
+ */
+export function subscribeToMyUpdateRequests(callback) {
+  const q = query(collection(db, 'task_updates'), orderBy('createdAt', 'desc'))
+  return onSnapshot(q, snap => {
+    const updates = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    callback(updates)
+  })
 }

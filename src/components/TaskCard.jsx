@@ -18,7 +18,7 @@ function getStatusInfo(status) {
 }
 
 export default function TaskCard({
-  task, onToggle, onEdit, onDelete, showToast, onAddSubtask,
+  task, onToggle, onEdit, onDelete, showToast, onAddSubtask, onRequestUpdate,
   childCount = 0, isCollapsed, onToggleCollapse,
   isSubtask = false, childProgress
 }) {
@@ -145,6 +145,11 @@ export default function TaskCard({
           {onAddSubtask && (
             <button className="task-action-btn" onClick={() => { setActionsOpen(false); onAddSubtask(task) }} style={{ color: 'var(--blue)' }}>
               <span>🔀</span> تفريع
+            </button>
+          )}
+          {onRequestUpdate && task.person && !task.done && (
+            <button className="task-action-btn" onClick={() => { setActionsOpen(false); onRequestUpdate(task) }} style={{ color: '#8b5cf6' }}>
+              <span>📩</span> اطلب تحديث
             </button>
           )}
           {onDelete && (

@@ -14,6 +14,8 @@ import { loadData, saveData } from './utils/storage'
 import {
   subscribeToTasks, importTasksFromArray, isTasksEmpty,
   subscribeToPendingRequests,
+  subscribeToMyUpdateRequests, respondToUpdateRequest,
+  requestTaskUpdate,
 } from './utils/db'
 
 function AppShell() {
@@ -23,6 +25,10 @@ function AppShell() {
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
   const [pendingCount, setPendingCount] = useState(0)
+  const [updateRequests, setUpdateRequests] = useState([])
+  const [respondingTo, setRespondingTo] = useState(null)
+  const [respondText, setRespondText] = useState('')
+  const [respondLoading, setRespondLoading] = useState(false)
   const [migrationDone, setMigrationDone] = useState(false)
   
   // 🔴 1. حالة التعهد الأمني
@@ -80,6 +86,15 @@ function AppShell() {
     return unsub
   }, [isAdmin])
 
+  /* ── Subscribe to task update requests (for current user) ── */
+  useEffect(() => {
+    if (!userProfile) return
+    const unsub = subscribeToMyUpdateRequests(updates => {
+      setUpdateRequests(updates)
+    })
+    return unsub
+  }, [userProfile])
+
   const persistApiKey = useCallback((key) => {
     setApiKey(key)
     saveData('mytasks_apikey', key)
@@ -108,7 +123,17 @@ function AppShell() {
     })
   }, [tasks])
   const [showNotifications, setShowNotifications] = useState(false)
-  const notifCount = overdueTasks.length + pendingCount
+  const myPendingUpdates = useMemo(() => {
+    if (!userProfile?.name) return []
+    return updateRequests.filter(u =>
+      u.status === 'pending' && u.requestedFromName === userProfile.name
+    )
+  }, [updateRequests, userProfile])
+  const respondedUpdates = useMemo(() => {
+    if (!isAdmin) return []
+    return updateRequests.filter(u => u.status === 'responded')
+  }, [updateRequests, isAdmin])
+  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length
 
   /* ── Loading splash ── */
   if (loading) {
@@ -265,6 +290,22 @@ function AppShell() {
             setApiKey={persistApiKey}
             showToast={showToast}
             userProfile={userProfile}
+            onRequestUpdate={isAdmin ? async (task) => {
+              try {
+                await requestTaskUpdate({
+                  taskId: task.id,
+                  taskTitle: task.title,
+                  requestedFrom: '',
+                  requestedFromName: task.person || '',
+                  requestedBy: userProfile.uid,
+                  requestedByName: userProfile.name,
+                  message: 'يرجى تقديم تحديث عن حالة هذه المهمة',
+                })
+                showToast(`📩 تم إرسال طلب تحديث إلى ${task.person}`)
+              } catch (e) {
+                showToast('❌ خطأ في إرسال الطلب')
+              }
+            } : null}
           />
         )}
         {page === 'notes' && (
@@ -365,6 +406,59 @@ function AppShell() {
               </div>
             )}
 
+            {/* طلبات التحديث الموجهة للموظف */}
+            {myPendingUpdates.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6', marginBottom: 6 }}>📩 طلبات تحديث ({myPendingUpdates.length})</div>
+                {myPendingUpdates.map(u => (
+                  <div key={u.id} style={{
+                    padding: '10px 12px', borderRadius: 10, marginBottom: 4,
+                    background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)',
+                    fontSize: 12, color: 'var(--text)',
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: 3 }}>{u.taskTitle}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
+                      💬 {u.message}
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>
+                      من: {u.requestedByName}
+                    </div>
+                    <button onClick={() => { setRespondingTo(u); setRespondText(''); setShowNotifications(false) }} style={{
+                      padding: '6px 14px', borderRadius: 8, width: '100%',
+                      background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)',
+                      color: '#8b5cf6', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      ✏️ رد بالتحديث
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ردود التحديث الجديدة للمدير */}
+            {isAdmin && respondedUpdates.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981', marginBottom: 6 }}>✅ ردود تحديث جديدة ({respondedUpdates.length})</div>
+                {respondedUpdates.slice(0, 5).map(u => (
+                  <div key={u.id} style={{
+                    padding: '10px 12px', borderRadius: 10, marginBottom: 4,
+                    background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)',
+                    fontSize: 12, color: 'var(--text)',
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: 3 }}>{u.taskTitle}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>👤 {u.requestedFromName}</div>
+                    <div style={{
+                      fontSize: 12, color: 'var(--text)', marginTop: 6, padding: '8px 10px',
+                      background: 'rgba(16,185,129,0.06)', borderRadius: 8,
+                      borderRight: '3px solid #10b981', lineHeight: 1.6,
+                    }}>
+                      {u.response}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {notifCount === 0 && (
               <div style={{ textAlign: 'center', padding: 20, color: 'var(--text3)', fontSize: 13 }}>
                 ✨ لا توجد تنبيهات
@@ -372,6 +466,66 @@ function AppShell() {
             )}
           </div>
         </>
+      )}
+      {/* Respond to update request modal */}
+      {respondingTo && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 14, width: '90%', maxWidth: 360 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6, textAlign: 'center' }}>
+              📩 طلب تحديث
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 4, textAlign: 'center' }}>
+              {respondingTo.taskTitle}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12, textAlign: 'center' }}>
+              من: {respondingTo.requestedByName} — "{respondingTo.message}"
+            </div>
+            <textarea
+              value={respondText}
+              onChange={e => setRespondText(e.target.value)}
+              placeholder="اكتب تحديث حالة المهمة..."
+              style={{
+                width: '100%', minHeight: 100, padding: 12, borderRadius: 10,
+                border: '1px solid var(--border)', background: 'var(--bg)',
+                color: 'var(--text)', fontSize: 14, lineHeight: 1.7,
+                fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box',
+              }}
+              dir="rtl"
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button
+                onClick={async () => {
+                  if (!respondText.trim()) return
+                  setRespondLoading(true)
+                  try {
+                    await respondToUpdateRequest(respondingTo.id, respondText.trim())
+                    showToast('✅ تم إرسال التحديث')
+                  } catch (e) {
+                    showToast('❌ خطأ في إرسال التحديث')
+                  }
+                  setRespondLoading(false)
+                  setRespondingTo(null)
+                }}
+                disabled={respondLoading || !respondText.trim()}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8,
+                  background: respondLoading || !respondText.trim() ? 'var(--bg3)' : '#8b5cf6',
+                  color: respondLoading || !respondText.trim() ? 'var(--text3)' : '#fff',
+                  border: 'none', fontSize: 14, fontWeight: 700,
+                  cursor: respondLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {respondLoading ? 'جاري الإرسال...' : '📩 إرسال'}
+              </button>
+              <button onClick={() => setRespondingTo(null)} style={{
+                flex: 1, padding: '10px', background: 'var(--bg3)',
+                color: 'var(--text)', border: 'none', borderRadius: 8,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>إلغاء</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
