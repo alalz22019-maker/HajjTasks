@@ -461,64 +461,121 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
 
   function exportExcel() {
     try {
-      const CHANNEL_MAP = { minutes: 'محضر', directive: 'توجيه مباشر', email: 'إيميل', routine: 'روتينية' }
+      const CHANNEL_MAP = { minutes: 'محضر', directive: 'توجيه مباشر', email: 'إيميل' }
       const STATUS_MAP = { new: 'New', studying: 'In Progress', in_progress: 'In Progress', executing: 'In Progress', waiting: 'Delayed', review: 'In Progress', done: 'Completed' }
+      // Completion % based on status
+      const COMPLETION_MAP = { new: 0, studying: 0.25, in_progress: 0.5, executing: 0.5, waiting: 0.5, review: 0.75, done: 1 }
+      // App status (Arabic) for the extra column
+      const APP_STATUS_MAP = { new: 'جديدة', studying: 'قيد الدراسة', in_progress: 'قيد التنفيذ', waiting: 'بانتظار جهة خارجية', review: 'قيد المراجعة', done: 'مكتملة' }
       const today = new Date(); today.setHours(0,0,0,0)
 
-      const EXCEL_COLUMNS = ['S No.','Source','Sub_Source','Task Title','Task Description','What\'s Done','Type','Start Date','Due Date','Completion %','Status','First Owner','Secondary Owner','Channel']
+      const EXCEL_COLUMNS = ['S No.','Source','Sub_Source','Task Title','Task Description','What\'s Done','Type','Start Date','Due Date','Completion %','Status','First Owner','Secondary Owner','Channel','App Status','All Types','Task ID']
+
       const dataToExport = tasks.map((t, i) => {
-        // S No.
-        const sno = `T-${String(i + 1).padStart(4, '0')}`
-        // Start Date from createdAt
-        let startDate = ''
+        const sno = t.excelSNo || `T-${String(i + 1).padStart(4, '0')}`
+
+        // Start Date from createdAt → real Date object for Excel
+        let startDate = null
         try {
           const ca = t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null)
-          if (ca && !isNaN(ca.getTime())) startDate = ca.toISOString().split('T')[0]
+          if (ca && !isNaN(ca.getTime())) startDate = ca
         } catch {}
-        // Due Date
-        let finalDueDate = t.dueDate || ''
+
+        // Due Date → real Date object
+        let finalDueDate = null
+        if (t.dueDate) {
+          try {
+            const d = new Date(t.dueDate)
+            if (!isNaN(d.getTime())) finalDueDate = d
+          } catch {}
+        }
         if (!finalDueDate && startDate) {
           try {
             const d = new Date(startDate)
             let addedDays = 0
             while (addedDays < 5) { d.setDate(d.getDate() + 1); if (d.getDay() !== 5 && d.getDay() !== 6) addedDays++ }
-            finalDueDate = d.toISOString().split('T')[0]
-          } catch { finalDueDate = '' }
+            finalDueDate = d
+          } catch {}
         }
-        // Status — auto Delayed if overdue
+
+        // Completion % — real percentage based on status
+        const completion = COMPLETION_MAP[t.status] ?? (t.done ? 1 : 0)
+
+        // Excel Status — auto Delayed if overdue
         let status = STATUS_MAP[t.status] || 'New'
-        if (!t.done && t.dueDate) {
-          const due = new Date(t.dueDate); due.setHours(0,0,0,0)
+        if (!t.done && finalDueDate) {
+          const due = new Date(finalDueDate); due.setHours(0,0,0,0)
           if (due < today) status = 'Delayed'
         }
-        // Channel
-        const channel = CHANNEL_MAP[t.sourceType] || t.sourceType || ''
+
+        // Channel (3 values only: محضر، توجيه مباشر، إيميل)
+        const channel = CHANNEL_MAP[t.sourceType] || ''
+
         // First Owner / Secondary Owner
-        const personParts = (t.person || '').split(/[\/,،]/).map(s => s.trim()).filter(Boolean)
-        const firstOwner = personParts[0] || ''
-        const secondOwner = personParts.slice(1).join(', ')
-        // Type (projectNames or projectName)
+        const firstOwner = (t.person || '').trim()
+        const secondOwner = t.secondaryOwner || ''
+
+        // Type (projectNames joined with comma, or projectName)
         const type = (t.projectNames && t.projectNames.length > 0) ? t.projectNames.join(', ') : (t.projectName || '')
 
         return {
           [EXCEL_COLUMNS[0]]: sno,
-          [EXCEL_COLUMNS[1]]: '',
-          [EXCEL_COLUMNS[2]]: 'مهامي برو',
+          [EXCEL_COLUMNS[1]]: t.excelSource || '',
+          [EXCEL_COLUMNS[2]]: t.excelSubSource || t.sourceTitle || '',
           [EXCEL_COLUMNS[3]]: t.sourceTitle || '',
           [EXCEL_COLUMNS[4]]: t.title || '',
           [EXCEL_COLUMNS[5]]: t.closeNote || '',
           [EXCEL_COLUMNS[6]]: type,
           [EXCEL_COLUMNS[7]]: startDate,
           [EXCEL_COLUMNS[8]]: finalDueDate,
-          [EXCEL_COLUMNS[9]]: t.done ? '100%' : '50%',
+          [EXCEL_COLUMNS[9]]: completion,
           [EXCEL_COLUMNS[10]]: status,
           [EXCEL_COLUMNS[11]]: firstOwner,
           [EXCEL_COLUMNS[12]]: secondOwner,
           [EXCEL_COLUMNS[13]]: channel,
+          [EXCEL_COLUMNS[14]]: APP_STATUS_MAP[t.status] || 'جديدة',
+          [EXCEL_COLUMNS[15]]: type,
+          [EXCEL_COLUMNS[16]]: t.id || '',
         }
       })
 
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport, { dateNF: 'yyyy-mm-dd' });
+
+      // Format date columns (H=Start Date col 8, I=Due Date col 9) and Completion % (J col 10)
+      const range = XLSX.utils.decode_range(worksheet['!ref'])
+      for (let R = range.s.r + 1; R <= range.e.r; R++) {
+        // Start Date (col 7, 0-indexed)
+        const sdCell = worksheet[XLSX.utils.encode_cell({ r: R, c: 7 })]
+        if (sdCell && sdCell.v instanceof Date) { sdCell.t = 'd'; sdCell.z = 'yyyy-mm-dd' }
+        // Due Date (col 8)
+        const ddCell = worksheet[XLSX.utils.encode_cell({ r: R, c: 8 })]
+        if (ddCell && ddCell.v instanceof Date) { ddCell.t = 'd'; ddCell.z = 'yyyy-mm-dd' }
+        // Completion % (col 9) — format as percentage
+        const cpCell = worksheet[XLSX.utils.encode_cell({ r: R, c: 9 })]
+        if (cpCell && typeof cpCell.v === 'number') { cpCell.t = 'n'; cpCell.z = '0%' }
+      }
+
+      // Set column widths
+      worksheet['!cols'] = [
+        { wch: 8 },  // S No.
+        { wch: 16 }, // Source
+        { wch: 16 }, // Sub_Source
+        { wch: 30 }, // Task Title
+        { wch: 50 }, // Task Description
+        { wch: 40 }, // What's Done
+        { wch: 22 }, // Type
+        { wch: 12 }, // Start Date
+        { wch: 12 }, // Due Date
+        { wch: 12 }, // Completion %
+        { wch: 12 }, // Status
+        { wch: 22 }, // First Owner
+        { wch: 22 }, // Secondary Owner
+        { wch: 14 }, // Channel
+        { wch: 16 }, // App Status
+        { wch: 22 }, // All Types
+        { wch: 24 }, // Task ID
+      ]
+
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Tasks Tracker");
       

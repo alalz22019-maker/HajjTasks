@@ -161,6 +161,28 @@ export default function LoginPage() {
           </div>
         )}
 
+        {/* Google Sign-In */}
+        <button
+          onClick={async () => { setLoading(true); await loginWithGoogle(); setLoading(false); }}
+          disabled={loading}
+          style={{
+            width: '100%', padding: '13px', borderRadius: 12,
+            border: '1px solid var(--border)', background: 'var(--bg3)',
+            color: 'var(--text)', fontSize: 14, fontWeight: 600,
+            cursor: loading ? 'default' : 'pointer', fontFamily: 'var(--font)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+            marginBottom: 16,
+          }}
+        >
+          <GoogleIcon /> الدخول بحساب Google
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: 12, color: 'var(--text3)' }}>أو</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        </div>
+
         <form onSubmit={handleEmailLogin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <input type="email" placeholder="البريد الإلكتروني" value={email} onChange={e => setEmail(e.target.value)} dir="ltr" autoComplete="email" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)', outline: 'none', width: '100%', boxSizing: 'border-box', textAlign: 'left' }} />
           <input type="password" placeholder="كلمة المرور" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" style={{ padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg3)', color: 'var(--text)', fontSize: 14, fontFamily: 'var(--font)', outline: 'none', width: '100%', boxSizing: 'border-box' }} />
