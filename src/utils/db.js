@@ -278,3 +278,43 @@ function getWeekOfString() {
   const sunday = new Date(now.setDate(diff))
   return `${sunday.getFullYear()}-${String(sunday.getMonth()+1).padStart(2,'0')}-${String(sunday.getDate()).padStart(2,'0')}`
 }
+
+/* ─── NOTIFICATIONS (تنبيهات شخصية) ──────────────────── */
+
+export async function addNotification({ toName, type, title, message, fromName }) {
+  await addDoc(collection(db, 'notifications'), {
+    toName,
+    type, // 'new_task' | 'update_request' | 'task_approved' | 'task_rejected'
+    title,
+    message: message || '',
+    fromName: fromName || '',
+    read: false,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export function subscribeToNotifications(userName, callback) {
+  if (!userName) return () => {}
+  const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'))
+  return onSnapshot(q, snap => {
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // Filter by toName
+    callback(all.filter(n => n.toName === userName))
+  })
+}
+
+export async function markNotificationRead(id) {
+  await updateDoc(doc(db, 'notifications', id), { read: true })
+}
+
+export async function markAllNotificationsRead(userName) {
+  const q = query(collection(db, 'notifications'), orderBy('createdAt', 'desc'))
+  const snap = await getDocs(q)
+  const batch = writeBatch(db)
+  snap.docs.forEach(d => {
+    if (d.data().toName === userName && !d.data().read) {
+      batch.update(d.ref, { read: true })
+    }
+  })
+  await batch.commit()
+}

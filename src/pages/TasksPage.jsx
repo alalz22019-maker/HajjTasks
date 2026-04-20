@@ -12,6 +12,7 @@ import {
   updateTask as dbUpdateTask,
   deleteTask as dbDeleteTask,
   createRequest,
+  addNotification,
 } from '../utils/db'
 
 // --- دوال منع التكرار ---
@@ -273,6 +274,22 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         taskData.parentId = subtaskParent.id
       }
       const newId = await dbAddTask(taskData)
+
+      // إرسال تنبيه للشخص المسؤول إذا كان مختلف عن المضيف
+      const assignedTo = (form.person || '').trim()
+      const currentUser = (userProfile?.name || '').trim()
+      if (assignedTo && assignedTo !== currentUser) {
+        try {
+          await addNotification({
+            toName: assignedTo,
+            type: 'new_task',
+            title: form.title,
+            message: `تم تكليفك بمهمة جديدة من ${currentUser}`,
+            fromName: currentUser,
+          })
+        } catch (e) { console.error('Notification error:', e) }
+      }
+
       if (subTaskTitles.length > 0) {
         for (const title of subTaskTitles) {
           await dbAddTask({
@@ -285,7 +302,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         }
         showToast(`✅ أضيفت المهمة و${subTaskTitles.length} فرعية`)
       } else if (form.taskType === 'meeting' && form.dueDate) {
-        // Show calendar toast for meetings
         setCalendarToast({
           title: form.title,
           date: form.dueDate,
