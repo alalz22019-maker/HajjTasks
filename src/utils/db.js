@@ -105,7 +105,21 @@ export async function approveRequest(requestId, requestData) {
   const { type, payload } = requestData
 
   if (type === 'add') {
-    await addTask(payload)
+    const { subTaskTitles, ...taskPayload } = payload
+    const newId = await addTask(taskPayload)
+    // إضافة المهام الفرعية إذا موجودة
+    if (subTaskTitles && subTaskTitles.length > 0 && newId) {
+      for (const title of subTaskTitles) {
+        await addTask({
+          title, priority: taskPayload.priority || 'medium', person: taskPayload.person || '',
+          dueDate: '', recurrence: '', reminderTime: '',
+          projectName: taskPayload.projectName || '',
+          projectNames: taskPayload.projectNames || [],
+          sourceType: taskPayload.sourceType || '', sourceTitle: taskPayload.sourceTitle || '',
+          done: false, status: 'new', parentId: newId,
+        })
+      }
+    }
   } else if (type === 'edit_title') {
     await updateTask(payload.taskId, { title: payload.title })
   } else if (type === 'edit_date') {

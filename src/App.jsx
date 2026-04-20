@@ -114,15 +114,18 @@ function AppShell() {
 
   const contacts = deriveContacts(tasks)
 
-  // Notifications: overdue tasks + pending requests
+  // Notifications: overdue tasks for THIS user only + pending requests
   const overdueTasks = useMemo(() => {
     const today = new Date(); today.setHours(0,0,0,0)
     return tasks.filter(t => {
       if (t.done || !t.dueDate) return false
       const d = new Date(t.dueDate); d.setHours(0,0,0,0)
-      return d < today
+      if (d >= today) return false
+      // المدير يشوف كل المتأخرات، الموظف يشوف مهامه فقط
+      if (isAdmin) return true
+      return (t.person || '').trim() === (userProfile?.name || '').trim()
     })
-  }, [tasks])
+  }, [tasks, isAdmin, userProfile])
   const [showNotifications, setShowNotifications] = useState(false)
   const myPendingUpdates = useMemo(() => {
     if (!userProfile?.name) return []

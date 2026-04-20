@@ -191,9 +191,9 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
 
         {/* عنوان المهمة + تحليل ذكي */}
         <div className="form-group">
-          <label className="form-label">عنوان المهمة *</label>
+          <label className="form-label">{form.taskType === 'meeting' ? 'عنوان الاجتماع *' : form.taskType === 'report' ? 'عنوان التقرير *' : 'عنوان المهمة *'}</label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <input className="form-input" style={{ flex: 1 }} value={form.title} onChange={e => set('title', e.target.value)} placeholder="اكتب المهمة..." />
+            <input className="form-input" style={{ flex: 1 }} value={form.title} onChange={e => set('title', e.target.value)} placeholder={form.taskType === 'meeting' ? 'اكتب عنوان الاجتماع...' : form.taskType === 'report' ? 'اكتب عنوان التقرير...' : 'اكتب المهمة...'} />
             <button className="ai-analyze-btn" onClick={analyzeTask} disabled={!form.title.trim() || analyzing || !currentApiKey} title="تحليل ذكي">
               {analyzing ? <span className="spinner" style={{ width: 14, height: 14 }} /> : '✨'}
             </button>
@@ -429,7 +429,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
         </div>
 
         <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
-          {task ? 'حفظ التغييرات' : form.taskType === 'meeting' ? '📅 حفظ الاجتماع' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
+          {task ? 'حفظ التغييرات' : form.taskType === 'meeting' ? '📅 حفظ الاجتماع' : form.taskType === 'report' ? '📊 حفظ التقرير' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
         </button>
         <button className="cancel-btn" onClick={onClose} style={{ marginBottom: '10px' }}>إلغاء</button>
       </div>

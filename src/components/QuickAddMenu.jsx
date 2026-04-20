@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 
-export default function QuickAddMenu({ onOption, onClose }) {
+export default function QuickAddMenu({ onOption, onClose, isUser }) {
   const [closing, setClosing] = useState(false)
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -116,7 +116,7 @@ export default function QuickAddMenu({ onOption, onClose }) {
   // Cleanup on unmount
   useEffect(() => { return killMic }, [killMic])
 
-  const OPTIONS = [
+  const ALL_OPTIONS = [
     { id: 'voice',   icon: '🎤', label: 'إدخال صوتي',    color: '#ef4444' },
     { id: 'chat',    icon: '💬', label: 'محادثة ذكية',    color: '#8b5cf6' },
     { id: 'task',    icon: '📝', label: 'مهمة جديدة',     color: '#3b82f6' },
@@ -124,6 +124,7 @@ export default function QuickAddMenu({ onOption, onClose }) {
     { id: 'report',  icon: '📊', label: 'تقرير جديد',     color: '#10b981' },
     { id: 'minutes', icon: '📋', label: 'محضر → مهام',     color: '#6366f1' },
   ]
+  const OPTIONS = isUser ? ALL_OPTIONS.filter(o => o.id !== 'minutes') : ALL_OPTIONS
 
   return createPortal(
     <div

@@ -351,7 +351,21 @@ function RequestCard({ req, loading, onApprove, onReject, formatTs }) {
   const payload = req.payload || {}
 
   function renderPayloadDetails() {
-    if (req.type === 'add')        return <span>عنوان: <b>{payload.title}</b></span>
+    if (req.type === 'add') {
+      return (
+        <div>
+          <span>عنوان: <b>{payload.title}</b></span>
+          {payload.subTaskTitles && payload.subTaskTitles.length > 0 && (
+            <div style={{ marginTop: 6, padding: '6px 10px', background: 'rgba(99,102,241,0.08)', borderRadius: 8, borderRight: '3px solid #6366f1' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6366f1', marginBottom: 4 }}>📋 مهام فرعية ({payload.subTaskTitles.length})</div>
+              {payload.subTaskTitles.map((st, i) => (
+                <div key={i} style={{ fontSize: 11, color: 'var(--text2)', paddingRight: 8, marginBottom: 2 }}>• {st}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
     if (req.type === 'edit_title') return <span>من: <b>{payload.originalTitle}</b> → إلى: <b>{payload.title}</b></span>
     if (req.type === 'edit_date')  return <span>من: <b>{payload.originalDate || '—'}</b> → إلى: <b>{payload.dueDate}</b></span>
     if (req.type === 'close')      return <span>إغلاق: <b>{payload.taskTitle}</b></span>

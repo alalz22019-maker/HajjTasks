@@ -130,8 +130,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   }
 
   // المحادثة الذكية والمحضر والصوتي محصورة على: علي، منار، وليد
-  const AI_ALLOWED = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
-  const canUseAI = userProfile && AI_ALLOWED.includes(userProfile.name)
+  const canUseAI = true // متاح للجميع
 
   // Handle QuickAddMenu option
   function handleQuickOption(option, data) {
@@ -146,7 +145,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setDefaultTaskType('meeting')
       setShowForm(true)
     } else if (option === 'report') {
-      if (onNavigate) { onNavigate('bizreports'); setShowQuickMenu(false); return }
       setDefaultTaskType('report')
       setShowForm(true)
     } else if (option === 'voice_result') {
@@ -264,7 +262,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     if (!canWrite) {
-      submitRequest('add', { ...form })
+      submitRequest('add', { ...form, subTaskTitles: subTaskTitles.length > 0 ? subTaskTitles : undefined })
       setShowForm(false)
       return
     }
@@ -950,6 +948,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         <QuickAddMenu
           onOption={handleQuickOption}
           onClose={() => setShowQuickMenu(false)}
+          isUser={isUser}
         />
       )}
 
