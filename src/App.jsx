@@ -286,7 +286,7 @@ function AppShell() {
             showToast={showToast}
             onNavigate={setPage}
             updateRequests={updateRequests}
-            pendingRequests={requests.filter(r => r.status === 'pending')}
+            pendingRequests={pendingCount}
           />
         )}
         {page === 'tasks' && (

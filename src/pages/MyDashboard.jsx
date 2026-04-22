@@ -130,7 +130,7 @@ function isReportTask(t) {
 }
 
 /* ─── Component ────────────────────────────────── */
-export default function MyDashboard({ tasks, showToast, onNavigate, updateRequests = [], pendingRequests = [] }) {
+export default function MyDashboard({ tasks, showToast, onNavigate, updateRequests = [], pendingRequests = 0 }) {
   const { userProfile, isAdmin } = useAuth()
   const userName = userProfile?.name || 'مستخدم'
   const firstName = userName.split(' ').pop() || userName
@@ -351,7 +351,7 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
         {/* 🔔 التنبيهات — أول شي يشوفه الموظف */}
         {(() => {
           const myUpdates = updateRequests.filter(u => u.status === 'pending' && u.requestedFromName === userName)
-          const myApprovedReqs = pendingRequests.length
+          const myApprovedReqs = pendingRequests
           const alertCount = myUpdates.length + overdueTasks.length
           if (alertCount === 0 && myApprovedReqs === 0) return null
           return (
