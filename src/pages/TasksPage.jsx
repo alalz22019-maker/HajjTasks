@@ -247,7 +247,13 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       })
       showToast('📨 تم إرسال الطلب — بانتظار موافقة المدير')
     } catch (e) {
-      showToast('❌ خطأ في إرسال الطلب')
+      console.error('Request error:', e)
+      // لو فشل بسبب الصلاحيات — حاول بطريقة ثانية
+      if (e.code === 'permission-denied') {
+        showToast('⚠️ لا توجد صلاحية — تواصل مع المدير مباشرة')
+      } else {
+        showToast('❌ خطأ في إرسال الطلب: ' + (e.message || '').substring(0, 50))
+      }
     } finally {
       setSubmittingReq(false)
       setPendingRequest(null)
@@ -263,7 +269,24 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     if (!canWrite) {
-      submitRequest('add', { ...form, subTaskTitles: subTaskTitles.length > 0 ? subTaskTitles : undefined })
+      // الموظف يضيف المهمة مباشرة مع علامة "بانتظار الموافقة"
+      try {
+        const taskData = {
+          ...form,
+          done: false,
+          status: form.status || 'new',
+          needsApproval: true,
+          approvalType: 'add',
+          requestedBy: userProfile?.uid || '',
+          requestedByName: userProfile?.name || '',
+        }
+        if (subTaskTitles.length > 0) taskData.subTaskTitles = subTaskTitles
+        await dbAddTask(taskData)
+        showToast('📨 تمت الإضافة — بانتظار موافقة المدير')
+      } catch (e) {
+        console.error('Add task error:', e)
+        showToast('❌ خطأ في الإضافة: ' + (e.message || '').substring(0, 50))
+      }
       setShowForm(false)
       return
     }
@@ -336,14 +359,28 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
             showToast('❌ خطأ في حفظ التحديث')
           }
         }
-        // تعديلات تحتاج موافقة (عنوان، تاريخ، إلخ)
+        // تعديلات تحتاج موافقة (عنوان، تاريخ، إلخ) — نسجّلها مباشرة في المهمة
         let hasRequest = false
         if (original.title !== form.title) {
-          submitRequest('edit_title', { taskId: form.id, title: form.title, originalTitle: original.title })
-          hasRequest = true
+          try {
+            await dbUpdateTask(form.id, { 
+              title: form.title,
+              pendingEdit: { type: 'title', oldValue: original.title, newValue: form.title, by: userProfile?.name },
+              needsApproval: true,
+            })
+            showToast('📨 تم تعديل العنوان — بانتظار الموافقة')
+            hasRequest = true
+          } catch(e) { showToast('❌ خطأ في التعديل') }
         } else if (original.dueDate !== form.dueDate) {
-          submitRequest('edit_date', { taskId: form.id, dueDate: form.dueDate, originalDate: original.dueDate })
-          hasRequest = true
+          try {
+            await dbUpdateTask(form.id, { 
+              dueDate: form.dueDate,
+              pendingEdit: { type: 'date', oldValue: original.dueDate, newValue: form.dueDate, by: userProfile?.name },
+              needsApproval: true,
+            })
+            showToast('📨 تم تعديل التاريخ — بانتظار الموافقة')
+            hasRequest = true
+          } catch(e) { showToast('❌ خطأ في التعديل') }
         }
         if (!hasDirect && !hasRequest) {
           showToast('⚠️ هذا التعديل يحتاج موافقة المدير')
@@ -379,7 +416,16 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     const task = tasks.find(t => t.id === id)
     if (!task) return
     if (!canWrite && !task.done) {
-      submitRequest('close', { taskId: id, taskTitle: task.title })
+      // الموظف يقدر يغلق مهمته مباشرة
+      try {
+        await dbUpdateTask(id, { 
+          done: true, status: 'done', 
+          completedAt: new Date().toISOString(),
+          needsApproval: true,
+          pendingEdit: { type: 'close', by: userProfile?.name },
+        })
+        showToast('✅ تم إنجاز المهمة')
+      } catch(e) { showToast('❌ خطأ في إغلاق المهمة') }
       return
     }
     const done = !task.done
