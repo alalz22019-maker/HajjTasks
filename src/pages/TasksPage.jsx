@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
-import TaskForm from '../components/TaskForm'
+import TaskForm, { STATUS_OPTIONS } from '../components/TaskForm'
 import SmartChat from '../components/SmartChat'
 import MeetingMinutesParser from '../components/MeetingMinutesParser'
 import QuickAddMenu from '../components/QuickAddMenu'
@@ -12,7 +12,7 @@ import {
   updateTask as dbUpdateTask,
   deleteTask as dbDeleteTask,
   createRequest,
-  addNotification,
+  addUpdateToTask,
 } from '../utils/db'
 
 // --- دوال منع التكرار ---
@@ -274,22 +274,6 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         taskData.parentId = subtaskParent.id
       }
       const newId = await dbAddTask(taskData)
-
-      // إرسال تنبيه للشخص المسؤول إذا كان مختلف عن المضيف
-      const assignedTo = (form.person || '').trim()
-      const currentUser = (userProfile?.name || '').trim()
-      if (assignedTo && assignedTo !== currentUser) {
-        try {
-          await addNotification({
-            toName: assignedTo,
-            type: 'new_task',
-            title: form.title,
-            message: `تم تكليفك بمهمة جديدة من ${currentUser}`,
-            fromName: currentUser,
-          })
-        } catch (e) { console.error('Notification error:', e) }
-      }
-
       if (subTaskTitles.length > 0) {
         for (const title of subTaskTitles) {
           await dbAddTask({
@@ -302,6 +286,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         }
         showToast(`✅ أضيفت المهمة و${subTaskTitles.length} فرعية`)
       } else if (form.taskType === 'meeting' && form.dueDate) {
+        // Show calendar toast for meetings
         setCalendarToast({
           title: form.title,
           date: form.dueDate,
@@ -322,21 +307,69 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     if (!canWrite) {
       const original = tasks.find(t => t.id === form.id)
       if (original) {
+        // الموظف يقدر يعدّل: ملاحظات الإنجاز + الحالة + closeNote مباشرة بدون موافقة
+        const directUpdates = {}
+        let hasDirect = false
+        if ((form.closeNote || '') !== (original.closeNote || '')) {
+          directUpdates.closeNote = form.closeNote || ''
+          hasDirect = true
+        }
+        if ((form.status || 'new') !== (original.status || 'new')) {
+          directUpdates.status = form.status
+          directUpdates.done = form.status === 'done'
+          if (form.status === 'done') directUpdates.completedAt = new Date().toISOString()
+          hasDirect = true
+        }
+        // تسجيل التحديث في لوق المهمة
+        if (hasDirect) {
+          try {
+            // أضف التحديث المباشر
+            await dbUpdateTask(form.id, directUpdates)
+            // سجّل في لوق المهمة
+            await addUpdateToTask(form.id, {
+              from: userProfile?.name || '',
+              message: directUpdates.closeNote || `تغيير الحالة إلى: ${STATUS_OPTIONS.find(s => s.value === form.status)?.label || form.status}`,
+              type: 'employee_update',
+            })
+            showToast('✅ تم حفظ التحديث')
+          } catch (e) {
+            showToast('❌ خطأ في حفظ التحديث')
+          }
+        }
+        // تعديلات تحتاج موافقة (عنوان، تاريخ، إلخ)
+        let hasRequest = false
         if (original.title !== form.title) {
           submitRequest('edit_title', { taskId: form.id, title: form.title, originalTitle: original.title })
+          hasRequest = true
         } else if (original.dueDate !== form.dueDate) {
           submitRequest('edit_date', { taskId: form.id, dueDate: form.dueDate, originalDate: original.dueDate })
-        } else { showToast('⚠️ هذا التعديل يحتاج موافقة المدير') }
+          hasRequest = true
+        }
+        if (!hasDirect && !hasRequest) {
+          showToast('⚠️ هذا التعديل يحتاج موافقة المدير')
+        }
       }
       setEditTask(null)
       return
     }
     try {
       const { id, ...data } = form
+      const original = tasks.find(t => t.id === id)
       data.done = data.status === 'done'
       if (data.done && !data.completedAt) data.completedAt = new Date().toISOString()
       if (!data.done) data.completedAt = null
       await dbUpdateTask(id, data)
+      // سجّل التغيير في لوق المهمة
+      const changes = []
+      if (original && original.status !== data.status) changes.push(`الحالة → ${STATUS_OPTIONS.find(s => s.value === data.status)?.label || data.status}`)
+      if (original && (original.closeNote || '') !== (data.closeNote || '') && data.closeNote) changes.push(`ملاحظة: ${data.closeNote}`)
+      if (changes.length > 0) {
+        await addUpdateToTask(id, {
+          from: userProfile?.name || '',
+          message: changes.join(' | '),
+          type: 'admin_update',
+        })
+      }
       showToast('✏️ تم تعديل المهمة')
     } catch (e) { showToast('❌ خطأ في التعديل') }
     setEditTask(null)

@@ -151,41 +151,22 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
 
   function handleSubmit() {
     if (!form.title.trim() || saving) return
-
-    // التاريخ إلزامي دائماً
-    if (!form.dueDate) {
-      alert('⚠️ يجب تحديد تاريخ الاستحقاق')
-      return
-    }
-
-    // الملف / المبادرة إلزامي
-    if ((!form.projectNames || form.projectNames.length === 0) && !form.projectName?.trim()) {
-      alert('⚠️ يجب اختيار الملف / المبادرة')
-      return
-    }
-
-    // مصدر المهمة إلزامي
-    if (!form.sourceType) {
-      alert('⚠️ يجب اختيار مصدر المهمة')
-      return
-    }
-
     setSaving(true)
     const finalForm = { ...form }
     if (isUser) finalForm.person = userProfile?.name || ''
     finalForm.done = finalForm.status === 'done'
     // Sync projectNames → projectName string
     finalForm.projectName = (finalForm.projectNames || []).join(', ')
-
-    // اجتماع + محضر → إضافة مهمة فرعية "إرسال محضر"
+    
+    // اجتماع + محضر → إضافة مهمة فرعية "إرسال محضر" تلقائياً
     let finalSubTasks = [...selectedSubTasks]
     if (finalForm.taskType === 'meeting' && finalForm.meetingRole === 'minutes') {
-      const minutesTitle = `إرسال محضر ${finalForm.title}`
+      const minutesTitle = `إرسال محضر: ${finalForm.title}`
       if (!finalSubTasks.includes(minutesTitle)) {
         finalSubTasks.push(minutesTitle)
       }
     }
-
+    
     onSave(finalForm, finalSubTasks)
   }
 

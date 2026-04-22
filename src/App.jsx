@@ -17,7 +17,6 @@ import {
   subscribeToPendingRequests,
   subscribeToMyUpdateRequests, respondToUpdateRequest,
   requestTaskUpdate,
-  subscribeToNotifications, markAllNotificationsRead,
 } from './utils/db'
 
 function AppShell() {
@@ -32,7 +31,6 @@ function AppShell() {
   const [respondText, setRespondText] = useState('')
   const [respondLoading, setRespondLoading] = useState(false)
   const [migrationDone, setMigrationDone] = useState(false)
-  const [personalNotifications, setPersonalNotifications] = useState([])
   
   // 🔴 1. حالة التعهد الأمني
   const [pledgeAccepted, setPledgeAccepted] = useState(true)
@@ -55,13 +53,6 @@ function AppShell() {
   useEffect(() => {
     if (!userProfile) return
     const unsub = subscribeToTasks(setTasks)
-    return unsub
-  }, [userProfile])
-
-  /* ── Subscribe to personal notifications ── */
-  useEffect(() => {
-    if (!userProfile?.name) return
-    const unsub = subscribeToNotifications(userProfile.name, setPersonalNotifications)
     return unsub
   }, [userProfile])
 
@@ -146,8 +137,7 @@ function AppShell() {
     if (!isAdmin) return []
     return updateRequests.filter(u => u.status === 'responded')
   }, [updateRequests, isAdmin])
-  const unreadNotifs = useMemo(() => personalNotifications.filter(n => !n.read), [personalNotifications])
-  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length + unreadNotifs.length
+  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length
 
   /* ── Loading splash ── */
   if (loading) {
@@ -295,6 +285,8 @@ function AppShell() {
             tasks={tasks}
             showToast={showToast}
             onNavigate={setPage}
+            updateRequests={updateRequests}
+            pendingRequests={requests.filter(r => r.status === 'pending')}
           />
         )}
         {page === 'tasks' && (
@@ -477,34 +469,6 @@ function AppShell() {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-
-            {/* تنبيهات شخصية — مهام جديدة وغيرها */}
-            {unreadNotifs.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#3b82f6', marginBottom: 6 }}>🔔 تنبيهات جديدة ({unreadNotifs.length})</div>
-                {unreadNotifs.slice(0, 8).map(n => (
-                  <div key={n.id} style={{
-                    padding: '8px 10px', borderRadius: 10, marginBottom: 4,
-                    background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)',
-                    fontSize: 12, color: 'var(--text)',
-                  }}>
-                    <div style={{ fontWeight: 600 }}>{n.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                      {n.message} {n.fromName ? `• من: ${n.fromName}` : ''}
-                    </div>
-                  </div>
-                ))}
-                <button onClick={async () => {
-                  try { await markAllNotificationsRead(userProfile.name) } catch {}
-                }} style={{
-                  marginTop: 6, padding: '6px 14px', borderRadius: 8, width: '100%',
-                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
-                  color: '#3b82f6', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  ✓ تمت القراءة
-                </button>
               </div>
             )}
 
