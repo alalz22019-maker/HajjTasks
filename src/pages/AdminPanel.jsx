@@ -25,6 +25,7 @@ export default function AdminPanel({ showToast }) {
   const [requests, setRequests] = useState([])
   const [loadingUsers, setLoadingUsers]   = useState(false)
   const [actionLoading, setActionLoading] = useState(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(null) // {uid, name}
 
   // Add user form
   const [addForm, setAddForm] = useState({ email: '', name: '', role: 'user' })
@@ -96,7 +97,11 @@ export default function AdminPanel({ showToast }) {
   }
 
   async function handleDeleteUser(uid, name) {
-    if (!confirm(`حذف ${name}؟`)) return
+    if (!deleteConfirm || deleteConfirm.uid !== uid) {
+      setDeleteConfirm({ uid, name })
+      return
+    }
+    setDeleteConfirm(null)
     setActionLoading(uid)
     try {
       await deleteUser(uid)
@@ -272,6 +277,26 @@ export default function AdminPanel({ showToast }) {
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>{u.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, direction: 'ltr', textAlign: 'right' }}>{u.email}</div>
                   </div>
+                  {deleteConfirm?.uid === u.uid ? (
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        onClick={() => handleDeleteUser(u.uid, u.name)}
+                        style={{
+                          background: '#ef4444', color: '#fff',
+                          border: 'none', borderRadius: 8,
+                          padding: '4px 10px', fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
+                        }}
+                      >تأكيد</button>
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        style={{
+                          background: 'var(--bg3)', color: 'var(--text2)',
+                          border: '1px solid var(--border)', borderRadius: 8,
+                          padding: '4px 10px', fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
+                        }}
+                      >إلغاء</button>
+                    </div>
+                  ) : (
                   <button
                     onClick={() => handleDeleteUser(u.uid, u.name)}
                     disabled={actionLoading === u.uid}
@@ -281,6 +306,7 @@ export default function AdminPanel({ showToast }) {
                       padding: '4px 10px', fontSize: 12, fontFamily: 'var(--font)', cursor: 'pointer',
                     }}
                   >🗑</button>
+                  )}
                 </div>
                 <div style={{ marginTop: 10 }}>
                   <div className="seg-control">

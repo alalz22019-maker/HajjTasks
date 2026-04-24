@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { TEAM_MEMBERS } from '../constants'
 import PullToRefresh from '../components/PullToRefresh'
 import {
   addBusinessReport, updateBusinessReport, deleteBusinessReport,
@@ -52,14 +53,6 @@ const FREQ_TABS = [
   { id: 'monthly', label: 'شهري', icon: '📆' },
   { id: 'quarterly', label: 'ربعي', icon: '📊' },
   { id: 'yearly', label: 'سنوي', icon: '🗓' },
-]
-const TEAM_MEMBERS = [
-  'م. علي الزهراني','د. منار سمان','د. وليد الحسن','أ. عبير الشدوخي',
-  'د. حامد الزهراني','أ. حماد المظيبري','أ. محمد القرشي','أ. محمد الحجيلي',
-  'أ. سعد القرشي','أ. أميرة التميمي','د. مرام الشهراني','أ. وفاء آل إسماعيل',
-  'د. سمية الغريب','أ. مشاعل المطيري','أ. صفاء الشهري','أ. أمجاد المطيري',
-  'أ. مي الأسمري','أ. شادي نبيل','أ. راما القحطاني','أ. مها القحطاني',
-  'د. نجلاء خوجة','أ. مشاعل الغزولي','أ. فدوى النفيسي','م. حمادي الشعائره',
 ]
 
 function getNextDueDate(freq) {

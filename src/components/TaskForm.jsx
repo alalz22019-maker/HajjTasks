@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { analyzeTaskWithAI } from '../utils/claude'
 import { useAuth } from '../contexts/AuthContext'
+import { TEAM_MEMBERS, SOURCE_TYPES, STATUS_OPTIONS, PROJECT_FILES, migrateStatus } from '../constants'
 
 const PRIORITIES = [
   { value: 'urgent', label: 'عاجل' },
@@ -22,53 +23,10 @@ const TASK_TYPES = [
   { value: 'meeting', label: 'اجتماع' },
 ]
 
-const SOURCE_TYPES = [
-  { value: '', label: '— اختياري —' },
-  { value: 'minutes', label: 'محضر' },
-  { value: 'directive', label: 'توجيه مباشر' },
-  { value: 'email', label: 'إيميل' },
-  { value: 'routine', label: 'مهمة روتينية' },
-]
-
-export const STATUS_OPTIONS = [
-  { value: 'new',         label: 'جديدة',              color: '#6b7280' },
-  { value: 'studying',    label: 'قيد الدراسة',        color: '#8b5cf6' },
-  { value: 'in_progress', label: 'قيد التنفيذ',        color: '#3b82f6' },
-  { value: 'waiting',     label: 'بانتظار جهة خارجية', color: '#f59e0b' },
-  { value: 'review',      label: 'قيد المراجعة',       color: '#06b6d4' },
-  { value: 'done',        label: 'مكتملة',             color: '#10b981' },
-]
-
-const TEAM_MEMBERS = [
-  'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن', 'أ. عبير الشدوخي',
-  'د. حامد الزهراني', 'أ. حماد المظيبري', 'أ. محمد القرشي', 'أ. محمد الحجيلي',
-  'أ. سعد القرشي', 'أ. أميرة التميمي', 'د. مرام الشهراني',
-  'أ. وفاء آل إسماعيل', 'د. سمية الغريب', 'أ. مشاعل المطيري', 'أ. صفاء الشهري',
-  'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل',
-  'أ. راما القحطاني', 'أ. مها القحطاني', 'د. نجلاء خوجة',
-  'أ. مشاعل الغزولي', 'أ. فدوى النفيسي', 'م. حمادي الشعائره',
-]
-
-export const PROJECT_FILES = [
-  'إدارة المشاريع',
-  'المؤشرات',
-  '937 والبلاغات',
-  'السموم والمضادات',
-  'جاهزية المختبرات',
-  'التموين والإمداد',
-  'عينتي',
-  'التوطين',
-  'فحص الزواج',
-  'السلامة الحيوية',
-  'السياسات والتنظيم',
-  'الاتفاقيات والفعاليات',
-  'أعمال الحج',
-]
-
 const DEFAULT_TASK = {
   title: '', priority: 'medium', person: '', dueDate: '', recurrence: '',
   reminderTime: '', projectName: '', projectNames: [], sourceType: '', sourceTitle: '', done: false,
-  taskType: 'task', status: 'new', closeNote: '', parentId: '',
+  taskType: 'task', status: 'not_started', closeNote: '', parentId: '',
 }
 
 export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskType, parentTask, allTasks = [] }) {

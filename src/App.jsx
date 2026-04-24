@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ROLE_LABEL, ROLE_BG, ROLE_COLOR } from './constants'
 import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
 import MyDashboard from './pages/MyDashboard'
-import NotesPage from './pages/NotesPage'
 import UploadPage from './pages/UploadPage'
 import ContactsPage from './pages/ContactsPage'
 import ReportsPage from './pages/ReportsPage'
@@ -315,14 +315,6 @@ function AppShell() {
             } : null}
           />
         )}
-        {page === 'notes' && (
-          <NotesPage
-            tasks={tasks}
-            apiKey={apiKey}
-            setApiKey={persistApiKey}
-            showToast={showToast}
-          />
-        )}
         {/* حماية: رفع الملفات محصور على علي ومنار ووليد فقط */}
         {page === 'upload' && canUpload && (
           <UploadPage
@@ -543,11 +535,6 @@ function AppShell() {
     </div>
   )
 }
-
-/* ─── Role display helpers ───────────────────────────────── */
-const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'موظف' }
-const ROLE_BG    = { admin: 'rgba(139,92,246,0.15)', superuser: 'rgba(59,130,246,0.15)', user: 'rgba(16,185,129,0.12)' }
-const ROLE_COLOR = { admin: '#a78bfa', superuser: '#60a5fa', user: '#34d399' }
 
 function deriveContacts(tasks) {
   const map = {}
