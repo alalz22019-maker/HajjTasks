@@ -107,12 +107,40 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
     setSelectedSubTasks(prev => prev.includes(st) ? prev.filter(s => s !== st) : [...prev, st])
   }
 
+  const [validationErrors, setValidationErrors] = useState([])
+
+  function validateForm() {
+    const errors = []
+    if (!form.title.trim()) errors.push('عنوان المهمة مطلوب')
+    if (!form.sourceType) errors.push('مصدر المهمة مطلوب')
+    if (form.sourceType && form.sourceType !== 'routine' && !form.sourceTitle?.trim()) {
+      errors.push('عنوان المصدر مطلوب')
+    }
+    if (!form.dueDate) errors.push('تاريخ الاستحقاق مطلوب')
+    if (!isUser && !form.person) errors.push('الشخص المسؤول مطلوب')
+    return errors
+  }
+
   function handleSubmit() {
-    if (!form.title.trim() || saving) return
+    if (saving) return
+    // Validation — عند الإضافة الجديدة فقط
+    if (!task) {
+      const errors = validateForm()
+      if (errors.length > 0) {
+        setValidationErrors(errors)
+        setTimeout(() => setValidationErrors([]), 4000)
+        return
+      }
+    } else if (!form.title.trim()) {
+      setValidationErrors(['عنوان المهمة مطلوب'])
+      setTimeout(() => setValidationErrors([]), 4000)
+      return
+    }
     setSaving(true)
+    setValidationErrors([])
     const finalForm = { ...form }
     if (isUser) finalForm.person = userProfile?.name || ''
-    finalForm.done = finalForm.status === 'done'
+    finalForm.done = finalForm.status === 'completed'
     // Sync projectNames → projectName string
     finalForm.projectName = (finalForm.projectNames || []).join(', ')
     
@@ -392,7 +420,20 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
             style={{ minHeight: 60, resize: 'vertical' }} />
         </div>
 
-        <button className="submit-btn" onClick={handleSubmit} disabled={!form.title.trim() || saving}>
+        {/* أخطاء التحقق */}
+        {validationErrors.length > 0 && (
+          <div style={{
+            margin: '0 0 12px', padding: '10px 14px', borderRadius: 10,
+            background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)',
+            fontSize: 12, color: '#ef4444', lineHeight: 1.8,
+          }}>
+            {validationErrors.map((err, i) => (
+              <div key={i}>⚠️ {err}</div>
+            ))}
+          </div>
+        )}
+
+        <button className="submit-btn" onClick={handleSubmit} disabled={saving}>
           {task ? 'حفظ التغييرات' : form.taskType === 'meeting' ? '📅 حفظ الاجتماع' : form.taskType === 'report' ? '📊 حفظ التقرير' : selectedSubTasks.length > 0 ? `إضافة المهمة + ${selectedSubTasks.length} فرعية` : 'إضافة المهمة'}
         </button>
         <button className="cancel-btn" onClick={onClose} style={{ marginBottom: '10px' }}>إلغاء</button>

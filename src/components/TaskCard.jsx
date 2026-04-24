@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { STATUS_OPTIONS, migrateStatus } from '../constants'
+import { getEffectiveStatus, getStatusInfo } from '../constants'
 
 const PRIORITY_LABELS = { urgent: 'عاجل', medium: 'متوسطة', low: 'منخفضة' }
 const RECURRENCE_LABELS = { daily: 'يومي', weekly: 'أسبوعي', biweekly: 'كل أسبوعين', monthly: 'شهري', quarterly: 'ربع سنوي' }
@@ -12,11 +12,6 @@ function formatDate(d) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`
 }
 
-function getStatusInfo(status) {
-  const s = STATUS_OPTIONS.find(o => o.value === status)
-  return s || STATUS_OPTIONS[0]
-}
-
 export default function TaskCard({
   task, onToggle, onEdit, onDelete, showToast, onAddSubtask, onRequestUpdate,
   childCount = 0, isCollapsed, onToggleCollapse,
@@ -24,7 +19,8 @@ export default function TaskCard({
 }) {
   const [actionsOpen, setActionsOpen] = useState(false)
   const isParent = childCount > 0
-  const statusInfo = getStatusInfo(task.status)
+  const effectiveStatus = getEffectiveStatus(task)
+  const statusInfo = getStatusInfo(effectiveStatus)
 
   function shareWhatsApp() {
     const msg = encodeURIComponent(
@@ -99,7 +95,7 @@ export default function TaskCard({
 
           <div className="task-meta">
             {/* Status badge */}
-            {task.status && task.status !== 'new' && (
+            {effectiveStatus && effectiveStatus !== 'not_started' && (
               <span className="badge" style={{
                 background: `${statusInfo.color}20`, color: statusInfo.color,
                 border: `1px solid ${statusInfo.color}40`,
