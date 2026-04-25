@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
+import SubtaskInline from '../components/SubtaskInline'
 import TaskForm from '../components/TaskForm'
 import { STATUS_OPTIONS, migrateStatus, TEAM_MEMBERS } from '../constants'
 import SmartChat from '../components/SmartChat'
@@ -98,6 +99,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [transferTask, setTransferTask] = useState(null)
   const [transferTo, setTransferTo] = useState('')
   const [transferReason, setTransferReason] = useState('')
+  const [assignSubtask, setAssignSubtask] = useState(null)
+  const [assignTo, setAssignTo] = useState('')
   const [viewMode, setViewMode]   = useState('list')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -483,6 +486,42 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     setSubtaskParent(parentTask)
     setDefaultTaskType('task')
     setShowForm(true)
+  }
+
+  // تعديل فرعية inline
+  async function handleSubtaskInlineUpdate(subtaskId, updates) {
+    try {
+      await dbUpdateTask(subtaskId, updates)
+      // Activity Log
+      const changeKeys = Object.keys(updates)
+      for (const key of changeKeys) {
+        const original = tasks.find(t => t.id === subtaskId)
+        if (original && original[key] !== updates[key]) {
+          await addActivityLog(subtaskId, {
+            action: key === 'title' ? 'title_edit' : key === 'dueDate' ? 'date_edit' : key === 'person' ? 'person_edit' : 'updated',
+            from: original[key] || '', to: updates[key] || '', by: userProfile?.name || '',
+          })
+        }
+      }
+      showToast('✅ تم التعديل')
+    } catch { showToast('❌ خطأ في التعديل') }
+  }
+
+  // إسناد فرعية لشخص (بموافقة)
+  async function handleAssignSubtask() {
+    if (!assignSubtask || !assignTo) return
+    try {
+      await dbUpdateTask(assignSubtask.id, {
+        person: assignTo,
+        needsApproval: true,
+        pendingEdit: { type: 'subtask_assign', by: userProfile?.name, to: assignTo },
+      })
+      await addActivityLog(assignSubtask.id, {
+        action: 'subtask_assigned', from: assignSubtask.person || '', to: assignTo, by: userProfile?.name || '',
+      })
+      showToast(`📌 تم إسناد المهمة لـ ${assignTo} — بانتظار الموافقة`)
+    } catch { showToast('❌ خطأ في الإسناد') }
+    setAssignSubtask(null); setAssignTo('')
   }
 
   // ③ الإضافة السريعة بجملة وحدة
@@ -1005,7 +1044,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                 <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} onTransfer={canWrite ? setTransferTask : null} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
-                    {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
+                    {children.map(c => <SubtaskInline key={c.id} task={c} onToggle={toggleTask} onUpdate={handleSubtaskInlineUpdate} onDelete={canDelete ? id => setDeleteConfirm(id) : null} onAssign={t => { setAssignSubtask(t); setAssignTo('') }} canWrite={canWrite} />)}
                   </div>
                 )}
               </div>
@@ -1155,6 +1194,25 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
               }} style={{ flex: 1, padding: '10px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>تحويل</button>
               <button onClick={() => { setTransferTask(null); setTransferTo(''); setTransferReason('') }}
                 style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* إسناد مهمة فرعية */}
+      {assignSubtask && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 320 }}>
+            <h3 style={{ margin: '0 0 6px', color: 'var(--text)', textAlign: 'center', fontSize: 15 }}>📌 إسناد مهمة فرعية</h3>
+            <p style={{ margin: '0 0 12px', color: 'var(--text2)', fontSize: 12, textAlign: 'center' }}>{assignSubtask.title?.substring(0, 50)}</p>
+            <select value={assignTo} onChange={e => setAssignTo(e.target.value)}
+              style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 13, marginBottom: 12 }}>
+              <option value="">— اختر الشخص —</option>
+              {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={handleAssignSubtask} style={{ flex: 1, padding: '10px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>إسناد</button>
+              <button onClick={() => setAssignSubtask(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
             </div>
           </div>
         </div>
