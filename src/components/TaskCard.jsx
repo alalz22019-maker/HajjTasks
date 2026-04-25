@@ -14,6 +14,7 @@ function formatDate(d) {
 
 export default function TaskCard({
   task, onToggle, onEdit, onDelete, showToast, onAddSubtask, onRequestUpdate,
+  onTransfer,
   childCount = 0, isCollapsed, onToggleCollapse,
   isSubtask = false, childProgress
 }) {
@@ -146,6 +147,11 @@ export default function TaskCard({
           {onRequestUpdate && task.person && !task.done && (
             <button className="task-action-btn" onClick={() => { setActionsOpen(false); onRequestUpdate(task) }} style={{ color: '#8b5cf6' }}>
               <span>📩</span> اطلب تحديث
+            </button>
+          )}
+          {onTransfer && !task.done && (
+            <button className="task-action-btn" onClick={() => { setActionsOpen(false); onTransfer(task) }} style={{ color: '#f59e0b' }}>
+              <span>🔀</span> تحويل
             </button>
           )}
           {onDelete && (

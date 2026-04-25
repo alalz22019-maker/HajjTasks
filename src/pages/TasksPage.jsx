@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
 import TaskForm from '../components/TaskForm'
-import { STATUS_OPTIONS, migrateStatus } from '../constants'
+import { STATUS_OPTIONS, migrateStatus, TEAM_MEMBERS } from '../constants'
 import SmartChat from '../components/SmartChat'
 import MeetingMinutesParser from '../components/MeetingMinutesParser'
 import QuickAddMenu from '../components/QuickAddMenu'
@@ -95,6 +95,9 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const [showQuickMenu, setShowQuickMenu] = useState(false)
   const [defaultTaskType, setDefaultTaskType] = useState('task')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [transferTask, setTransferTask] = useState(null)
+  const [transferTo, setTransferTo] = useState('')
+  const [transferReason, setTransferReason] = useState('')
   const [viewMode, setViewMode]   = useState('list')
   const [collapsedGroups, setCollapsedGroups] = useState(new Set())
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -999,7 +1002,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           <div className="task-list">
             {taskGroups.map(({ task, children }) => (
               <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} />
+                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} onTransfer={canWrite ? setTransferTask : null} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
                     {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
@@ -1115,6 +1118,43 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => deleteTask(deleteConfirm)} style={{ flex: 1, padding: '10px', background: 'var(--red)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>حذف</button>
               <button onClick={() => setDeleteConfirm(null)} style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* نافذة تحويل المهمة */}
+      {transferTask && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 12, width: '90%', maxWidth: 350 }}>
+            <h3 style={{ margin: '0 0 6px', color: 'var(--text)', textAlign: 'center' }}>🔀 تحويل المهمة</h3>
+            <p style={{ margin: '0 0 14px', color: 'var(--text2)', fontSize: 12, textAlign: 'center' }}>{transferTask.title?.substring(0, 60)}</p>
+            <div style={{ marginBottom: 10 }}>
+              <label style={{ fontSize: 12, color: 'var(--text2)', display: 'block', marginBottom: 4 }}>من: {transferTask.person || '—'}</label>
+              <select value={transferTo} onChange={e => setTransferTo(e.target.value)}
+                style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', fontSize: 13 }}>
+                <option value="">— اختر الشخص الجديد —</option>
+                {TEAM_MEMBERS.filter(m => m !== transferTask.person).map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+            <textarea value={transferReason} onChange={e => setTransferReason(e.target.value)}
+              placeholder="سبب التحويل..." style={{ width: '100%', minHeight: 60, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', marginBottom: 14, boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13 }} />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={async () => {
+                if (!transferTo) { showToast('⚠️ اختر الشخص الجديد'); return }
+                try {
+                  const oldPerson = transferTask.person
+                  await dbUpdateTask(transferTask.id, { person: transferTo })
+                  await addActivityLog(transferTask.id, {
+                    action: 'transferred', from: oldPerson, to: transferTo,
+                    reason: transferReason, by: userProfile?.name || '',
+                  })
+                  showToast(`✅ تم تحويل المهمة إلى ${transferTo}`)
+                } catch { showToast('❌ خطأ في التحويل') }
+                setTransferTask(null); setTransferTo(''); setTransferReason('')
+              }} style={{ flex: 1, padding: '10px', background: '#f59e0b', color: '#000', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>تحويل</button>
+              <button onClick={() => { setTransferTask(null); setTransferTo(''); setTransferReason('') }}
+                style={{ flex: 1, padding: '10px', background: 'var(--bg3)', color: 'var(--text)', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
             </div>
           </div>
         </div>
