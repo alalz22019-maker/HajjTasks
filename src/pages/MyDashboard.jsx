@@ -168,8 +168,9 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
 
   const allTasks = tasks
 
-  const stats = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+  // إحصائيات أعمالي (دائماً أعمالي فقط)
+  const myStats = useMemo(() => {
+    const src = myTasks
     const total = src.length
     const done = src.filter(t => t.done).length
     const pending = total - done
@@ -181,7 +182,22 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
     const weekDone = src.filter(completedThisWeek).length
     const pct = total ? Math.round((done / total) * 100) : 0
     return { total, done, pending, urgent, overdue, todayDue, weekDue, todayDone, weekDone, pct }
-  }, [myTasks, allTasks])
+  }, [myTasks])
+
+  // إحصائيات الفريق (الكل)
+  const teamStats = useMemo(() => {
+    const src = allTasks
+    const total = src.length
+    const done = src.filter(t => t.done).length
+    const pending = total - done
+    const urgent = src.filter(t => t.priority === 'urgent' && !t.done).length
+    const overdue = src.filter(isOverdue).length
+    const pct = total ? Math.round((done / total) * 100) : 0
+    return { total, done, pending, urgent, overdue, pct }
+  }, [allTasks])
+
+  // للتوافقية — stats يشير لأعمالي
+  const stats = myStats
 
   const motivation = getMotivation(stats.weekDone)
   const streak = useMemo(() => calcStreak(tasks, userName), [tasks, userName])
@@ -193,7 +209,7 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
   const routine = useMemo(() => getRoutineStats(myTasks.length > 0 ? myTasks : allTasks), [myTasks, allTasks])
 
   const todayAgenda = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+    const src = myTasks
     return src
       .filter(t => !t.done && (isToday(t.dueDate) || (t.priority === 'urgent' && !t.dueDate)))
       .sort((a, b) => {
@@ -205,24 +221,24 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
   }, [myTasks, allTasks])
 
   const overdueTasks = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+    const src = myTasks
     return src.filter(isOverdue).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 5)
   }, [myTasks, allTasks])
 
   const recentDone = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+    const src = myTasks
     return src.filter(completedThisWeek)
       .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
       .slice(0, 5)
   }, [myTasks, allTasks])
 
   const reportTasks = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+    const src = myTasks
     return src.filter(isReportTask).slice(0, 5)
   }, [myTasks, allTasks])
 
   const projects = useMemo(() => {
-    const src = myTasks.length > 0 ? myTasks : allTasks
+    const src = myTasks
     const map = {}
     src.forEach(t => {
       const p = t.projectName || 'بدون مشروع'
@@ -237,10 +253,10 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
   }, [myTasks, allTasks])
 
   const SECTIONS = [
-    { id: 'overview', label: 'نظرة عامة', icon: '📊' },
+    { id: 'overview', label: 'أعمالي',    icon: '📊' },
     { id: 'today',    label: 'اليوم',     icon: '📅' },
+    { id: 'team',     label: 'الفريق',    icon: '👥' },
     { id: 'streak',   label: 'الإنجاز',   icon: '🔥' },
-    { id: 'routine',  label: 'الروتين',   icon: '🔄' },
     { id: 'projects', label: 'المشاريع',  icon: '📁' },
   ]
 
@@ -640,60 +656,84 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
         )}
 
         {/* ─── Routine Section ─── */}
-        {activeSection === 'routine' && (
+        {activeSection === 'team' && (
           <div style={{ padding: '0 16px' }}>
-            <SectionHeader icon="🔄" title="المهام الروتينية" count={routine.total} />
+            <SectionHeader icon="👥" title="نظرة عامة — الفريق" count={allTasks.length} />
+            
+            {/* إحصائيات الفريق */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 16 }}>
+              {[
+                { label: 'إجمالي', value: teamStats.total, color: 'var(--blue)' },
+                { label: 'مكتملة', value: teamStats.done, color: 'var(--green)' },
+                { label: 'متأخرة', value: teamStats.overdue, color: 'var(--red)' },
+              ].map((s, i) => (
+                <div key={i} style={{
+                  background: 'var(--card)', borderRadius: 12, padding: 12,
+                  border: '1px solid var(--border)', textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* نسبة إنجاز الفريق */}
             <div style={{
-              background: 'var(--card)', borderRadius: 16, padding: 16,
+              background: 'var(--card)', borderRadius: 14, padding: 14,
               border: '1px solid var(--border)', marginBottom: 16,
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>نسبة الالتزام</span>
-                <span style={{ fontSize: 20, fontWeight: 800, color: routine.pct >= 80 ? 'var(--green)' : routine.pct >= 50 ? 'var(--orange)' : 'var(--red)' }}>
-                  {routine.pct}%
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>إنجاز الفريق</span>
+                <span style={{ fontSize: 18, fontWeight: 800, color: teamStats.pct >= 80 ? 'var(--green)' : 'var(--orange)' }}>{teamStats.pct}%</span>
               </div>
               <div style={{ height: 8, borderRadius: 4, background: 'var(--bg3)', overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%', borderRadius: 4,
-                  width: `${routine.pct}%`,
-                  background: routine.pct >= 80 ? 'var(--green)' : routine.pct >= 50 ? 'var(--orange)' : 'var(--red)',
-                  transition: 'width 0.5s',
-                }} />
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 8 }}>
-                {routine.completed} من {routine.total} مهمة روتينية مكتملة
+                <div style={{ height: '100%', borderRadius: 4, width: `${teamStats.pct}%`, background: teamStats.pct >= 80 ? 'var(--green)' : 'var(--orange)', transition: 'width 0.5s' }} />
               </div>
             </div>
 
-            {routine.routines.length === 0 ? (
-              <EmptyState text="لا توجد مهام متكررة بعد" icon="🔄" />
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-                {routine.routines.map(t => (
-                  <div key={t.id} style={{
-                    padding: '12px 14px', borderRadius: 12,
-                    background: 'var(--card)', border: '1px solid var(--border)',
-                    display: 'flex', alignItems: 'center', gap: 10,
-                  }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 10,
-                      background: t.done ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-                    }}>
-                      {t.done ? '✅' : '📆'}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: t.done ? 'line-through' : 'none', opacity: t.done ? 0.6 : 1 }}>{t.title}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                        {t.recurrence === 'daily' ? 'يومي' : t.recurrence === 'weekly' ? 'أسبوعي' : 'شهري'}
-                        {t.dueDate ? ` • ${formatDate(t.dueDate)}` : ''}
-                      </div>
-                    </div>
+            {/* ترتيب الفريق */}
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>🏆 ترتيب الفريق حسب الإنجاز</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+              {teamRanking.slice(0, 10).map((m, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 12px', borderRadius: 12,
+                  background: m.name.includes(userName.split(' ').pop()) ? 'rgba(59,130,246,0.1)' : 'var(--card)',
+                  border: m.name.includes(userName.split(' ').pop()) ? '1px solid rgba(59,130,246,0.3)' : '1px solid var(--border)',
+                }}>
+                  <span style={{ fontSize: 16, width: 28, textAlign: 'center' }}>{RANK_MEDALS[i] || `${i + 1}`}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{m.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{m.done} مكتملة من {m.total}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <span style={{ fontSize: 14, fontWeight: 800, color: m.pct >= 80 ? 'var(--green)' : 'var(--orange)' }}>{m.pct}%</span>
+                </div>
+              ))}
+            </div>
+
+            {/* المهام المتأخرة — الفريق */}
+            {(() => {
+              const teamOverdue = allTasks.filter(isOverdue).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).slice(0, 8)
+              if (teamOverdue.length === 0) return null
+              return (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', marginBottom: 10 }}>🔴 مهام متأخرة — الفريق</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                    {teamOverdue.map(t => (
+                      <div key={t.id} style={{
+                        padding: '10px 12px', borderRadius: 12,
+                        background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
+                      }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{t.title}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>
+                          👤 {t.person || '—'} • 📅 {formatDate(t.dueDate)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         )}
 
