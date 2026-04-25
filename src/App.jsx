@@ -127,6 +127,21 @@ function AppShell() {
     })
   }, [tasks, isAdmin, userProfile])
   const [showNotifications, setShowNotifications] = useState(false)
+  const [readNotifTime, setReadNotifTime] = useState(null)
+
+  // مهام مستحقة غداً
+  const upcomingTasks = useMemo(() => {
+    const tomorrow = new Date(); tomorrow.setHours(0,0,0,0); tomorrow.setDate(tomorrow.getDate() + 1)
+    const dayAfter = new Date(tomorrow); dayAfter.setDate(dayAfter.getDate() + 1)
+    return tasks.filter(t => {
+      if (t.done || !t.dueDate) return false
+      const d = new Date(t.dueDate); d.setHours(0,0,0,0)
+      if (d < tomorrow || d >= dayAfter) return false
+      if (isAdmin || isSuperUser) return true
+      return (t.person || '').trim() === (userProfile?.name || '').trim()
+    })
+  }, [tasks, isAdmin, isSuperUser, userProfile])
+
   const myPendingUpdates = useMemo(() => {
     if (!userProfile?.name) return []
     return updateRequests.filter(u =>
@@ -137,7 +152,7 @@ function AppShell() {
     if (!canApprove) return []
     return updateRequests.filter(u => u.status === 'responded')
   }, [updateRequests, canApprove])
-  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length
+  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length + upcomingTasks.length
 
   /* ── Loading splash ── */
   if (loading) {
@@ -375,10 +390,36 @@ function AppShell() {
             borderRadius: 16, padding: 16, maxHeight: '60vh', overflowY: 'auto',
             boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
           }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              🔔 التنبيهات
-              {notifCount > 0 && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{notifCount}</span>}
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                🔔 التنبيهات
+                {notifCount > 0 && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{notifCount}</span>}
+              </div>
+              {notifCount > 0 && (
+                <button onClick={() => { setReadNotifTime(new Date().toISOString()); setShowNotifications(false) }} style={{
+                  fontSize: 11, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                }}>✓ تمت القراءة</button>
+              )}
             </div>
+
+            {/* مهام مستحقة غداً */}
+            {upcomingTasks.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📅 مستحقة غداً ({upcomingTasks.length})</div>
+                {upcomingTasks.slice(0, 5).map(t => (
+                  <div key={t.id} style={{
+                    padding: '8px 10px', borderRadius: 10, marginBottom: 4,
+                    background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)',
+                    fontSize: 12, color: 'var(--text)',
+                  }}>
+                    <div style={{ fontWeight: 600 }}>{t.title}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
+                      {t.person ? `👤 ${t.person}` : ''}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {overdueTasks.length > 0 && (
               <div style={{ marginBottom: 12 }}>

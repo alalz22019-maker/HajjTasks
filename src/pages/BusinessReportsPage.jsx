@@ -80,6 +80,33 @@ function isDeliveredThisCycle(r) {
   }
 }
 
+/* حساب عدد الدورات المتتالية بدون تسليم */
+function getMissedCycles(r) {
+  if (!r.freq || isDeliveredThisCycle(r)) return 0
+  const deliveries = r.deliveries || []
+  const lastDate = r.lastDelivered ? new Date(r.lastDelivered) : null
+  if (!lastDate) return '∞' // ما سُلّم أبداً
+  const now = new Date()
+  let missed = 0
+  switch (r.freq) {
+    case 'weekly': missed = Math.floor((now - lastDate) / (7 * 86400000)); break
+    case 'monthly': missed = (now.getFullYear() - lastDate.getFullYear()) * 12 + now.getMonth() - lastDate.getMonth(); break
+    case 'quarterly': missed = Math.floor(((now.getFullYear() - lastDate.getFullYear()) * 12 + now.getMonth() - lastDate.getMonth()) / 3); break
+    case 'yearly': missed = now.getFullYear() - lastDate.getFullYear(); break
+  }
+  return Math.max(0, missed)
+}
+
+/* شريط بصري لآخر 8 دورات */
+function getCycleHistory(r) {
+  const deliveries = r.deliveries || []
+  if (deliveries.length === 0) return []
+  return deliveries.slice(-8).map(d => ({
+    delivered: true,
+    date: d.timestamp ? new Date(d.timestamp).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) : '',
+  }))
+}
+
 export default function BusinessReportsPage({ tasks, showToast }) {
   const { userProfile, isAdmin } = useAuth()
   const userName = userProfile?.name || ''
@@ -105,7 +132,9 @@ export default function BusinessReportsPage({ tasks, showToast }) {
 
   const enriched = useMemo(() => reports.map(r => {
     const nextDue = getNextDueDate(r.freq)
-    return { ...r, nextDue, daysUntil: getDaysUntil(nextDue), delivered: isDeliveredThisCycle(r) }
+    const missed = getMissedCycles(r)
+    const history = getCycleHistory(r)
+    return { ...r, nextDue, daysUntil: getDaysUntil(nextDue), delivered: isDeliveredThisCycle(r), missed, history }
   }), [reports])
 
   const filtered = useMemo(() => {
@@ -190,7 +219,19 @@ export default function BusinessReportsPage({ tasks, showToast }) {
                       <span>👤 {(r.owner||'').split(' ').slice(-1)[0]}</span>
                       <span style={{ color: FREQ_COLOR[r.freq] }}>{FREQ_ICON[r.freq]} {FREQ_LABEL[r.freq]}</span>
                       {r.target && <span>📤 {r.target}</span>}
+                      {r.missed > 0 && <span style={{ color: '#ef4444', fontWeight: 700 }}>⚠️ {r.missed} {typeof r.missed === 'number' ? 'دورة فائتة' : 'لم يُسلّم'}</span>}
                     </div>
+                    {/* شريط التسليمات */}
+                    {r.history && r.history.length > 0 && (
+                      <div style={{ display: 'flex', gap: 3, marginTop: 6 }}>
+                        {r.history.map((h, idx) => (
+                          <div key={idx} title={h.date} style={{
+                            width: 14, height: 6, borderRadius: 3,
+                            background: h.delivered ? '#10b981' : '#ef4444',
+                          }} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'left', flexShrink: 0 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: isOD ? '#ef4444' : isUrg ? '#f59e0b' : r.delivered ? '#10b981' : 'var(--text2)' }}>
@@ -229,6 +270,11 @@ export default function BusinessReportsPage({ tasks, showToast }) {
                 {selectedReport.delivered ? 'تم التسليم لهذه الدورة' : selectedReport.daysUntil < 0 ? `متأخر ${Math.abs(selectedReport.daysUntil)} يوم` : `باقي ${selectedReport.daysUntil} يوم`}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4 }}>الموعد القادم: {formatDateAr(selectedReport.nextDue)}</div>
+              {selectedReport.missed > 0 && (
+                <div style={{ fontSize: 12, color: '#ef4444', fontWeight: 700, marginTop: 6 }}>
+                  ⚠️ {selectedReport.missed} {typeof selectedReport.missed === 'number' ? 'دورة متتالية بدون تسليم' : 'لم يُسلّم أبداً'}
+                </div>
+              )}
             </div>
             {!selectedReport.delivered && (
               <button onClick={() => handleDeliver(selectedReport)} style={{
