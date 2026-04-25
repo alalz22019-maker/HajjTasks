@@ -206,6 +206,21 @@ export async function addUpdateToTask(taskId, updateEntry) {
   })
 }
 
+/**
+ * Activity Log — سجل كامل لكل إجراء على المهمة
+ * actions: created, status_change, title_edit, date_edit, person_edit,
+ *          note_added, approved, rejected, transferred, subtask_assigned
+ */
+export async function addActivityLog(taskId, logEntry) {
+  const ref = doc(db, 'tasks', taskId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const current = snap.data().activityLog || []
+  await updateDoc(ref, {
+    activityLog: [...current, { ...logEntry, at: new Date().toISOString() }]
+  })
+}
+
 /* ─── WEEKLY STAR (نجم الأسبوع) ──────────────────────────── */
 
 /* ─── BUSINESS REPORTS (تقارير الأعمال) ───────────────────── */

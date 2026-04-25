@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getEffectiveStatus, getStatusInfo } from '../constants'
+import { getEffectiveStatus, getStatusInfo, STATUS_OPTIONS } from '../constants'
 
 const PRIORITY_LABELS = { urgent: 'عاجل', medium: 'متوسطة', low: 'منخفضة' }
 const RECURRENCE_LABELS = { daily: 'يومي', weekly: 'أسبوعي', biweekly: 'كل أسبوعين', monthly: 'شهري', quarterly: 'ربع سنوي' }
@@ -176,6 +176,51 @@ export default function TaskCard({
               <div style={{ marginTop: 2 }}>{u.message}</div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Activity Log — سجل الإجراءات */}
+      {actionsOpen && task.activityLog && task.activityLog.length > 0 && (
+        <div style={{
+          margin: '0 12px 8px', padding: '8px 10px', borderRadius: 10,
+          background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.12)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>📋 سجل الإجراءات</div>
+          {task.activityLog.slice(-10).reverse().map((log, i) => {
+            const actionLabels = {
+              created: '🆕 أنشأ المهمة',
+              status_change: '🔄 غيّر الحالة',
+              title_edit: '✏️ عدّل العنوان',
+              date_edit: '📅 عدّل التاريخ',
+              person_edit: '👤 غيّر المسؤول',
+              note_added: '💬 أضاف ملاحظة',
+              approved: '✅ وافق',
+              rejected: '🚫 رفض',
+              transferred: '🔀 حوّل المهمة',
+              subtask_assigned: '📌 أسند فرعية',
+            }
+            let detail = ''
+            if (log.action === 'status_change') {
+              const fromLabel = STATUS_OPTIONS.find(s => s.value === log.from)?.label || log.from
+              const toLabel = STATUS_OPTIONS.find(s => s.value === log.to)?.label || log.to
+              detail = `من "${fromLabel}" إلى "${toLabel}"`
+            } else if (log.from && log.to) {
+              detail = `من "${log.from}" إلى "${log.to}"`
+            }
+            return (
+              <div key={i} style={{
+                fontSize: 11, color: 'var(--text2)', marginBottom: 4, paddingBottom: 4,
+                borderBottom: i < Math.min(task.activityLog.length, 10) - 1 ? '1px solid var(--border)' : 'none',
+                lineHeight: 1.5,
+              }}>
+                <span style={{ fontWeight: 600, color: 'var(--text)' }}>{log.by}</span>
+                <span style={{ fontSize: 10, color: 'var(--text3)', marginRight: 6 }}>
+                  {log.at ? new Date(log.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
+                <div style={{ marginTop: 2 }}>{actionLabels[log.action] || log.action} {detail}</div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

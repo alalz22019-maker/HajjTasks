@@ -19,7 +19,7 @@ const REQUEST_TYPE_LABEL = {
   close:      '✅ إغلاق مهمة',
 }
 
-export default function AdminPanel({ showToast }) {
+export default function AdminPanel({ showToast, canManageUsers = false }) {
   const [tab, setTab] = useState('requests')
   const [users, setUsers]     = useState([])
   const [requests, setRequests] = useState([])
@@ -170,10 +170,12 @@ export default function AdminPanel({ showToast }) {
             }}>{pendingReqs.length}</span>
           )}
         </button>
+        {canManageUsers && (
         <button
           className={`report-tab${tab === 'users' ? ' active' : ''}`}
           onClick={() => setTab('users')}
         >المستخدمون</button>
+        )}
         <button
           className={`report-tab${tab === 'history' ? ' active' : ''}`}
           onClick={() => setTab('history')}

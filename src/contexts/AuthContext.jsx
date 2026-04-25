@@ -117,14 +117,18 @@ export function AuthProvider({ children }) {
     setAuthError('')
   }
 
-  // 🔴 قوائم الصلاحيات (الأسماء مطابقة للقائمة المنسدلة بالضبط)
-  const SUPERUSER_NAMES = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
-  const ADMIN_NAMES     = ['أ. شادي نبيل', 'أ. مي الأسمري']
-
-  // 🔴 توزيع الصلاحيات الذكي
-  const isSuperUser = userProfile?.role === 'superuser' || (userProfile && SUPERUSER_NAMES.includes(userProfile.name))
-  const isAdmin     = userProfile?.role === 'admin' || isSuperUser || (userProfile && ADMIN_NAMES.includes(userProfile.name))
+  // الصلاحيات تأتي من حقل role في Firestore فقط — لا أسماء hardcoded
+  const isSuperUser = userProfile?.role === 'superuser'
+  const isAdmin     = userProfile?.role === 'admin'
   const isUser      = userProfile && !isAdmin && !isSuperUser
+
+  // صلاحيات مفصّلة
+  const canWrite        = isAdmin || isSuperUser           // إضافة/تعديل مباشر
+  const canApprove      = isAdmin || isSuperUser           // موافقة على الطلبات
+  const canDelete       = isAdmin || isSuperUser           // حذف مهام
+  const canTransfer     = isAdmin || isSuperUser           // تحويل مهام
+  const canManageUsers  = isAdmin                          // إدارة مستخدمين (المدير فقط)
+  const canExport       = isAdmin || isSuperUser           // تصدير Excel
 
   return (
     <AuthContext.Provider value={{
@@ -138,6 +142,12 @@ export function AuthProvider({ children }) {
       isAdmin,
       isSuperUser,
       isUser,
+      canWrite,
+      canApprove,
+      canDelete,
+      canTransfer,
+      canManageUsers,
+      canExport,
       loading: firebaseUser === undefined,
     }}>
       {children}

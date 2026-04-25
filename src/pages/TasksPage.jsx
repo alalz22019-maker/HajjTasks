@@ -14,6 +14,7 @@ import {
   deleteTask as dbDeleteTask,
   createRequest,
   addUpdateToTask,
+  addActivityLog,
 } from '../utils/db'
 
 // --- دوال منع التكرار ---
@@ -85,8 +86,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
-  const { isAdmin, isSuperUser, isUser } = useAuth()
-  const canWrite = isAdmin || isSuperUser   
+  const { isAdmin, isSuperUser, isUser, canWrite, canDelete, canExport } = useAuth()
   const [filter, setFilter]       = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [showForm, setShowForm]   = useState(false)
@@ -275,7 +275,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         const taskData = {
           ...form,
           done: false,
-          status: form.status || 'new',
+          status: form.status || 'not_started',
           needsApproval: true,
           approvalType: 'add',
           requestedBy: userProfile?.uid || '',
@@ -292,20 +292,24 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       return
     }
     try {
-      const taskData = { ...form, done: form.status === 'done', status: form.status || 'new' }
+      const taskData = { ...form, done: form.status === 'completed', status: form.status || 'not_started' }
       // parentId comes from form (dropdown) or from subtaskParent (button)
       if (subtaskParent && !taskData.parentId) {
         taskData.parentId = subtaskParent.id
       }
       const newId = await dbAddTask(taskData)
+      // Activity Log — إنشاء المهمة
+      if (newId) {
+        await addActivityLog(newId, { action: 'created', by: userProfile?.name || '' })
+      }
       if (subTaskTitles.length > 0) {
         for (const title of subTaskTitles) {
-          await dbAddTask({
+          const subId = await dbAddTask({
             title, priority: form.priority, person: form.person,
             dueDate: '', recurrence: '', reminderTime: '',
             projectName: form.projectName || '',
             sourceType: form.sourceType, sourceTitle: form.sourceTitle, done: false,
-            status: 'new', parentId: newId || '',
+            status: 'not_started', parentId: newId || '',
           })
         }
         showToast(`✅ أضيفت المهمة و${subTaskTitles.length} فرعية`)
@@ -338,10 +342,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           directUpdates.closeNote = form.closeNote || ''
           hasDirect = true
         }
-        if ((form.status || 'new') !== (original.status || 'new')) {
+        if ((form.status || 'not_started') !== (original.status || 'not_started')) {
           directUpdates.status = form.status
-          directUpdates.done = form.status === 'done'
-          if (form.status === 'done') directUpdates.completedAt = new Date().toISOString()
+          directUpdates.done = form.status === 'completed'
+          if (form.status === 'completed') directUpdates.completedAt = new Date().toISOString()
           hasDirect = true
         }
         // تسجيل التحديث في لوق المهمة
@@ -393,7 +397,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     try {
       const { id, ...data } = form
       const original = tasks.find(t => t.id === id)
-      data.done = data.status === 'done'
+      data.done = data.status === 'completed'
       if (data.done && !data.completedAt) data.completedAt = new Date().toISOString()
       if (!data.done) data.completedAt = null
       await dbUpdateTask(id, data)
@@ -407,6 +411,19 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           message: changes.join(' | '),
           type: 'admin_update',
         })
+        // Activity Log
+        if (original && original.status !== data.status) {
+          await addActivityLog(id, { action: 'status_change', from: original.status, to: data.status, by: userProfile?.name || '' })
+        }
+        if (original && original.title !== data.title) {
+          await addActivityLog(id, { action: 'title_edit', from: original.title, to: data.title, by: userProfile?.name || '' })
+        }
+        if (original && original.dueDate !== data.dueDate) {
+          await addActivityLog(id, { action: 'date_edit', from: original.dueDate, to: data.dueDate, by: userProfile?.name || '' })
+        }
+        if (original && original.person !== data.person) {
+          await addActivityLog(id, { action: 'person_edit', from: original.person, to: data.person, by: userProfile?.name || '' })
+        }
       }
       showToast('✏️ تم تعديل المهمة')
     } catch (e) { showToast('❌ خطأ في التعديل') }
@@ -420,7 +437,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       // الموظف يقدر يغلق مهمته مباشرة
       try {
         await dbUpdateTask(id, { 
-          done: true, status: 'done', 
+          done: true, status: 'completed', 
           completedAt: new Date().toISOString(),
           needsApproval: true,
           pendingEdit: { type: 'close', by: userProfile?.name },
@@ -433,7 +450,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     const updates = { done, status: done ? 'done' : 'new' }
     if (done && task.recurrence) {
       const newDue = calcNextDue(task.dueDate, task.recurrence)
-      Object.assign(updates, { done: false, status: 'new', dueDate: newDue, completedAt: null })
+      Object.assign(updates, { done: false, status: 'not_started', dueDate: newDue, completedAt: null })
       showToast('🔄 تجددت المهمة المتكررة')
     } else if (done) {
       updates.completedAt = new Date().toISOString()
@@ -444,7 +461,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   }
 
   async function deleteTask(id) {
-    if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الحذف'); return }
+    if (!canDelete) { showToast('⚠️ ليس لديك صلاحية الحذف'); return }
     try { await dbDeleteTask(id); showToast('🗑 تم حذف المهمة') } catch (e) { showToast('❌ خطأ في الحذف') }
     setDeleteConfirm(null)
   }
@@ -453,7 +470,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الإضافة المباشرة'); return }
     const deduped = deduplicateTasks(newTasks, tasks)
     const skipped = newTasks.length - deduped.length
-    for (const t of deduped) await dbAddTask({ ...t, done: false, status: 'new' })
+    for (const t of deduped) await dbAddTask({ ...t, done: false, status: 'not_started' })
     if (deduped.length === 0) showToast('⚠️ جميع المهام موجودة مسبقاً')
     else showToast(`✅ تمت إضافة ${deduped.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
   }
@@ -494,7 +511,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       await dbAddTask({
         ...parsed,
         done: false,
-        status: 'new',
+        status: 'not_started',
         sourceType: '',
         sourceTitle: '',
         recurrence: '',
@@ -810,7 +827,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
         if (!imported.length) { showToast('❌ لا توجد مهام في الملف'); return }
         const existing = new Set(tasks.map(t => t.title.trim().toLowerCase()))
         const newOnes  = imported.filter(t => !existing.has((t.title||'').trim().toLowerCase()))
-        for (const t of newOnes) await dbAddTask({ ...t, done: t.done || false, status: t.status || 'new' })
+        for (const t of newOnes) await dbAddTask({ ...t, done: t.done || false, status: t.status || 'not_started' })
         showToast(`✅ استُعيد ${newOnes.length} مهمة جديدة`)
       } catch { showToast('❌ ملف JSON غير صحيح') }
     }
@@ -837,7 +854,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
             
-            {!isUser && (
+            {canExport && (
               <button onClick={() => setShowExportMenu(s => !s)} style={{
                   background: 'rgba(99,102,241,0.12)', color: '#818cf8',
                   border: '1px solid rgba(99,102,241,0.25)', borderRadius: 8,
@@ -845,7 +862,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
                 }}>⬇️</button>
             )}
 
-            {showExportMenu && !isUser && (
+            {showExportMenu && canExport && (
               <div style={{
                 position: 'absolute', top: 38, right: 0, zIndex: 200,
                 background: 'var(--card)', border: '1px solid var(--border)',
@@ -982,10 +999,10 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           <div className="task-list">
             {taskGroups.map(({ task, children }) => (
               <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} />
+                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
-                    {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canWrite ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
+                    {children.map(c => <TaskCard key={c.id} task={c} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} isSubtask />)}
                   </div>
                 )}
               </div>

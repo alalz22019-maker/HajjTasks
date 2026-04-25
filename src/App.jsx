@@ -20,7 +20,7 @@ import {
 } from './utils/db'
 
 function AppShell() {
-  const { firebaseUser, userProfile, logout, isAdmin, isUser, loading } = useAuth()
+  const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, isUser, canApprove, canManageUsers, loading } = useAuth()
   const [page, setPage]   = useState('dashboard')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
@@ -80,12 +80,12 @@ function AppShell() {
 
   /* ── Subscribe to pending requests (admin) ── */
   useEffect(() => {
-    if (!isAdmin) return
+    if (!canApprove) return
     const unsub = subscribeToPendingRequests(reqs => {
       setPendingCount(reqs.filter(r => r.status === 'pending').length)
     })
     return unsub
-  }, [isAdmin])
+  }, [canApprove])
 
   /* ── Subscribe to task update requests (for current user) ── */
   useEffect(() => {
@@ -134,9 +134,9 @@ function AppShell() {
     )
   }, [updateRequests, userProfile])
   const respondedUpdates = useMemo(() => {
-    if (!isAdmin) return []
+    if (!canApprove) return []
     return updateRequests.filter(u => u.status === 'responded')
-  }, [updateRequests, isAdmin])
+  }, [updateRequests, canApprove])
   const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length
 
   /* ── Loading splash ── */
@@ -220,10 +220,10 @@ function AppShell() {
     { id: 'dashboard', label: 'لوحتي', icon: '🏠' },
     { id: 'tasks',   label: 'المهام',  icon: '✓'  },
     { id: 'bizreports', label: 'التقارير', icon: '📋' },
-    ...(isAdmin ? [{ id: 'reports', label: 'إحصائيات', icon: '📊' }] : []),
+    ...(isAdmin || isSuperUser ? [{ id: 'reports', label: 'إحصائيات', icon: '📊' }] : []),
     { id: 'contacts',label: 'جهات',   icon: '👥' },
     ...(canUpload ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []),
-    ...(isAdmin ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
+    ...(canApprove ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
   ]
 
   return (
@@ -297,7 +297,7 @@ function AppShell() {
             showToast={showToast}
             userProfile={userProfile}
             onNavigate={setPage}
-            onRequestUpdate={isAdmin ? async (task) => {
+            onRequestUpdate={canApprove ? async (task) => {
               try {
                 await requestTaskUpdate({
                   taskId: task.id,
@@ -336,8 +336,8 @@ function AppShell() {
         {page === 'reports' && (
           <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
         )}
-        {page === 'admin' && isAdmin && (
-          <AdminPanel showToast={showToast} />
+        {page === 'admin' && canApprove && (
+          <AdminPanel showToast={showToast} canManageUsers={canManageUsers} />
         )}
       </div>
 
@@ -398,7 +398,7 @@ function AppShell() {
               </div>
             )}
 
-            {isAdmin && pendingCount > 0 && (
+            {canApprove && pendingCount > 0 && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📨 طلبات معلقة ({pendingCount})</div>
                 <button onClick={() => { setPage('admin'); setShowNotifications(false) }} style={{
@@ -441,7 +441,7 @@ function AppShell() {
             )}
 
             {/* ردود التحديث الجديدة للمدير */}
-            {isAdmin && respondedUpdates.length > 0 && (
+            {canApprove && respondedUpdates.length > 0 && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981', marginBottom: 6 }}>✅ ردود تحديث جديدة ({respondedUpdates.length})</div>
                 {respondedUpdates.slice(0, 5).map(u => (
