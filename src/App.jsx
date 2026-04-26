@@ -15,7 +15,7 @@ import { loadData, saveData } from './utils/storage'
 import {
   subscribeToTasks, importTasksFromArray, isTasksEmpty,
   subscribeToPendingRequests,
-  subscribeToMyUpdateRequests, respondToUpdateRequest,
+  subscribeToMyUpdateRequests, respondToUpdateRequest, markUpdateAsRead,
   requestTaskUpdate,
 } from './utils/db'
 
@@ -152,7 +152,7 @@ function AppShell() {
     if (!canApprove) return []
     return updateRequests.filter(u => u.status === 'responded')
   }, [updateRequests, canApprove])
-  const notifCount = overdueTasks.length + pendingCount + myPendingUpdates.length + respondedUpdates.length + upcomingTasks.length
+  const notifCount = pendingCount + myPendingUpdates.length + respondedUpdates.length
 
   /* ── Loading splash ── */
   if (loading) {
@@ -402,43 +402,6 @@ function AppShell() {
               )}
             </div>
 
-            {/* مهام مستحقة غداً */}
-            {upcomingTasks.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📅 مستحقة غداً ({upcomingTasks.length})</div>
-                {upcomingTasks.slice(0, 5).map(t => (
-                  <div key={t.id} style={{
-                    padding: '8px 10px', borderRadius: 10, marginBottom: 4,
-                    background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.15)',
-                    fontSize: 12, color: 'var(--text)',
-                  }}>
-                    <div style={{ fontWeight: 600 }}>{t.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                      {t.person ? `👤 ${t.person}` : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {overdueTasks.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--orange)', marginBottom: 6 }}>⚠️ مهام متأخرة ({overdueTasks.length})</div>
-                {overdueTasks.slice(0, 5).map(t => (
-                  <div key={t.id} style={{
-                    padding: '8px 10px', borderRadius: 10, marginBottom: 4,
-                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.15)',
-                    fontSize: 12, color: 'var(--text)',
-                  }}>
-                    <div style={{ fontWeight: 600 }}>{t.title}</div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>
-                      📅 {t.dueDate} {t.person ? `• 👤 ${t.person}` : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             {canApprove && pendingCount > 0 && (
               <div>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📨 طلبات معلقة ({pendingCount})</div>
@@ -500,6 +463,11 @@ function AppShell() {
                     }}>
                       {u.response}
                     </div>
+                    <button onClick={async () => { try { await markUpdateAsRead(u.id); showToast('✓ تم') } catch {} }} style={{
+                      padding: '5px 12px', borderRadius: 8, marginTop: 6, width: '100%',
+                      background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+                      color: '#10b981', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>✓ تم الاطلاع</button>
                   </div>
                 ))}
               </div>

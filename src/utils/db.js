@@ -182,6 +182,10 @@ export async function respondToUpdateRequest(updateId, response) {
   }
 }
 
+export async function markUpdateAsRead(updateId) {
+  await updateDoc(doc(db, 'task_updates', updateId), { status: 'read' })
+}
+
 /**
  * اشترك في طلبات التحديث الموجهة لمستخدم معين (الموظف)
  */

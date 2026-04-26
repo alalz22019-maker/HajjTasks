@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { callClaudeChat, buildSmartChatSystem } from '../utils/claude'
+import { TEAM_MEMBERS as TEAM } from '../constants'
 
 function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2)
@@ -230,17 +231,37 @@ export default function SmartChat({ tasks, onAddTasks, onClose, apiKey, initialT
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{
-                              fontSize: 13, fontWeight: 600, color: 'var(--text)',
-                              textDecoration: isOff ? 'line-through' : 'none',
-                            }}>
-                              {t.title}
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {/* العنوان — قابل للتعديل */}
+                            <input value={t.title} onChange={e => {
+                              setPendingTasks(prev => prev.map(p => p.id === t.id ? { ...p, title: e.target.value } : p))
+                            }} style={{
+                              width: '100%', fontSize: 13, fontWeight: 600, color: 'var(--text)',
+                              background: 'transparent', border: 'none', borderBottom: isOff ? 'none' : '1px solid var(--border)',
+                              padding: '2px 0', fontFamily: 'inherit', textDecoration: isOff ? 'line-through' : 'none',
+                              boxSizing: 'border-box',
+                            }} disabled={isOff} />
+                            <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                               <span>{PRIORITY_LABELS[t.priority] || '🟡 متوسط'}</span>
-                              {t.person      && <span>👤 {t.person}</span>}
+                              {/* المسؤول — قابل للتعديل */}
+                              <select value={t.person || ''} onChange={e => {
+                                setPendingTasks(prev => prev.map(p => p.id === t.id ? { ...p, person: e.target.value } : p))
+                              }} disabled={isOff} style={{
+                                fontSize: 11, padding: '2px 4px', borderRadius: 6,
+                                border: '1px solid var(--border)', background: 'var(--bg)',
+                                color: 'var(--text)', fontFamily: 'inherit',
+                              }}>
+                                <option value="">👤 اختر</option>
+                                {TEAM.map(m => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                              {/* التاريخ — قابل للتعديل */}
+                              <input type="date" value={t.dueDate || ''} onChange={e => {
+                                setPendingTasks(prev => prev.map(p => p.id === t.id ? { ...p, dueDate: e.target.value } : p))
+                              }} disabled={isOff} style={{
+                                fontSize: 11, padding: '2px 4px', borderRadius: 6,
+                                border: '1px solid var(--border)', background: 'var(--bg)',
+                                color: 'var(--text)', fontFamily: 'inherit',
+                              }} />
                               {t.projectName && <span>📁 {t.projectName}</span>}
-                              {t.dueDate     && <span>📅 {t.dueDate}</span>}
                             </div>
                           </div>
                           <button onClick={() => toggleSkip(t.id)} style={{
