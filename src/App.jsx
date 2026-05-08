@@ -1,98 +1,36 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ROLE_LABEL, ROLE_BG, ROLE_COLOR } from './constants'
 import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
-import MyDashboard from './pages/MyDashboard'
-import UploadPage from './pages/UploadPage'
-import ContactsPage from './pages/ContactsPage'
-import ReportsPage from './pages/ReportsPage'
-import BusinessReportsPage from './pages/BusinessReportsPage'
-import AdminPanel from './pages/AdminPanel'
+import HajjReportsPage from './pages/HajjReportsPage'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 import { loadData, saveData } from './utils/storage'
-import {
-  subscribeToTasks, importTasksFromArray, isTasksEmpty,
-  subscribeToPendingRequests,
-  subscribeToMyUpdateRequests, respondToUpdateRequest, markUpdateAsRead,
-  requestTaskUpdate,
-} from './utils/db'
+import { subscribeToTasks } from './utils/db'
 
 function AppShell() {
-  const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, isUser, canApprove, canManageUsers, loading } = useAuth()
-  const [page, setPage]   = useState('dashboard')
+  const { firebaseUser, userProfile, logout, loading } = useAuth()
+  const [page, setPage] = useState('tasks')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
-  const [pendingCount, setPendingCount] = useState(0)
-  const [updateRequests, setUpdateRequests] = useState([])
-  const [respondingTo, setRespondingTo] = useState(null)
-  const [respondText, setRespondText] = useState('')
-  const [respondLoading, setRespondLoading] = useState(false)
-  const [migrationDone, setMigrationDone] = useState(false)
-  
-  // 🔴 1. حالة التعهد الأمني
   const [pledgeAccepted, setPledgeAccepted] = useState(true)
 
-  /* ── API key ── */
   useEffect(() => {
     const storedKey = loadData('mytasks_apikey') || ''
     setApiKey(HARDCODED_API_KEY || storedKey)
   }, [])
 
-  // 🔴 2. التحقق من موافقة المستخدم الحالي على التعهد
   useEffect(() => {
     if (userProfile && userProfile.name) {
-      const isAccepted = loadData(`pledge_accepted_${userProfile.name}`)
+      const isAccepted = loadData(`hajj_pledge_${userProfile.name}`)
       setPledgeAccepted(!!isAccepted)
     }
   }, [userProfile])
 
-  /* ── Subscribe to Firestore tasks after login ── */
   useEffect(() => {
     if (!userProfile) return
     const unsub = subscribeToTasks(setTasks)
-    return unsub
-  }, [userProfile])
-
-  /* ── Auto-migrate localStorage tasks on first run (admin only) ── */
-  useEffect(() => {
-    if (!isAdmin || migrationDone) return
-    async function migrate() {
-      try {
-        const empty = await isTasksEmpty()
-        if (empty) {
-          const local = loadData('mytasks_tasks') || []
-          if (local.length > 0) {
-            await importTasksFromArray(local)
-            showToast(`✓ تم استيراد ${local.length} مهمة من الجهاز`)
-          }
-        }
-        setMigrationDone(true)
-      } catch (e) {
-        console.error('Migration error:', e)
-        setMigrationDone(true)
-      }
-    }
-    migrate()
-  }, [isAdmin, migrationDone])
-
-  /* ── Subscribe to pending requests (admin) ── */
-  useEffect(() => {
-    if (!canApprove) return
-    const unsub = subscribeToPendingRequests(reqs => {
-      setPendingCount(reqs.filter(r => r.status === 'pending').length)
-    })
-    return unsub
-  }, [canApprove])
-
-  /* ── Subscribe to task update requests (for current user) ── */
-  useEffect(() => {
-    if (!userProfile) return
-    const unsub = subscribeToMyUpdateRequests(updates => {
-      setUpdateRequests(updates)
-    })
     return unsub
   }, [userProfile])
 
@@ -106,55 +44,25 @@ function AppShell() {
     setTimeout(() => setToast(null), 2800)
   }, [])
 
-  // 🔴 3. دالة الموافقة على التعهد وحفظه في الجهاز
   const handleAcceptPledge = () => {
-    saveData(`pledge_accepted_${userProfile.name}`, true)
+    saveData(`hajj_pledge_${userProfile.name}`, true)
     setPledgeAccepted(true)
   }
 
-  const contacts = deriveContacts(tasks)
-
-  // Notifications: overdue tasks for THIS user only + pending requests
-  const overdueTasks = useMemo(() => {
+  // Stats
+  const stats = useMemo(() => {
     const today = new Date(); today.setHours(0,0,0,0)
-    return tasks.filter(t => {
-      if (t.done || !t.dueDate) return false
+    const myTasks = tasks.filter(t => (t.person || '').trim() === (userProfile?.name || '').trim())
+    const overdue = myTasks.filter(t => {
+      if (t.done || t.status === 'completed' || !t.dueDate) return false
       const d = new Date(t.dueDate); d.setHours(0,0,0,0)
-      if (d >= today) return false
-      // المدير يشوف كل المتأخرات، الموظف يشوف مهامه فقط
-      if (isAdmin) return true
-      return (t.person || '').trim() === (userProfile?.name || '').trim()
+      return d < today
     })
-  }, [tasks, isAdmin, userProfile])
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [readNotifTime, setReadNotifTime] = useState(null)
+    const pending = myTasks.filter(t => !t.done && t.status !== 'completed')
+    const completed = myTasks.filter(t => t.done || t.status === 'completed')
+    return { total: myTasks.length, overdue: overdue.length, pending: pending.length, completed: completed.length }
+  }, [tasks, userProfile])
 
-  // مهام مستحقة غداً
-  const upcomingTasks = useMemo(() => {
-    const tomorrow = new Date(); tomorrow.setHours(0,0,0,0); tomorrow.setDate(tomorrow.getDate() + 1)
-    const dayAfter = new Date(tomorrow); dayAfter.setDate(dayAfter.getDate() + 1)
-    return tasks.filter(t => {
-      if (t.done || !t.dueDate) return false
-      const d = new Date(t.dueDate); d.setHours(0,0,0,0)
-      if (d < tomorrow || d >= dayAfter) return false
-      if (isAdmin || isSuperUser) return true
-      return (t.person || '').trim() === (userProfile?.name || '').trim()
-    })
-  }, [tasks, isAdmin, isSuperUser, userProfile])
-
-  const myPendingUpdates = useMemo(() => {
-    if (!userProfile?.name) return []
-    return updateRequests.filter(u =>
-      u.status === 'pending' && u.requestedFromName === userProfile.name
-    )
-  }, [updateRequests, userProfile])
-  const respondedUpdates = useMemo(() => {
-    if (!canApprove) return []
-    return updateRequests.filter(u => u.status === 'responded')
-  }, [updateRequests, canApprove])
-  const notifCount = pendingCount + myPendingUpdates.length + respondedUpdates.length
-
-  /* ── Loading splash ── */
   if (loading) {
     return (
       <div style={{
@@ -164,21 +72,19 @@ function AppShell() {
       }}>
         <div style={{
           width: 64, height: 64, borderRadius: 20,
-          background: 'linear-gradient(135deg,#3b82f6,#8b5cf6)',
+          background: 'linear-gradient(135deg,#f59e0b,#ef4444)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 32,
-        }}>✓</div>
+        }}>🕋</div>
         <span className="spinner" style={{ width: 28, height: 28 }} />
       </div>
     )
   }
 
-  /* ── Login gate ── */
   if (!firebaseUser || !userProfile) {
     return <LoginPage />
   }
 
-  // 🔴 4. شاشة التعهد الأمني الإلزامية (تظهر قبل الدخول للتطبيق)  // 🔴 4. شاشة التعهد الأمني الإلزامية (النسخة الرسمية التوجيهية المعتمدة)
   if (!pledgeAccepted) {
     return (
       <div style={{
@@ -193,117 +99,74 @@ function AppShell() {
         }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
           <h2 style={{ color: 'var(--text)', marginBottom: 16, fontSize: 18, fontWeight: 700 }}>
-            تنبيه أمني
+            تنبيه أمني — أعمال الحج
           </h2>
           <p style={{ color: 'var(--text2)', fontSize: 14, lineHeight: 1.8, marginBottom: 28, fontWeight: 500 }}>
-            تحذير: هذا النظام مخصص لإدارة المهام الإدارية. تجنب إدخال أي بيانات طبية حساسة أو معلومات او بيانات سرية وكذلك بيانات مستفيدين او موظفين التزاماً بسياسات الخصوصية.
+            هذا النظام مخصص لإدارة أعمال الحج. تجنب إدخال أي بيانات حساسة أو معلومات سرية التزاماً بسياسات الخصوصية.
           </p>
-          <button
-            onClick={handleAcceptPledge}
-            style={{
-              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-              color: '#fff', border: 'none', borderRadius: 10,
-              padding: '12px 24px', fontSize: 15, fontWeight: 700,
-              width: '100%', cursor: 'pointer', marginBottom: 12
-            }}
-          >
-            أوافق وأتعهد
-          </button>
-          <button
-            onClick={logout}
-            style={{
-              background: 'transparent', color: 'var(--text3)',
-              border: 'none', borderRadius: 10,
-              padding: '10px 24px', fontSize: 14, fontWeight: 600,
-              width: '100%', cursor: 'pointer'
-            }}
-          >
-            تراجع وتسجيل الخروج
-          </button>
+          <button onClick={handleAcceptPledge} style={{
+            background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+            color: '#fff', border: 'none', borderRadius: 10,
+            padding: '12px 24px', fontSize: 15, fontWeight: 700,
+            width: '100%', cursor: 'pointer', marginBottom: 12
+          }}>أوافق وأتعهد</button>
+          <button onClick={logout} style={{
+            background: 'transparent', color: 'var(--text3)',
+            border: 'none', borderRadius: 10,
+            padding: '10px 24px', fontSize: 14, fontWeight: 600,
+            width: '100%', cursor: 'pointer'
+          }}>تراجع وتسجيل الخروج</button>
         </div>
       </div>
     )
   }
 
-
-  // رفع الملفات محصور على: علي، منار، وليد فقط
-  const UPLOAD_ALLOWED = ['م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن']
-  const canUpload = userProfile && UPLOAD_ALLOWED.includes(userProfile.name)
-
-  /* ── Build nav ── */
   const NAV = [
-    { id: 'dashboard', label: 'لوحتي', icon: '🏠' },
-    { id: 'tasks',   label: 'المهام',  icon: '✓'  },
-    { id: 'bizreports', label: 'التقارير', icon: '📋' },
-    ...(isAdmin || isSuperUser ? [{ id: 'reports', label: 'إحصائيات', icon: '📊' }] : []),
-    { id: 'contacts',label: 'جهات',   icon: '👥' },
-    ...(canUpload ? [{ id: 'upload',  label: 'رفع ملف', icon: '📎' }] : []),
-    ...(canApprove ? [{ id: 'admin', label: 'إدارة', icon: '⚙️', badge: pendingCount }] : []),
+    { id: 'tasks',   label: 'المهام',   icon: '✓' },
+    { id: 'reports', label: 'التقارير', icon: '📋' },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {toast && <Toast msg={toast} />}
 
-      {/* User bar */}
+      {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '8px 16px 6px',
-        paddingTop: `max(8px, env(safe-area-inset-top, 8px))`,
+        paddingTop: 'max(8px, env(safe-area-inset-top, 8px))',
         background: 'var(--bg2)', borderBottom: '1px solid var(--border)',
         fontSize: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {userProfile.photoURL && (
-            <img src={userProfile.photoURL} alt=""
-              style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
-          )}
+          <span style={{ fontSize: 22 }}>🕋</span>
           <div>
-            <span style={{ color: 'var(--text)', fontWeight: 600 }}>{userProfile.name}</span>
-            <span style={{
-              marginRight: 6, fontSize: 10, padding: '2px 7px', borderRadius: 8,
-              background: ROLE_BG[userProfile.role] || 'var(--bg3)',
-              color: ROLE_COLOR[userProfile.role] || 'var(--text2)',
-              fontWeight: 700,
-            }}>{ROLE_LABEL[userProfile.role]}</span>
+            <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 14 }}>أعمال الحج</span>
+            <span style={{ color: 'var(--text3)', fontSize: 11, marginRight: 6 }}> | {userProfile.name}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* 🔔 Notification bell */}
-          <button onClick={() => setShowNotifications(s => !s)} style={{
-            background: 'var(--bg3)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '4px 8px', position: 'relative',
-            color: 'var(--text2)', fontSize: 16, cursor: 'pointer',
-          }}>
-            🔔
-            {notifCount > 0 && (
-              <span style={{
-                position: 'absolute', top: -4, right: -4,
-                background: '#ef4444', color: '#fff',
-                borderRadius: '50%', width: 16, height: 16,
-                fontSize: 9, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{notifCount > 9 ? '9+' : notifCount}</span>
-            )}
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {/* Quick stats */}
+          {stats.overdue > 0 && (
+            <span style={{
+              background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+              padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 700,
+            }}>{stats.overdue} متأخر</span>
+          )}
+          <span style={{
+            background: 'rgba(59,130,246,0.1)', color: 'var(--blue)',
+            padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+          }}>{stats.pending} متبقي</span>
           <button onClick={logout} style={{
             background: 'var(--bg3)', border: '1px solid var(--border)',
             borderRadius: 8, padding: '4px 10px',
-            color: 'var(--text2)', fontSize: 11, fontWeight: 600,
+            color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
           }}>خروج</button>
         </div>
       </div>
 
+      {/* Content */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {page === 'dashboard' && (
-          <MyDashboard
-            tasks={tasks}
-            showToast={showToast}
-            onNavigate={setPage}
-            updateRequests={updateRequests}
-            pendingRequests={pendingCount}
-          />
-        )}
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
@@ -312,249 +175,29 @@ function AppShell() {
             showToast={showToast}
             userProfile={userProfile}
             onNavigate={setPage}
-            onRequestUpdate={canApprove ? async (task) => {
-              try {
-                await requestTaskUpdate({
-                  taskId: task.id,
-                  taskTitle: task.title,
-                  requestedFrom: '',
-                  requestedFromName: task.person || '',
-                  requestedBy: userProfile.uid,
-                  requestedByName: userProfile.name,
-                  message: 'يرجى تقديم تحديث عن حالة هذه المهمة',
-                })
-                showToast(`📩 تم إرسال طلب تحديث إلى ${task.person}`)
-              } catch (e) {
-                showToast('❌ خطأ في إرسال الطلب')
-              }
-            } : null}
-          />
-        )}
-        {/* حماية: رفع الملفات محصور على علي ومنار ووليد فقط */}
-        {page === 'upload' && canUpload && (
-          <UploadPage
-            tasks={tasks}
-            apiKey={apiKey}
-            setApiKey={persistApiKey}
-            showToast={showToast}
-          />
-        )}
-        {page === 'contacts' && (
-          <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
-        )}
-        {page === 'bizreports' && (
-          <BusinessReportsPage
-            tasks={tasks}
-            showToast={showToast}
+            onRequestUpdate={null}
           />
         )}
         {page === 'reports' && (
-          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
-        )}
-        {page === 'admin' && canApprove && (
-          <AdminPanel showToast={showToast} canManageUsers={canManageUsers} />
+          <HajjReportsPage />
         )}
       </div>
 
+      {/* Bottom nav */}
       <div className="nav-spacer" />
       <nav className="bottom-nav">
         {NAV.map(n => (
-          <button
-            key={n.id}
+          <button key={n.id}
             className={`nav-item${page === n.id ? ' active' : ''}`}
             onClick={() => setPage(n.id)}
-            style={{ position: 'relative' }}
           >
             <span style={{ fontSize: 20 }}>{n.icon}</span>
             <span>{n.label}</span>
-            {n.badge > 0 && (
-              <span style={{
-                position: 'absolute', top: 4, right: 4,
-                background: '#ef4444', color: '#fff',
-                borderRadius: '50%', width: 16, height: 16,
-                fontSize: 10, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{n.badge}</span>
-            )}
           </button>
         ))}
       </nav>
-
-      {/* Notifications Panel */}
-      {showNotifications && (
-        <>
-          <div onClick={() => setShowNotifications(false)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-          <div style={{
-            position: 'fixed', top: 50, left: 16, right: 16, zIndex: 999,
-            background: 'var(--card)', border: '1px solid var(--border)',
-            borderRadius: 16, padding: 16, maxHeight: '60vh', overflowY: 'auto',
-            boxShadow: '0 8px 30px rgba(0,0,0,0.3)',
-          }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                🔔 التنبيهات
-                {notifCount > 0 && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{notifCount}</span>}
-              </div>
-              {notifCount > 0 && (
-                <button onClick={() => { setReadNotifTime(new Date().toISOString()); setShowNotifications(false) }} style={{
-                  fontSize: 11, color: 'var(--text3)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                }}>✓ تمت القراءة</button>
-              )}
-            </div>
-
-            {canApprove && pendingCount > 0 && (
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue)', marginBottom: 6 }}>📨 طلبات معلقة ({pendingCount})</div>
-                <button onClick={() => { setPage('admin'); setShowNotifications(false) }} style={{
-                  padding: '8px 14px', borderRadius: 10, width: '100%',
-                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
-                  color: 'var(--blue)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  عرض الطلبات في لوحة الإدارة →
-                </button>
-              </div>
-            )}
-
-            {/* طلبات التحديث الموجهة للموظف */}
-            {myPendingUpdates.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6', marginBottom: 6 }}>📩 طلبات تحديث ({myPendingUpdates.length})</div>
-                {myPendingUpdates.map(u => (
-                  <div key={u.id} style={{
-                    padding: '10px 12px', borderRadius: 10, marginBottom: 4,
-                    background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)',
-                    fontSize: 12, color: 'var(--text)',
-                  }}>
-                    <div style={{ fontWeight: 600, marginBottom: 3 }}>{u.taskTitle}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 6 }}>
-                      💬 {u.message}
-                    </div>
-                    <div style={{ fontSize: 10, color: 'var(--text3)', marginBottom: 6 }}>
-                      من: {u.requestedByName}
-                    </div>
-                    <button onClick={() => { setRespondingTo(u); setRespondText(''); setShowNotifications(false) }} style={{
-                      padding: '6px 14px', borderRadius: 8, width: '100%',
-                      background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.25)',
-                      color: '#8b5cf6', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      ✏️ رد بالتحديث
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ردود التحديث الجديدة للمدير */}
-            {canApprove && respondedUpdates.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#10b981', marginBottom: 6 }}>✅ ردود تحديث جديدة ({respondedUpdates.length})</div>
-                {respondedUpdates.slice(0, 5).map(u => (
-                  <div key={u.id} style={{
-                    padding: '10px 12px', borderRadius: 10, marginBottom: 4,
-                    background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.15)',
-                    fontSize: 12, color: 'var(--text)',
-                  }}>
-                    <div style={{ fontWeight: 600, marginBottom: 3 }}>{u.taskTitle}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text2)' }}>👤 {u.requestedFromName}</div>
-                    <div style={{
-                      fontSize: 12, color: 'var(--text)', marginTop: 6, padding: '8px 10px',
-                      background: 'rgba(16,185,129,0.06)', borderRadius: 8,
-                      borderRight: '3px solid #10b981', lineHeight: 1.6,
-                    }}>
-                      {u.response}
-                    </div>
-                    <button onClick={async () => { try { await markUpdateAsRead(u.id); showToast('✓ تم') } catch {} }} style={{
-                      padding: '5px 12px', borderRadius: 8, marginTop: 6, width: '100%',
-                      background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
-                      color: '#10b981', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                    }}>✓ تم الاطلاع</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {notifCount === 0 && (
-              <div style={{ textAlign: 'center', padding: 20, color: 'var(--text3)', fontSize: 13 }}>
-                ✨ لا توجد تنبيهات
-              </div>
-            )}
-          </div>
-        </>
-      )}
-      {/* Respond to update request modal */}
-      {respondingTo && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }}>
-          <div style={{ background: 'var(--card)', padding: 20, borderRadius: 14, width: '90%', maxWidth: 360 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6, textAlign: 'center' }}>
-              📩 طلب تحديث
-            </div>
-            <div style={{ fontSize: 13, color: 'var(--text2)', marginBottom: 4, textAlign: 'center' }}>
-              {respondingTo.taskTitle}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 12, textAlign: 'center' }}>
-              من: {respondingTo.requestedByName} — "{respondingTo.message}"
-            </div>
-            <textarea
-              value={respondText}
-              onChange={e => setRespondText(e.target.value)}
-              placeholder="اكتب تحديث حالة المهمة..."
-              style={{
-                width: '100%', minHeight: 100, padding: 12, borderRadius: 10,
-                border: '1px solid var(--border)', background: 'var(--bg)',
-                color: 'var(--text)', fontSize: 14, lineHeight: 1.7,
-                fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box',
-              }}
-              dir="rtl"
-              autoFocus
-            />
-            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
-              <button
-                onClick={async () => {
-                  if (!respondText.trim()) return
-                  setRespondLoading(true)
-                  try {
-                    await respondToUpdateRequest(respondingTo.id, respondText.trim())
-                    showToast('✅ تم إرسال التحديث')
-                  } catch (e) {
-                    showToast('❌ خطأ في إرسال التحديث')
-                  }
-                  setRespondLoading(false)
-                  setRespondingTo(null)
-                }}
-                disabled={respondLoading || !respondText.trim()}
-                style={{
-                  flex: 1, padding: '10px', borderRadius: 8,
-                  background: respondLoading || !respondText.trim() ? 'var(--bg3)' : '#8b5cf6',
-                  color: respondLoading || !respondText.trim() ? 'var(--text3)' : '#fff',
-                  border: 'none', fontSize: 14, fontWeight: 700,
-                  cursor: respondLoading ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {respondLoading ? 'جاري الإرسال...' : '📩 إرسال'}
-              </button>
-              <button onClick={() => setRespondingTo(null)} style={{
-                flex: 1, padding: '10px', background: 'var(--bg3)',
-                color: 'var(--text)', border: 'none', borderRadius: 8,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>إلغاء</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
-}
-
-function deriveContacts(tasks) {
-  const map = {}
-  tasks.forEach(t => {
-    if (t.person && t.person.trim()) {
-      const name = t.person.trim()
-      if (!map[name]) map[name] = { name, tasks: [] }
-      map[name].tasks.push(t)
-    }
-  })
-  return Object.values(map)
 }
 
 export default function App() {

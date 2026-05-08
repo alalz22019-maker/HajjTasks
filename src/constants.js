@@ -1,13 +1,8 @@
-/* ─── مهامي Pro — Constants المركزية ─── */
+/* ─── أعمال الحج — Constants ─── */
 
 export const TEAM_MEMBERS = [
-  'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن', 'أ. عبير الشدوخي',
-  'د. حامد الزهراني', 'أ. حماد المظيبري', 'أ. محمد القرشي', 'أ. محمد الحجيلي',
-  'أ. سعد القرشي', 'أ. أميرة التميمي', 'د. مرام الشهراني',
-  'أ. وفاء آل إسماعيل', 'د. سمية الغريب', 'أ. مشاعل المطيري', 'أ. صفاء الشهري',
-  'أ. أمجاد المطيري', 'أ. مي الأسمري', 'أ. شادي نبيل',
-  'أ. راما القحطاني', 'أ. مها القحطاني', 'د. نجلاء خوجة',
-  'أ. مشاعل الغزولي', 'أ. فدوى النفيسي', 'م. حمادي الشعائره',
+  'م. علي الزهراني', 'د. منار سمان', 'د. وليد الحسن',
+  'أ. محمد القرشي', 'أ. محمد الحجيلي', 'أ. سعد القرشي', 'م. حمادي الشعائره',
 ]
 
 export const SOURCE_TYPES = [
@@ -26,22 +21,10 @@ export const STATUS_OPTIONS = [
 ]
 
 export const PROJECT_FILES = [
-  'إدارة المشاريع',
-  'المؤشرات',
-  '937 والبلاغات',
-  'السموم والمضادات',
-  'جاهزية المختبرات',
-  'التموين والإمداد',
-  'عينتي',
-  'التوطين',
-  'فحص الزواج',
-  'السلامة الحيوية',
-  'السياسات والتنظيم',
-  'الاتفاقيات والفعاليات',
-  'أعمال الحج',
-  'أعمال إشرافية',
-  'الاتفاقيات والأبحاث',
-  'أخرى',
+  'ميداني',
+  'إداري',
+  'لوجستي',
+  'طوارئ',
 ]
 
 export const PRIORITIES = [
@@ -50,25 +33,17 @@ export const PRIORITIES = [
   { value: 'low',    label: 'منخفضة' },
 ]
 
-export const RECURRENCES = [
-  { value: '',          label: 'لا تكرار' },
-  { value: 'daily',     label: 'يومي' },
-  { value: 'weekly',    label: 'أسبوعي' },
-  { value: 'biweekly',  label: 'كل أسبوعين' },
-  { value: 'monthly',   label: 'شهري' },
-  { value: 'quarterly', label: 'ربع سنوي' },
-]
-
 export const TASK_TYPES = [
   { value: 'task',    label: 'مهمة' },
   { value: 'meeting', label: 'اجتماع' },
 ]
 
-export const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'موظف' }
-export const ROLE_BG    = { admin: 'rgba(139,92,246,0.15)', superuser: 'rgba(59,130,246,0.15)', user: 'rgba(16,185,129,0.12)' }
-export const ROLE_COLOR = { admin: '#a78bfa', superuser: '#60a5fa', user: '#34d399' }
+export const DEFAULT_REPORT_TYPES = [
+  { value: 'periodic', label: 'التقرير الدوري' },
+  { value: 'supervisory_visit', label: 'تقرير الزيارات الإشرافية' },
+]
 
-/* Helper: حساب الحالة الفعلية — "متأخر" تلقائي */
+/* Helper: حساب الحالة الفعلية */
 export function getEffectiveStatus(task) {
   if (task.status === 'completed' || task.done) return 'completed'
   if (task.dueDate && task.status !== 'completed') {
@@ -79,12 +54,10 @@ export function getEffectiveStatus(task) {
   return task.status || 'not_started'
 }
 
-/* Helper: إرجاع معلومات الحالة */
 export function getStatusInfo(status) {
   return STATUS_OPTIONS.find(s => s.value === status) || STATUS_OPTIONS[0]
 }
 
-/* Helper: تحويل الحالات القديمة للجديدة */
 export function migrateStatus(oldStatus, dueDate, done) {
   if (done || oldStatus === 'done' || oldStatus === 'completed') return 'completed'
   if (dueDate) {
@@ -97,3 +70,15 @@ export function migrateStatus(oldStatus, dueDate, done) {
       oldStatus === 'waiting') return 'in_progress'
   return 'not_started'
 }
+
+export const RECURRENCES = [
+  { value: '',          label: 'لا تكرار' },
+  { value: 'daily',     label: 'يومي' },
+  { value: 'weekly',    label: 'أسبوعي' },
+  { value: 'biweekly',  label: 'كل أسبوعين' },
+  { value: 'monthly',   label: 'شهري' },
+]
+
+export const ROLE_LABEL = { admin: 'مدير', superuser: 'مشرف', user: 'موظف' }
+export const ROLE_BG    = { admin: 'rgba(139,92,246,0.15)', superuser: 'rgba(59,130,246,0.15)', user: 'rgba(16,185,129,0.12)' }
+export const ROLE_COLOR = { admin: '#a78bfa', superuser: '#60a5fa', user: '#34d399' }
