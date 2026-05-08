@@ -10,12 +10,13 @@ import ContactsPage from './pages/ContactsPage'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 import { loadData, saveData } from './utils/storage'
-import { subscribeToTasks } from './utils/db'
+import { subscribeToTasks, subscribeToHajjReports } from './utils/db'
 
 function AppShell() {
   const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, loading } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [tasks, setTasks] = useState([])
+  const [hajjReports, setHajjReports] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
   const [pledgeAccepted, setPledgeAccepted] = useState(true)
@@ -35,7 +36,8 @@ function AppShell() {
   useEffect(() => {
     if (!userProfile) return
     const unsub = subscribeToTasks(setTasks)
-    return unsub
+    const unsub2 = subscribeToHajjReports(setHajjReports)
+    return () => { unsub(); unsub2() }
   }, [userProfile])
 
   const persistApiKey = useCallback((key) => {
@@ -165,6 +167,7 @@ function AppShell() {
         {page === 'dashboard' && (
           <MyDashboard
             tasks={tasks}
+            hajjReports={hajjReports}
             showToast={showToast}
             onNavigate={setPage}
             updateRequests={[]}

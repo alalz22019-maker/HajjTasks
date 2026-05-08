@@ -1,27 +1,28 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import {
   subscribeToHajjReports, addHajjReport, updateHajjReport, deleteHajjReport,
   subscribeToReportTypes, addReportType, deleteReportType,
 } from '../utils/db'
-import { DEFAULT_REPORT_TYPES, TEAM_MEMBERS, getEffectiveStatus, STATUS_OPTIONS } from '../constants'
+import { DEFAULT_REPORT_TYPES, TEAM_MEMBERS, STATUS_OPTIONS } from '../constants'
 
 export default function HajjReportsPage() {
-  const { currentUser } = useAuth()
+  const { currentUser, userProfile } = useAuth()
   const [reports, setReports] = useState([])
   const [customTypes, setCustomTypes] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [showAddType, setShowAddType] = useState(false)
+  const [editingType, setEditingType] = useState(null)
   const [newTypeName, setNewTypeName] = useState('')
-  const [filter, setFilter] = useState('all') // all | type filter
+  const [filter, setFilter] = useState('all')
   const [editingId, setEditingId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [confirmDeleteType, setConfirmDeleteType] = useState(null)
   const [form, setForm] = useState({
     reportType: 'periodic',
     person: '',
     notes: '',
     status: 'not_started',
-    dueDate: '',
   })
 
   useEffect(() => {
@@ -30,7 +31,6 @@ export default function HajjReportsPage() {
     return () => { unsub1(); unsub2() }
   }, [])
 
-  // Merge default + custom types
   const allTypes = [
     ...DEFAULT_REPORT_TYPES,
     ...customTypes.map(t => ({ value: t.id, label: t.name })),
@@ -41,23 +41,49 @@ export default function HajjReportsPage() {
     return found ? found.label : val
   }
 
-  const filtered = filter === 'all'
-    ? reports
-    : reports.filter(r => r.reportType === filter)
+  // الترقيم التسلسلي لكل نوع
+  const getNextSeqNum = (reportType) => {
+    const sameType = reports.filter(r => r.reportType === reportType)
+    return sameType.length + 1
+  }
+
+  const filtered = filter === 'all' ? reports : reports.filter(r => r.reportType === filter)
 
   const resetForm = () => {
-    setForm({ reportType: 'periodic', person: '', notes: '', status: 'not_started', dueDate: '' })
+    setForm({ reportType: 'periodic', person: '', notes: '', status: 'not_started' })
     setEditingId(null)
     setShowForm(false)
   }
 
+  // إضافة سريعة — زر واحد
+  const handleQuickAdd = async (reportType) => {
+    const seqNum = getNextSeqNum(reportType)
+    const typeName = getTypeName(reportType)
+    const userName = userProfile?.name || currentUser?.displayName || ''
+    await addHajjReport({
+      reportType,
+      title: `${typeName} #${seqNum}`,
+      seqNum,
+      person: userName,
+      notes: '',
+      status: 'not_started',
+    })
+  }
+
   const handleSave = async () => {
     if (!form.reportType) return
-    const userName = currentUser?.displayName || currentUser?.email || ''
+    const userName = userProfile?.name || currentUser?.displayName || ''
     if (editingId) {
       await updateHajjReport(editingId, { ...form, updatedBy: userName })
     } else {
-      await addHajjReport({ ...form, createdBy: userName })
+      const seqNum = getNextSeqNum(form.reportType)
+      const typeName = getTypeName(form.reportType)
+      await addHajjReport({
+        ...form,
+        title: `${typeName} #${seqNum}`,
+        seqNum,
+        createdBy: userName,
+      })
     }
     resetForm()
   }
@@ -68,7 +94,6 @@ export default function HajjReportsPage() {
       person: r.person || '',
       notes: r.notes || '',
       status: r.status || 'not_started',
-      dueDate: r.dueDate || '',
     })
     setEditingId(r.id)
     setShowForm(true)
@@ -89,13 +114,21 @@ export default function HajjReportsPage() {
 
   const handleAddType = async () => {
     if (!newTypeName.trim()) return
-    await addReportType({ name: newTypeName.trim() })
+    if (editingType) {
+      // Firestore doesn't support update on report_types easily, so delete & re-add
+      await deleteReportType(editingType.id)
+      await addReportType({ name: newTypeName.trim() })
+      setEditingType(null)
+    } else {
+      await addReportType({ name: newTypeName.trim() })
+    }
     setNewTypeName('')
     setShowAddType(false)
   }
 
   const handleDeleteType = async (id) => {
     await deleteReportType(id)
+    setConfirmDeleteType(null)
   }
 
   const statusColor = (status) => {
@@ -105,203 +138,184 @@ export default function HajjReportsPage() {
 
   const formatDate = (d) => {
     if (!d) return ''
-    return new Date(d).toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    try {
+      const date = d.toDate ? d.toDate() : new Date(d)
+      return date.toLocaleDateString('ar-SA', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    } catch { return '' }
   }
 
-  const containerStyle = {
-    padding: '16px', maxWidth: 600, margin: '0 auto',
-    fontFamily: 'system-ui, -apple-system, sans-serif', direction: 'rtl',
-  }
-
-  const cardStyle = {
-    background: '#1e293b', borderRadius: 12, padding: 14, marginBottom: 10,
-    border: '1px solid rgba(255,255,255,0.08)',
-  }
-
-  const btnStyle = (bg) => ({
-    background: bg, color: '#fff', border: 'none', borderRadius: 8,
-    padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600,
-  })
-
-  const inputStyle = {
-    width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1px solid rgba(255,255,255,0.15)', background: '#0f172a',
-    color: '#e2e8f0', fontSize: 14, boxSizing: 'border-box', marginBottom: 10,
+  const S = {
+    container: { padding: '16px', maxWidth: 600, margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif', direction: 'rtl' },
+    card: { background: 'var(--card)', borderRadius: 12, padding: 14, marginBottom: 10, border: '1px solid var(--border)' },
+    btn: (bg) => ({ background: bg, color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 600, fontFamily: 'inherit' }),
+    input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 14, boxSizing: 'border-box', marginBottom: 10, fontFamily: 'inherit' },
   }
 
   return (
-    <div style={containerStyle}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ color: '#e2e8f0', margin: 0, fontSize: 20 }}>📋 التقارير</h2>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowAddType(true)} style={btnStyle('#6366f1')}>+ نوع</button>
-          <button onClick={() => { resetForm(); setShowForm(true) }} style={btnStyle('#10b981')}>+ تقرير</button>
-        </div>
-      </div>
-
-      {/* Filter tabs */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setFilter('all')}
-          style={{
-            ...btnStyle(filter === 'all' ? '#3b82f6' : '#334155'),
-            fontSize: 12, padding: '6px 12px',
-          }}
-        >الكل ({reports.length})</button>
-        {allTypes.map(t => {
-          const count = reports.filter(r => r.reportType === t.value).length
-          return (
-            <button key={t.value}
-              onClick={() => setFilter(t.value)}
-              style={{
-                ...btnStyle(filter === t.value ? '#3b82f6' : '#334155'),
-                fontSize: 12, padding: '6px 12px',
-              }}
-            >{t.label} ({count})</button>
-          )
-        })}
-      </div>
-
-      {/* Add type modal */}
-      {showAddType && (
-        <div style={{ ...cardStyle, background: '#334155', marginBottom: 14 }}>
-          <h4 style={{ color: '#e2e8f0', margin: '0 0 10px' }}>إضافة نوع تقرير جديد</h4>
-          <input
-            placeholder="اسم نوع التقرير..."
-            value={newTypeName}
-            onChange={e => setNewTypeName(e.target.value)}
-            style={inputStyle}
-          />
+    <div className="page" style={{ paddingBottom: 90 }}>
+      <div style={S.container}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{ color: 'var(--text)', margin: 0, fontSize: 20 }}>📋 التقارير</h2>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleAddType} style={btnStyle('#10b981')}>حفظ</button>
-            <button onClick={() => { setShowAddType(false); setNewTypeName('') }} style={btnStyle('#64748b')}>إلغاء</button>
+            <button onClick={() => { setShowAddType(true); setEditingType(null); setNewTypeName('') }} style={S.btn('#6366f1')}>+ نوع</button>
+            <button onClick={() => { resetForm(); setShowForm(true) }} style={S.btn('#10b981')}>+ تقرير</button>
           </div>
-          {customTypes.length > 0 && (
-            <div style={{ marginTop: 12 }}>
-              <p style={{ color: '#94a3b8', fontSize: 12, margin: '0 0 6px' }}>الأنواع المضافة:</p>
-              {customTypes.map(t => (
-                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                  <span style={{ color: '#e2e8f0', fontSize: 13 }}>{t.name}</span>
-                  <button onClick={() => handleDeleteType(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16 }}>✕</button>
-                </div>
-              ))}
+        </div>
+
+        {/* أزرار إضافة سريعة */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+          {allTypes.map(t => (
+            <button key={t.value} onClick={() => handleQuickAdd(t.value)} style={{
+              ...S.btn('#1e40af'), fontSize: 12, padding: '6px 12px',
+              background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.25)',
+            }}>⚡ {t.label}</button>
+          ))}
+        </div>
+
+        {/* Filter tabs */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          <button onClick={() => setFilter('all')} style={{
+            ...S.btn(filter === 'all' ? '#3b82f6' : 'var(--bg3)'),
+            fontSize: 12, padding: '6px 12px', color: filter === 'all' ? '#fff' : 'var(--text2)',
+          }}>الكل ({reports.length})</button>
+          {allTypes.map(t => {
+            const count = reports.filter(r => r.reportType === t.value).length
+            return (
+              <button key={t.value} onClick={() => setFilter(t.value)} style={{
+                ...S.btn(filter === t.value ? '#3b82f6' : 'var(--bg3)'),
+                fontSize: 12, padding: '6px 12px', color: filter === t.value ? '#fff' : 'var(--text2)',
+              }}>{t.label} ({count})</button>
+            )
+          })}
+        </div>
+
+        {/* إضافة/تعديل نوع */}
+        {showAddType && (
+          <div style={{ ...S.card, background: 'var(--bg2)', marginBottom: 14 }}>
+            <h4 style={{ color: 'var(--text)', margin: '0 0 10px' }}>{editingType ? 'تعديل نوع التقرير' : 'إضافة نوع تقرير جديد'}</h4>
+            <input placeholder="اسم نوع التقرير..." value={newTypeName} onChange={e => setNewTypeName(e.target.value)} style={S.input} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleAddType} style={S.btn('#10b981')}>حفظ</button>
+              <button onClick={() => { setShowAddType(false); setEditingType(null); setNewTypeName('') }} style={S.btn('var(--bg3)')}>إلغاء</button>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Form */}
-      {showForm && (
-        <div style={{ ...cardStyle, background: '#1a2332', border: '1px solid #3b82f6', marginBottom: 14 }}>
-          <h4 style={{ color: '#e2e8f0', margin: '0 0 12px' }}>{editingId ? 'تعديل تقرير' : 'إضافة تقرير'}</h4>
-
-          <label style={{ color: '#94a3b8', fontSize: 12 }}>نوع التقرير</label>
-          <select value={form.reportType} onChange={e => setForm({ ...form, reportType: e.target.value })} style={inputStyle}>
-            {allTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-
-          <label style={{ color: '#94a3b8', fontSize: 12 }}>المسؤول</label>
-          <select value={form.person} onChange={e => setForm({ ...form, person: e.target.value })} style={inputStyle}>
-            <option value="">— اختر —</option>
-            {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-
-          <label style={{ color: '#94a3b8', fontSize: 12 }}>التاريخ</label>
-          <input type="datetime-local" value={form.dueDate} onChange={e => setForm({ ...form, dueDate: e.target.value })} style={inputStyle} />
-
-          <label style={{ color: '#94a3b8', fontSize: 12 }}>الحالة</label>
-          <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={inputStyle}>
-            {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-
-          <label style={{ color: '#94a3b8', fontSize: 12 }}>ملاحظات</label>
-          <textarea
-            value={form.notes}
-            onChange={e => setForm({ ...form, notes: e.target.value })}
-            rows={3}
-            placeholder="ملاحظات اختيارية..."
-            style={{ ...inputStyle, resize: 'vertical' }}
-          />
-
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleSave} style={btnStyle('#10b981')}>💾 حفظ</button>
-            <button onClick={resetForm} style={btnStyle('#64748b')}>إلغاء</button>
-          </div>
-        </div>
-      )}
-
-      {/* Reports list */}
-      {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', color: '#64748b', padding: 40 }}>
-          لا توجد تقارير {filter !== 'all' ? `من نوع "${getTypeName(filter)}"` : ''}
-        </div>
-      ) : (
-        filtered.map(r => (
-          <div key={r.id} style={cardStyle}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{
-                    background: statusColor(r.status),
-                    color: '#fff', borderRadius: 6, padding: '2px 8px',
-                    fontSize: 11, fontWeight: 600,
-                  }}>
-                    {STATUS_OPTIONS.find(s => s.value === r.status)?.label || 'لم يبدأ'}
-                  </span>
-                  <span style={{
-                    background: 'rgba(99,102,241,0.2)',
-                    color: '#a5b4fc', borderRadius: 6, padding: '2px 8px',
-                    fontSize: 11,
-                  }}>{getTypeName(r.reportType)}</span>
-                </div>
-
-                {r.person && (
-                  <p style={{ color: '#94a3b8', fontSize: 13, margin: '4px 0' }}>👤 {r.person}</p>
-                )}
-                {r.dueDate && (
-                  <p style={{ color: '#64748b', fontSize: 12, margin: '2px 0' }}>🕐 {formatDate(r.dueDate)}</p>
-                )}
-                {r.notes && (
-                  <p style={{ color: '#cbd5e1', fontSize: 13, margin: '6px 0 0', lineHeight: 1.5 }}>{r.notes}</p>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button onClick={() => handleToggleDone(r)} style={{
-                  background: r.status === 'completed' ? '#10b981' : '#334155',
-                  border: 'none', borderRadius: 8, width: 32, height: 32,
-                  color: '#fff', cursor: 'pointer', fontSize: 16,
-                }}>✓</button>
-                <button onClick={() => handleEdit(r)} style={{
-                  background: '#334155', border: 'none', borderRadius: 8,
-                  width: 32, height: 32, color: '#f59e0b', cursor: 'pointer', fontSize: 14,
-                }}>✏️</button>
-                {confirmDelete === r.id ? (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button onClick={() => handleDelete(r.id)} style={{ ...btnStyle('#ef4444'), padding: '4px 8px', fontSize: 12 }}>تأكيد</button>
-                    <button onClick={() => setConfirmDelete(null)} style={{ ...btnStyle('#64748b'), padding: '4px 8px', fontSize: 12 }}>لا</button>
+            {customTypes.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ color: 'var(--text2)', fontSize: 12, margin: '0 0 6px' }}>الأنواع المضافة:</p>
+                {customTypes.map(t => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: 'var(--text)', fontSize: 13 }}>{t.name}</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => { setEditingType(t); setNewTypeName(t.name) }} style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 14 }}>✏️</button>
+                      {confirmDeleteType === t.id ? (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => handleDeleteType(t.id)} style={{ ...S.btn('#ef4444'), padding: '2px 8px', fontSize: 11 }}>تأكيد</button>
+                          <button onClick={() => setConfirmDeleteType(null)} style={{ ...S.btn('var(--bg3)'), padding: '2px 8px', fontSize: 11 }}>لا</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmDeleteType(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14 }}>🗑</button>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <button onClick={() => setConfirmDelete(r.id)} style={{
-                    background: '#334155', border: 'none', borderRadius: 8,
-                    width: 32, height: 32, color: '#ef4444', cursor: 'pointer', fontSize: 14,
-                  }}>🗑</button>
-                )}
+                ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Form */}
+        {showForm && (
+          <div style={{ ...S.card, border: '1px solid #3b82f6', marginBottom: 14 }}>
+            <h4 style={{ color: 'var(--text)', margin: '0 0 12px' }}>{editingId ? 'تعديل تقرير' : 'إضافة تقرير'}</h4>
+            <label style={{ color: 'var(--text2)', fontSize: 12 }}>نوع التقرير</label>
+            <select value={form.reportType} onChange={e => setForm({ ...form, reportType: e.target.value })} style={S.input}>
+              {allTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <label style={{ color: 'var(--text2)', fontSize: 12 }}>المسؤول</label>
+            <select value={form.person} onChange={e => setForm({ ...form, person: e.target.value })} style={S.input}>
+              <option value="">— اختر —</option>
+              {TEAM_MEMBERS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <label style={{ color: 'var(--text2)', fontSize: 12 }}>الحالة</label>
+            <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} style={S.input}>
+              {STATUS_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <label style={{ color: 'var(--text2)', fontSize: 12 }}>ملاحظات</label>
+            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} placeholder="ملاحظات اختيارية..." style={{ ...S.input, resize: 'vertical' }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleSave} style={S.btn('#10b981')}>💾 حفظ</button>
+              <button onClick={resetForm} style={S.btn('var(--bg3)')}>إلغاء</button>
             </div>
           </div>
-        ))
-      )}
+        )}
 
-      {/* Stats */}
-      <div style={{
-        background: '#0f172a', borderRadius: 12, padding: 14, marginTop: 16,
-        border: '1px solid rgba(255,255,255,0.06)',
-      }}>
-        <p style={{ color: '#94a3b8', fontSize: 13, margin: 0, textAlign: 'center' }}>
-          📊 إجمالي: {reports.length} | مكتمل: {reports.filter(r => r.status === 'completed').length} | متبقي: {reports.filter(r => r.status !== 'completed').length}
-        </p>
+        {/* Reports list */}
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 40 }}>
+            لا توجد تقارير {filter !== 'all' ? `من نوع "${getTypeName(filter)}"` : ''}
+          </div>
+        ) : (
+          filtered.map(r => (
+            <div key={r.id} style={S.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                    <span style={{
+                      background: statusColor(r.status), color: '#fff', borderRadius: 6,
+                      padding: '2px 8px', fontSize: 11, fontWeight: 600,
+                    }}>{STATUS_OPTIONS.find(s => s.value === r.status)?.label || 'لم يبدأ'}</span>
+                    <span style={{
+                      background: 'rgba(99,102,241,0.2)', color: '#a5b4fc',
+                      borderRadius: 6, padding: '2px 8px', fontSize: 11,
+                    }}>{getTypeName(r.reportType)}</span>
+                    {r.seqNum && (
+                      <span style={{
+                        background: 'rgba(245,158,11,0.15)', color: '#f59e0b',
+                        borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                      }}>#{r.seqNum}</span>
+                    )}
+                  </div>
+                  {r.title && <p style={{ color: 'var(--text)', fontSize: 14, fontWeight: 700, margin: '4px 0' }}>{r.title}</p>}
+                  {r.person && <p style={{ color: 'var(--text2)', fontSize: 13, margin: '4px 0' }}>👤 {r.person}</p>}
+                  {r.createdAt && <p style={{ color: 'var(--text3)', fontSize: 12, margin: '2px 0' }}>🕐 {formatDate(r.createdAt)}</p>}
+                  {r.notes && <p style={{ color: 'var(--text2)', fontSize: 13, margin: '6px 0 0', lineHeight: 1.5 }}>{r.notes}</p>}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button onClick={() => handleToggleDone(r)} style={{
+                    background: r.status === 'completed' ? '#10b981' : 'var(--bg3)',
+                    border: 'none', borderRadius: 8, width: 32, height: 32,
+                    color: '#fff', cursor: 'pointer', fontSize: 16,
+                  }}>✓</button>
+                  <button onClick={() => handleEdit(r)} style={{
+                    background: 'var(--bg3)', border: 'none', borderRadius: 8,
+                    width: 32, height: 32, color: '#f59e0b', cursor: 'pointer', fontSize: 14,
+                  }}>✏️</button>
+                  {confirmDelete === r.id ? (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => handleDelete(r.id)} style={{ ...S.btn('#ef4444'), padding: '4px 8px', fontSize: 12 }}>تأكيد</button>
+                      <button onClick={() => setConfirmDelete(null)} style={{ ...S.btn('var(--bg3)'), padding: '4px 8px', fontSize: 12 }}>لا</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDelete(r.id)} style={{
+                      background: 'var(--bg3)', border: 'none', borderRadius: 8,
+                      width: 32, height: 32, color: '#ef4444', cursor: 'pointer', fontSize: 14,
+                    }}>🗑</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Stats */}
+        <div style={{
+          background: 'var(--bg2)', borderRadius: 12, padding: 14, marginTop: 16,
+          border: '1px solid var(--border)',
+        }}>
+          <p style={{ color: 'var(--text2)', fontSize: 13, margin: 0, textAlign: 'center' }}>
+            📊 إجمالي: {reports.length} | مكتمل: {reports.filter(r => r.status === 'completed').length} | متبقي: {reports.filter(r => r.status !== 'completed').length}
+          </p>
+        </div>
       </div>
     </div>
   )

@@ -130,7 +130,7 @@ function isReportTask(t) {
 }
 
 /* ─── Component ────────────────────────────────── */
-export default function MyDashboard({ tasks, showToast, onNavigate, updateRequests = [], pendingRequests = 0 }) {
+export default function MyDashboard({ tasks, hajjReports = [], showToast, onNavigate, updateRequests = [], pendingRequests = 0 }) {
   const { userProfile, isAdmin } = useAuth()
   const userName = userProfile?.name || 'مستخدم'
   const firstName = userName.split(' ').pop() || userName
@@ -288,6 +288,43 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
 
       <div className="page" style={{ paddingBottom: 90 }}>
 
+        {/* 📋 التقارير المطلوبة */}
+        {hajjReports.length > 0 && (() => {
+          const pending = hajjReports.filter(r => r.status !== 'completed')
+          const completed = hajjReports.filter(r => r.status === 'completed')
+          if (pending.length === 0 && completed.length === 0) return null
+          return (
+            <div style={{ margin: '12px 16px 0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>📋 التقارير</span>
+                <button onClick={() => onNavigate('hajjreports')} style={{
+                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
+                  borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+                  color: '#60a5fa', cursor: 'pointer', fontFamily: 'inherit',
+                }}>عرض الكل</button>
+              </div>
+              {pending.length > 0 && (
+                <div style={{
+                  background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
+                  borderRadius: 12, padding: '10px 14px', marginBottom: 8,
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⏳ متبقي: {pending.length} تقرير</span>
+                  {pending.slice(0, 3).map(r => (
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{r.title || r.reportType}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>👤 {r.person}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>✅ {completed.length} مكتمل</span>
+                <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⏳ {pending.length} متبقي</span>
+                <span style={{ fontSize: 12, color: 'var(--text3)' }}>📊 إجمالي: {hajjReports.length}</span>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* 🔔 التنبيهات — أول شي يشوفه الموظف */}
         {(() => {

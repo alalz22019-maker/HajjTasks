@@ -150,8 +150,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       setDefaultTaskType('meeting')
       setShowForm(true)
     } else if (option === 'report') {
-      setDefaultTaskType('report')
-      setShowForm(true)
+      if (onNavigate) onNavigate('hajjreports')
     } else if (option === 'voice_result') {
       if (!canUseAI) { showToast('⚠️ الإدخال الصوتي متاح للمدراء فقط'); return }
       setVoiceText(data || '')
