@@ -156,3 +156,21 @@ export async function isTasksEmpty() {
   const snap = await getDocs(collection(db, 'hajj_tasks'))
   return snap.empty
 }
+
+/* ─── WEEKLY STAR stubs (not used in hajj but needed for MyDashboard import) ── */
+
+export const STAR_CATEGORIES = [
+  'Action Accelerator',
+  'Innovation Spark',
+  'Extra Miler',
+  'Collaboration Legend',
+]
+
+export async function saveWeeklyStar(data) {
+  // Not used in hajj version
+}
+
+export function subscribeToWeeklyStars(callback) {
+  callback([])
+  return () => {}
+}

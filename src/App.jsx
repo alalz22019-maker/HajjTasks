@@ -1,16 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ROLE_LABEL, ROLE_BG, ROLE_COLOR } from './constants'
 import LoginPage from './pages/LoginPage'
 import TasksPage from './pages/TasksPage'
+import MyDashboard from './pages/MyDashboard'
 import HajjReportsPage from './pages/HajjReportsPage'
+import ReportsPage from './pages/ReportsPage'
+import ContactsPage from './pages/ContactsPage'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 import { loadData, saveData } from './utils/storage'
 import { subscribeToTasks } from './utils/db'
 
 function AppShell() {
-  const { firebaseUser, userProfile, logout, loading } = useAuth()
-  const [page, setPage] = useState('tasks')
+  const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, loading } = useAuth()
+  const [page, setPage] = useState('dashboard')
   const [tasks, setTasks] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
@@ -49,19 +53,17 @@ function AppShell() {
     setPledgeAccepted(true)
   }
 
-  // Stats
-  const stats = useMemo(() => {
-    const today = new Date(); today.setHours(0,0,0,0)
-    const myTasks = tasks.filter(t => (t.person || '').trim() === (userProfile?.name || '').trim())
-    const overdue = myTasks.filter(t => {
-      if (t.done || t.status === 'completed' || !t.dueDate) return false
-      const d = new Date(t.dueDate); d.setHours(0,0,0,0)
-      return d < today
+  const contacts = useMemo(() => {
+    const map = {}
+    tasks.forEach(t => {
+      if (t.person && t.person.trim()) {
+        const name = t.person.trim()
+        if (!map[name]) map[name] = { name, tasks: [] }
+        map[name].tasks.push(t)
+      }
     })
-    const pending = myTasks.filter(t => !t.done && t.status !== 'completed')
-    const completed = myTasks.filter(t => t.done || t.status === 'completed')
-    return { total: myTasks.length, overdue: overdue.length, pending: pending.length, completed: completed.length }
-  }, [tasks, userProfile])
+    return Object.values(map)
+  }, [tasks])
 
   if (loading) {
     return (
@@ -122,8 +124,11 @@ function AppShell() {
   }
 
   const NAV = [
-    { id: 'tasks',   label: 'المهام',   icon: '✓' },
-    { id: 'reports', label: 'التقارير', icon: '📋' },
+    { id: 'dashboard', label: 'لوحتي',     icon: '🏠' },
+    { id: 'tasks',     label: 'المهام',     icon: '✓' },
+    { id: 'hajjreports', label: 'التقارير', icon: '📋' },
+    { id: 'stats',     label: 'إحصائيات',   icon: '📊' },
+    { id: 'contacts',  label: 'جهات',       icon: '👥' },
   ]
 
   return (
@@ -139,34 +144,33 @@ function AppShell() {
         fontSize: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 22 }}>🕋</span>
+          {userProfile.photoURL && (
+            <img src={userProfile.photoURL} alt=""
+              style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover' }} />
+          )}
           <div>
-            <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 14 }}>أعمال الحج</span>
+            <span style={{ color: 'var(--text)', fontWeight: 700, fontSize: 14 }}>🕋 أعمال الحج</span>
             <span style={{ color: 'var(--text3)', fontSize: 11, marginRight: 6 }}> | {userProfile.name}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {/* Quick stats */}
-          {stats.overdue > 0 && (
-            <span style={{
-              background: 'rgba(239,68,68,0.15)', color: '#ef4444',
-              padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 700,
-            }}>{stats.overdue} متأخر</span>
-          )}
-          <span style={{
-            background: 'rgba(59,130,246,0.1)', color: 'var(--blue)',
-            padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600,
-          }}>{stats.pending} متبقي</span>
-          <button onClick={logout} style={{
-            background: 'var(--bg3)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '4px 10px',
-            color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-          }}>خروج</button>
-        </div>
+        <button onClick={logout} style={{
+          background: 'var(--bg3)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '4px 10px',
+          color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+        }}>خروج</button>
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {page === 'dashboard' && (
+          <MyDashboard
+            tasks={tasks}
+            showToast={showToast}
+            onNavigate={setPage}
+            updateRequests={[]}
+            pendingRequests={0}
+          />
+        )}
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
@@ -178,8 +182,14 @@ function AppShell() {
             onRequestUpdate={null}
           />
         )}
-        {page === 'reports' && (
+        {page === 'hajjreports' && (
           <HajjReportsPage />
+        )}
+        {page === 'stats' && (
+          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
+        )}
+        {page === 'contacts' && (
+          <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
         )}
       </div>
 
