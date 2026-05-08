@@ -54,9 +54,6 @@ const FILTERS = [
   { id: 'urgent',   label: 'عاجل' },
   { id: 'mine',     label: 'مهامي' },
   { id: 'meetings', label: 'اجتماعات' },
-  { id: 'reports',  label: 'تقارير' },
-  { id: 'waiting',  label: 'بانتظار' },
-  { id: 'review',   label: 'مراجعة' },
 ]
 
 function genId() {
@@ -532,7 +529,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
     try {
       const system = `أنت مساعد لتحويل نص عربي (عامي أو فصيح) إلى مهمة منظمة.
 حلل النص واستخرج: العنوان، الأولوية، الشخص المسؤول، التاريخ، المشروع، نوع المهمة (task/meeting/report).
-أعضاء الفريق: م. علي الزهراني، د. منار سمان، د. وليد الحسن، أ. عبير الشدوخي، د. حامد الزهراني، أ. حماد المظيبري، أ. محمد القرشي، أ. محمد الحجيلي، أ. سعد القرشي، أ. أميرة التميمي، د. مرام الشهراني، أ. وفاء آل إسماعيل، د. سمية الغريب، أ. مشاعل المطيري، أ. صفاء الشهري، أ. أمجاد المطيري، أ. مي الأسمري، أ. شادي نبيل
+أعضاء الفريق: م. علي الزهراني، د. منار سمان، د. وليد الحسن، أ. محمد القرشي، أ. محمد الحجيلي، أ. سعد القرشي، م. حمادي الشعائره
 لو ذكر اسم مختصر (سعد، حماد، وفاء) طابقه مع الاسم الكامل.
 أرجع JSON فقط بدون أي نص:
 {"title":"","priority":"medium","person":"","dueDate":"","projectName":"","taskType":"task","meetingTime":"","meetingLocation":""}`
@@ -891,8 +888,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       <div className="header" style={{ paddingBottom: '10px' }}>
         <div className="header-row">
           <div>
-            <div className="header-title">مهامي Pro</div>
-            <div className="header-sub">{userProfile?.name} • PMO مركز عمليات المختبرات</div>
+            <div className="header-title">أعمال الحج 🕋</div>
+            <div className="header-sub">{userProfile?.name}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
             
@@ -971,15 +968,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
           </div>
         </div>
 
-        {isUser && (
-          <div style={{
-            margin: '0 16px 8px', padding: '10px 14px', borderRadius: 12,
-            background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
-            fontSize: 12, color: 'var(--orange)', display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span>ℹ️</span><span>صلاحيتك: الإضافة / التعديل / الإغلاق تحتاج موافقة المدير</span>
-          </div>
-        )}
+
 
         {/* ③ الإضافة السريعة بجملة وحدة */}
         {canWrite && (
