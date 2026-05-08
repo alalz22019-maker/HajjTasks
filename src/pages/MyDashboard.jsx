@@ -257,7 +257,7 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
     { id: 'today',    label: 'اليوم',     icon: '📅' },
     { id: 'team',     label: 'الفريق',    icon: '👥' },
     { id: 'streak',   label: 'الإنجاز',   icon: '🔥' },
-    { id: 'projects', label: 'المشاريع',  icon: '📁' },
+    { id: 'projects', label: 'الملف',  icon: '📁' },
   ]
 
   const RANK_MEDALS = ['🥇','🥈','🥉']
@@ -288,81 +288,6 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
 
       <div className="page" style={{ paddingBottom: 90 }}>
 
-        {/* ⭐ نجم الأسبوع */}
-        {currentWeekStar && (() => {
-          const info = STAR_CATEGORY_INFO[currentWeekStar.category] || { icon: '⭐', label: currentWeekStar.category, color: '#f59e0b' }
-          return (
-            <div style={{
-              margin: '12px 16px 0', padding: '14px 16px', borderRadius: 14,
-              background: `linear-gradient(135deg, ${info.color}15, ${info.color}08)`,
-              border: `1px solid ${info.color}30`,
-              textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 28, marginBottom: 4 }}>⭐</div>
-              <div style={{ fontSize: 12, color: info.color, fontWeight: 700, marginBottom: 4 }}>
-                {info.icon} {info.label}
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>
-                {currentWeekStar.person}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 4, lineHeight: 1.6 }}>
-                {currentWeekStar.achievement}
-              </div>
-            </div>
-          )
-        })()}
-
-        {isAdmin && !showStarForm && (
-          <div style={{ padding: '8px 16px 0', textAlign: 'center' }}>
-            <button onClick={() => setShowStarForm(true)} style={{
-              padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)',
-              color: '#f59e0b', cursor: 'pointer', fontFamily: 'var(--font)',
-            }}>⭐ اختر نجم الأسبوع</button>
-          </div>
-        )}
-
-        {showStarForm && (
-          <div style={{
-            margin: '8px 16px', padding: 16, borderRadius: 14,
-            background: 'var(--card)', border: '1px solid var(--border)',
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 10, textAlign: 'center' }}>
-              ⭐ اختيار نجم الأسبوع
-            </div>
-            <select value={starForm.person} onChange={e => setStarForm(f => ({ ...f, person: e.target.value }))}
-              style={{ width: '100%', padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, marginBottom: 8, fontFamily: 'inherit' }}>
-              <option value="">— اختر الشخص —</option>
-              {teamRanking.map(m => <option key={m.name} value={m.name}>{m.name}</option>)}
-            </select>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              {STAR_CATEGORIES.map(cat => {
-                const info = STAR_CATEGORY_INFO[cat]
-                const selected = starForm.category === cat
-                return (
-                  <button key={cat} onClick={() => setStarForm(f => ({ ...f, category: cat }))} style={{
-                    padding: '5px 10px', borderRadius: 8, fontSize: 11, fontFamily: 'inherit',
-                    background: selected ? `${info.color}20` : 'var(--bg3)',
-                    border: `1px solid ${selected ? info.color : 'var(--border)'}`,
-                    color: selected ? info.color : 'var(--text2)', cursor: 'pointer',
-                    fontWeight: selected ? 700 : 400,
-                  }}>{info.icon} {info.label}</button>
-                )
-              })}
-            </div>
-            <textarea value={starForm.achievement} onChange={e => setStarForm(f => ({ ...f, achievement: e.target.value }))}
-              placeholder="وصف الإنجاز..."
-              style={{ width: '100%', minHeight: 60, padding: 8, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
-            />
-            <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <button onClick={handleSaveStar} disabled={!starForm.person || !starForm.achievement.trim() || starSaving}
-                style={{ flex: 1, padding: 8, borderRadius: 8, background: starForm.person && starForm.achievement.trim() ? '#f59e0b' : 'var(--bg3)', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {starSaving ? '...' : '⭐ حفظ'}
-              </button>
-              <button onClick={() => setShowStarForm(false)} style={{ flex: 1, padding: 8, borderRadius: 8, background: 'var(--bg3)', color: 'var(--text)', border: 'none', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>إلغاء</button>
-            </div>
-          </div>
-        )}
 
         {/* 🔔 التنبيهات — أول شي يشوفه الموظف */}
         {(() => {
@@ -740,7 +665,7 @@ export default function MyDashboard({ tasks, showToast, onNavigate, updateReques
         {/* ─── Projects Section ─── */}
         {activeSection === 'projects' && (
           <div style={{ padding: '0 16px' }}>
-            <SectionHeader icon="📁" title="المشاريع والمبادرات" count={projects.length} />
+            <SectionHeader icon="📁" title="الملف" count={projects.length} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
               {projects.map(p => (
                 <div key={p.name} style={{
