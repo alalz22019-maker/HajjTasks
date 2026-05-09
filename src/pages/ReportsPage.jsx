@@ -352,7 +352,7 @@ function PersonRow({ name, total, done }) {
 }
 
 /* ─── DailyBriefCard ──────────────────────────────────────── */
-function DailyBriefCard({ tasks }) {
+function DailyBriefCard({ tasks, hajjReports = [] }) {
   const cardRef   = useRef(null)
   const [exporting, setExporting] = useState(false)
 
@@ -1196,7 +1196,7 @@ export default function ReportsPage({ tasks, hajjReports = [], showToast, apiKey
           </div>
 
           {visualType === 'executive' && <VisualSummary tasks={tasks} apiKey={apiKey} />}
-          {visualType === 'daily'     && <DailyBriefCard tasks={tasks} />}
+          {visualType === 'daily'     && (() => { try { return <DailyBriefCard tasks={tasks} hajjReports={hajjReports} /> } catch(e) { return <div style={{padding:20,color:'red'}}>خطأ في التقرير اليومي: {e.message}</div> } })()}
         </div>
       )}
 
