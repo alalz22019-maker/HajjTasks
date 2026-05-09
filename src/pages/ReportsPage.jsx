@@ -406,6 +406,7 @@ function DailyBriefCard({ tasks, hajjReports = [] }) {
 
   function TaskItem({ t, accent }) {
     const col = KPI_PALETTE[accent] || KPI_PALETTE.gray
+    const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
     return (
       <div style={{
         display: 'flex', alignItems: 'flex-start', gap: 10,
@@ -427,6 +428,11 @@ function DailyBriefCard({ tasks, hajjReports = [] }) {
               <span style={{ fontSize: 10, color: col.color }}>📅 {formatShortDate(t.dueDate)}</span>
             )}
           </div>
+          {lastUpdate && (
+            <div style={{ fontSize: 10, color: D.text2, marginTop: 4, lineHeight: 1.4, opacity: 0.85 }}>
+              📝 {lastUpdate.by}: {lastUpdate.detail}
+            </div>
+          )}
         </div>
       </div>
     )
