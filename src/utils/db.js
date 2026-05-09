@@ -1,20 +1,27 @@
 /**
  * Firestore helpers — نسخة أعمال الحج
- * Collections: hajj_tasks, hajj_reports, hajj_report_types, users, notifications
  */
 import {
   collection, doc, getDocs, getDoc,
   addDoc, setDoc, updateDoc, deleteDoc,
-  query, orderBy, onSnapshot, serverTimestamp, writeBatch,
+  query, orderBy, where, onSnapshot, serverTimestamp, writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 
 /* ─── HAJJ TASKS ─────────────────────────────────────────── */
 
 export function subscribeToTasks(callback) {
-  const q = query(collection(db, 'hajj_tasks'), orderBy('createdAt', 'asc'))
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  // بدون orderBy عشان نتجنب مشاكل الفهرسة
+  const ref = collection(db, 'hajj_tasks')
+  return onSnapshot(ref, snap => {
+    const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // ترتيب يدوي
+    tasks.sort((a, b) => {
+      const da = a.createdAt?.toDate?.() || new Date(a.createdAt || 0)
+      const db2 = b.createdAt?.toDate?.() || new Date(b.createdAt || 0)
+      return da - db2
+    })
+    callback(tasks)
   })
 }
 
@@ -27,9 +34,15 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  console.log('📝 updateTask:', id, JSON.stringify(data))
-  await setDoc(doc(db, 'hajj_tasks', id), data, { merge: true })
-  console.log('✅ updateTask success')
+  const ref = doc(db, 'hajj_tasks', id)
+  // تأكد إن الـ document موجود أولاً
+  const snap = await getDoc(ref)
+  if (snap.exists()) {
+    await updateDoc(ref, data)
+  } else {
+    // إذا مو موجود، أنشئه
+    await setDoc(ref, { ...data, createdAt: serverTimestamp() })
+  }
 }
 
 export async function deleteTask(id) {
@@ -39,9 +52,15 @@ export async function deleteTask(id) {
 /* ─── HAJJ REPORTS ───────────────────────────────────────── */
 
 export function subscribeToHajjReports(callback) {
-  const q = query(collection(db, 'hajj_reports'), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  const ref = collection(db, 'hajj_reports')
+  return onSnapshot(ref, snap => {
+    const reports = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    reports.sort((a, b) => {
+      const da = a.createdAt?.toDate?.() || new Date(a.createdAt || 0)
+      const db2 = b.createdAt?.toDate?.() || new Date(b.createdAt || 0)
+      return db2 - da // الأحدث أولاً
+    })
+    callback(reports)
   })
 }
 
@@ -61,11 +80,11 @@ export async function deleteHajjReport(id) {
   await deleteDoc(doc(db, 'hajj_reports', id))
 }
 
-/* ─── REPORT TYPES (أنواع التقارير — قابلة للإضافة) ─────── */
+/* ─── REPORT TYPES ───────────────────────────────────────── */
 
 export function subscribeToReportTypes(callback) {
-  const q = query(collection(db, 'hajj_report_types'), orderBy('createdAt', 'asc'))
-  return onSnapshot(q, snap => {
+  const ref = collection(db, 'hajj_report_types')
+  return onSnapshot(ref, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   })
 }
@@ -90,10 +109,10 @@ export async function addActivityLog(taskId, logEntry) {
     const snap = await getDoc(ref)
     if (!snap.exists()) return
     const current = snap.data().activityLog || []
-    await setDoc(ref, {
+    await updateDoc(ref, {
       activityLog: [...current, { ...logEntry, at: new Date().toISOString() }]
-    }, { merge: true })
-  } catch (e) { /* ignore log errors */ }
+    })
+  } catch (e) { /* silent */ }
 }
 
 /* ─── USERS ──────────────────────────────────────────────── */
@@ -112,9 +131,15 @@ export async function createUser({ uid, email, name, role }) {
 /* ─── NOTIFICATIONS ──────────────────────────────────────── */
 
 export function subscribeToNotifications(callback) {
-  const q = query(collection(db, 'hajj_notifications'), orderBy('createdAt', 'desc'))
-  return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  const ref = collection(db, 'hajj_notifications')
+  return onSnapshot(ref, snap => {
+    const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    notifs.sort((a, b) => {
+      const da = a.createdAt?.toDate?.() || new Date(a.createdAt || 0)
+      const db2 = b.createdAt?.toDate?.() || new Date(b.createdAt || 0)
+      return db2 - da
+    })
+    callback(notifs)
   })
 }
 
@@ -128,11 +153,9 @@ export async function markNotificationRead(id) {
   await updateDoc(doc(db, 'hajj_notifications', id), { read: true })
 }
 
-/* ─── STUBS for compatibility ─────────────────────────────── */
+/* ─── STUBS ──────────────────────────────────────────────── */
 
 export async function createRequest(data) {
-  // في نسخة الحج الكل admin — لا يوجد طلبات اعتماد
-  // نضيف المهمة مباشرة
   return await addTask(data.payload || data)
 }
 
@@ -142,10 +165,10 @@ export async function addUpdateToTask(taskId, updateEntry) {
     const snap = await getDoc(ref)
     if (!snap.exists()) return
     const current = snap.data().updates || []
-    await setDoc(ref, {
+    await updateDoc(ref, {
       updates: [...current, { ...updateEntry, timestamp: new Date().toISOString() }]
-    }, { merge: true })
-  } catch (e) { /* ignore */ }
+    })
+  } catch (e) { /* silent */ }
 }
 
 export async function importTasksFromArray(tasksArray) {
@@ -163,20 +186,6 @@ export async function isTasksEmpty() {
   return snap.empty
 }
 
-/* ─── WEEKLY STAR stubs (not used in hajj but needed for MyDashboard import) ── */
-
-export const STAR_CATEGORIES = [
-  'Action Accelerator',
-  'Innovation Spark',
-  'Extra Miler',
-  'Collaboration Legend',
-]
-
-export async function saveWeeklyStar(data) {
-  // Not used in hajj version
-}
-
-export function subscribeToWeeklyStars(callback) {
-  callback([])
-  return () => {}
-}
+export const STAR_CATEGORIES = ['Action Accelerator', 'Innovation Spark', 'Extra Miler', 'Collaboration Legend']
+export async function saveWeeklyStar(data) {}
+export function subscribeToWeeklyStars(callback) { callback([]); return () => {} }
