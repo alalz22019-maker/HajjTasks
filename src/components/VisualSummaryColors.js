@@ -21,6 +21,7 @@ export const KPI_PALETTE = {
   blue:   { color: D.blue,   bg: D.blueBg,   glow: 'rgba(0,102,179,0.12)'  },
   gray:   { color: D.gray,   bg: D.grayBg,   glow: 'rgba(107,138,128,0.08)'},
   yellow: { color: D.yellow, bg: D.yellowBg, glow: 'rgba(212,119,10,0.12)' },
+  purple: { color: D.purple, bg: D.purpleBg, glow: 'rgba(91,79,184,0.12)'  },
 }
 
 export const MATRIX_CFG = [
