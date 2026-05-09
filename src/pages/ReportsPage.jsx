@@ -562,12 +562,12 @@ function DailyBriefCard({ tasks }) {
           )}
 
           {/* التقارير المطلوبة */}
-          {hajjReports.filter(r => r.status !== 'completed').length > 0 && (
+          {hajjReports && hajjReports.filter(r => r.status !== 'completed').length > 0 && (
             <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow }}>
-              <SectionHead icon="📋" label="تقارير مطلوبة" count={hajjReports.filter(r => r.status !== 'completed').length} color="purple" />
+              <SectionHead icon="📋" label="تقارير مطلوبة" count={hajjReports.filter(r => r.status !== 'completed').length} color="blue" />
               {hajjReports.filter(r => r.status !== 'completed').map(r => (
                 <div key={r.id} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
-                  <span style={{ color: D.purple, fontSize: 11, flexShrink: 0, lineHeight: 1.5 }}>●</span>
+                  <span style={{ color: D.blue, fontSize: 11, flexShrink: 0, lineHeight: 1.5 }}>●</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5 }}>{r.title || 'تقرير'}</div>
                     {r.person && <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>👤 {r.person}</div>}
