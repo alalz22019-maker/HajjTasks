@@ -873,6 +873,8 @@ function WeeklyReportTab({ tasks, userName }) {
 
 /* ─── التقرير الشامل ─────────────────────────────────────── */
 function ComprehensiveReport({ tasks, hajjReports = [] }) {
+  const cardRef = useRef(null)
+  const [exporting, setExporting] = useState(false)
   const { hijri, gregorianEn } = formatDates()
   
   const all = tasks
@@ -961,19 +963,40 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
     sectionTitle: { fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 },
   }
 
+  async function withExport(fn) {
+    if (!cardRef.current) return
+    setExporting(true)
+    try { await fn(cardRef.current) }
+    catch (e) { console.error(e) }
+    finally { setExporting(false) }
+  }
+
   return (
     <div style={{ padding: '0 16px 32px', direction: 'rtl' }}>
-      {/* Share button */}
-      <button onClick={shareBrief} style={{
-        width: '100%', padding: '12px', borderRadius: 12, border: 'none', marginBottom: 14,
-        background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 700,
-        cursor: 'pointer', fontFamily: 'inherit',
-      }}>📤 مشاركة التقرير الشامل — واتساب</button>
+      {/* Export buttons */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        <button onClick={() => withExport(exportPDF)} disabled={exporting} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: D.green, color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: exporting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+        }}>📄 PDF</button>
+        <button onClick={() => withExport(exportPNG)} disabled={exporting} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: D.blue, color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: exporting ? 'default' : 'pointer', fontFamily: 'inherit', opacity: exporting ? 0.6 : 1,
+        }}>🖼️ صورة</button>
+        <button onClick={shareBrief} style={{
+          flex: 1, padding: '11px 0', borderRadius: 12, border: 'none',
+          background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>📤 واتساب</button>
+      </div>
 
       {/* Header */}
+      <div ref={cardRef} style={{ background: D.bg, borderRadius: 20, border: `1px solid ${D.border}`, boxShadow: '0 4px 24px rgba(0,107,63,0.13)' }}>
       <div style={{
-        background: 'linear-gradient(135deg, #004D2C, #006B3F)', borderRadius: 16,
-        padding: '18px 20px', marginBottom: 14, color: '#fff',
+        background: 'linear-gradient(135deg, #004D2C, #006B3F)', borderRadius: '16px 16px 0 0',
+        padding: '18px 20px', color: '#fff',
       }}>
         <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 4 }}>📊 التقرير الشامل</div>
         <div style={{ fontSize: 11, opacity: 0.8 }}>أعمال الحج — {hijri}</div>
@@ -1083,6 +1106,7 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
           })}
         </div>
       )}
+      </div>{/* end cardRef */}
     </div>
   )
 }
