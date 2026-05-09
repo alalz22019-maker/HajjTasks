@@ -27,8 +27,9 @@ export function subscribeToTasks(callback) {
 }
 
 export async function addTask(taskData) {
+  const { id: _ignore, ...cleanData } = taskData  // شيل أي id عشوائي
   const ref = await addDoc(collection(db, 'tasks'), {
-    ...taskData,
+    ...cleanData,
     createdAt: serverTimestamp(),
   })
   return ref.id
