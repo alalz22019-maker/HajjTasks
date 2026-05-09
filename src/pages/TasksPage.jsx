@@ -885,16 +885,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         <div className="header-row">
           <div>
             <div className="header-title">أعمال الحج 🕋</div>
-            {tasks.length > 0 && (
-              <button onClick={async () => {
-                if (!window.confirm('حذف كل المهام نهائياً؟')) return
-                const { collection: col, getDocs, deleteDoc, doc: docRef } = await import('firebase/firestore')
-                const { db } = await import('../firebase')
-                const snap = await getDocs(col(db, 'tasks'))
-                for (const d of snap.docs) { await deleteDoc(docRef(db, 'tasks', d.id)) }
-                showToast('🗑 تم حذف ' + snap.size + ' مهمة')
-              }} style={{ fontSize: 10, padding: '4px 8px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}>🗑 حذف الكل</button>
-            )}
+            
             <div className="header-sub">{userProfile?.name}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
@@ -1036,7 +1027,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           <div className="task-list">
             {taskGroups.map(({ task, children }) => (
               <div key={task.id} className="task-group">
-                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} onTransfer={canWrite ? setTransferTask : null} />
+                <TaskCard task={task} onToggle={toggleTask} onEdit={setEditTask} onDelete={canDelete ? id => setDeleteConfirm(id) : null} showToast={showToast} childCount={children.length} isCollapsed={collapsedGroups.has(task.id)} onToggleCollapse={() => toggleCollapse(task.id)} onAddSubtask={canWrite ? handleAddSubtask : null} childProgress={childProgressMap[task.id]} onRequestUpdate={onRequestUpdate} onTransfer={canWrite ? setTransferTask : null} onAddUpdate={async (id, text) => { await addActivityLog(id, { action: 'update', by: userProfile?.name || '', detail: text }); showToast('📝 تم إضافة التحديث') }} />
                 {children.length > 0 && !collapsedGroups.has(task.id) && (
                   <div className="subtask-group">
                     {children.map(c => <SubtaskInline key={c.id} task={c} onToggle={toggleTask} onUpdate={handleSubtaskInlineUpdate} onDelete={canDelete ? id => setDeleteConfirm(id) : null} onAssign={t => { setAssignSubtask(t); setAssignTo('') }} canWrite={canWrite} />)}

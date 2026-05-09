@@ -14,11 +14,13 @@ function formatDate(d) {
 
 export default function TaskCard({
   task, onToggle, onEdit, onDelete, showToast, onAddSubtask, onRequestUpdate,
-  onTransfer,
+  onTransfer, onAddUpdate,
   childCount = 0, isCollapsed, onToggleCollapse,
   isSubtask = false, childProgress
 }) {
   const [actionsOpen, setActionsOpen] = useState(false)
+  const [updateText, setUpdateText] = useState('')
+  const [showUpdateInput, setShowUpdateInput] = useState(false)
   const isParent = childCount > 0
   const effectiveStatus = getEffectiveStatus(task)
   const statusInfo = getStatusInfo(effectiveStatus)
@@ -185,6 +187,54 @@ export default function TaskCard({
         </div>
       )}
 
+      {/* 📝 إضافة تحديث */}
+      {actionsOpen && (
+        <div style={{ margin: '0 12px 8px' }}>
+          {!showUpdateInput ? (
+            <button onClick={() => setShowUpdateInput(true)} style={{
+              width: '100%', padding: '8px', borderRadius: 8,
+              background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)',
+              color: '#60a5fa', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+            }}>📝 إضافة تحديث</button>
+          ) : (
+            <div style={{
+              padding: '10px', borderRadius: 10,
+              background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)',
+            }}>
+              <textarea
+                value={updateText}
+                onChange={e => setUpdateText(e.target.value)}
+                placeholder="اكتب التحديث..."
+                rows={2}
+                style={{
+                  width: '100%', padding: '8px', borderRadius: 8,
+                  border: '1px solid var(--border)', background: 'var(--bg)',
+                  color: 'var(--text)', fontSize: 13, fontFamily: 'inherit',
+                  boxSizing: 'border-box', resize: 'vertical',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={async () => {
+                  if (!updateText.trim()) return
+                  if (onAddUpdate) await onAddUpdate(task.id, updateText.trim())
+                  setUpdateText('')
+                  setShowUpdateInput(false)
+                }} style={{
+                  flex: 1, padding: '7px', borderRadius: 8,
+                  background: '#3b82f6', color: '#fff', border: 'none',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}>💾 حفظ</button>
+                <button onClick={() => { setShowUpdateInput(false); setUpdateText('') }} style={{
+                  flex: 1, padding: '7px', borderRadius: 8,
+                  background: 'var(--bg3)', color: 'var(--text2)', border: 'none',
+                  fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                }}>إلغاء</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Activity Log — سجل الإجراءات */}
       {actionsOpen && task.activityLog && task.activityLog.length > 0 && (
         <div style={{
@@ -204,6 +254,9 @@ export default function TaskCard({
               rejected: '🚫 رفض',
               transferred: '🔀 حوّل المهمة',
               subtask_assigned: '📌 أسند فرعية',
+              completed: '✅ أكمل المهمة',
+              reopened: '🔄 أعاد فتح المهمة',
+              update: '📝 تحديث',
             }
             let detail = ''
             if (log.action === 'status_change') {
@@ -212,6 +265,8 @@ export default function TaskCard({
               detail = `من "${fromLabel}" إلى "${toLabel}"`
             } else if (log.from && log.to) {
               detail = `من "${log.from}" إلى "${log.to}"`
+            } else if (log.detail) {
+              detail = log.detail
             }
             return (
               <div key={i} style={{
