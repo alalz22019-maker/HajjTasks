@@ -12,14 +12,14 @@ import { db } from '../firebase'
 /* ─── HAJJ TASKS ─────────────────────────────────────────── */
 
 export function subscribeToTasks(callback) {
-  const q = query(collection(db, 'hajj_tasks'), orderBy('createdAt', 'asc'))
+  const q = query(collection(db, 'tasks'), orderBy('createdAt', 'asc'))
   return onSnapshot(q, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   })
 }
 
 export async function addTask(taskData) {
-  const ref = await addDoc(collection(db, 'hajj_tasks'), {
+  const ref = await addDoc(collection(db, 'tasks'), {
     ...taskData,
     createdAt: serverTimestamp(),
   })
@@ -28,7 +28,7 @@ export async function addTask(taskData) {
 
 export async function updateTask(id, data) {
   try {
-    await updateDoc(doc(db, 'hajj_tasks', id), data)
+    await updateDoc(doc(db, 'tasks', id), data)
   } catch (e) {
     // Fallback: try original tasks collection (for migrated tasks)
     try {
@@ -40,7 +40,7 @@ export async function updateTask(id, data) {
 }
 
 export async function deleteTask(id) {
-  await deleteDoc(doc(db, 'hajj_tasks', id))
+  await deleteDoc(doc(db, 'tasks', id))
 }
 
 /* ─── HAJJ REPORTS ───────────────────────────────────────── */
@@ -92,7 +92,7 @@ export async function deleteReportType(id) {
 /* ─── ACTIVITY LOG ───────────────────────────────────────── */
 
 export async function addActivityLog(taskId, logEntry) {
-  const ref = doc(db, 'hajj_tasks', taskId)
+  const ref = doc(db, 'tasks', taskId)
   const snap = await getDoc(ref)
   if (!snap.exists()) return
   const current = snap.data().activityLog || []
@@ -142,7 +142,7 @@ export async function createRequest(data) {
 }
 
 export async function addUpdateToTask(taskId, updateEntry) {
-  const ref = doc(db, 'hajj_tasks', taskId)
+  const ref = doc(db, 'tasks', taskId)
   const snap = await getDoc(ref)
   if (!snap.exists()) return
   const current = snap.data().updates || []
@@ -155,14 +155,14 @@ export async function importTasksFromArray(tasksArray) {
   const batch = writeBatch(db)
   tasksArray.forEach(t => {
     const { id: _id, ...rest } = t
-    const ref = doc(collection(db, 'hajj_tasks'))
+    const ref = doc(collection(db, 'tasks'))
     batch.set(ref, { ...rest, createdAt: serverTimestamp() })
   })
   await batch.commit()
 }
 
 export async function isTasksEmpty() {
-  const snap = await getDocs(collection(db, 'hajj_tasks'))
+  const snap = await getDocs(collection(db, 'tasks'))
   return snap.empty
 }
 
