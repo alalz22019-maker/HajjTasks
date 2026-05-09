@@ -16,6 +16,7 @@ import {
   createRequest,
   addUpdateToTask,
   addActivityLog,
+  addNotification,
 } from '../utils/db'
 
 // --- دوال منع التكرار ---
@@ -303,6 +304,17 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       // Activity Log — إنشاء المهمة
       if (newId) {
         await addActivityLog(newId, { action: 'created', by: userProfile?.name || '' })
+        // إشعار للشخص المكلّف
+        if (taskData.person && taskData.person !== userProfile?.name) {
+          await addNotification({
+            type: 'task_assigned',
+            taskId: newId,
+            taskTitle: taskData.title,
+            to: taskData.person,
+            from: userProfile?.name || '',
+            message: `كلّفك ${userProfile?.name || ''} بمهمة: ${taskData.title}`,
+          })
+        }
       }
       if (subTaskTitles.length > 0) {
         for (const title of subTaskTitles) {
@@ -469,7 +481,22 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
     if (!canWrite) { showToast('⚠️ ليس لديك صلاحية الإضافة المباشرة'); return }
     const deduped = deduplicateTasks(newTasks, tasks)
     const skipped = newTasks.length - deduped.length
-    for (const t of deduped) await dbAddTask({ ...t, done: false, status: 'not_started' })
+    for (const t of deduped) {
+      const newId = await dbAddTask({ ...t, done: false, status: 'not_started' })
+      if (newId) {
+        await addActivityLog(newId, { action: 'created', by: userProfile?.name || '' })
+        if (t.person && t.person !== userProfile?.name) {
+          await addNotification({
+            type: 'task_assigned',
+            taskId: newId,
+            taskTitle: t.title,
+            to: t.person,
+            from: userProfile?.name || '',
+            message: `كلّفك ${userProfile?.name || ''} بمهمة: ${t.title}`,
+          })
+        }
+      }
+    }
     if (deduped.length === 0) showToast('⚠️ جميع المهام موجودة مسبقاً')
     else showToast(`✅ تمت إضافة ${deduped.length} مهمة${skipped ? ` (تجاهل ${skipped} مكررة)` : ''}`)
   }

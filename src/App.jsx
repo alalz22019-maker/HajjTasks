@@ -10,13 +10,15 @@ import ContactsPage from './pages/ContactsPage'
 import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 import { loadData, saveData } from './utils/storage'
-import { subscribeToTasks, subscribeToHajjReports } from './utils/db'
+import { subscribeToTasks, subscribeToHajjReports, subscribeToNotifications, markNotificationRead } from './utils/db'
 
 function AppShell() {
   const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, loading } = useAuth()
   const [page, setPage] = useState('dashboard')
   const [tasks, setTasks] = useState([])
   const [hajjReports, setHajjReports] = useState([])
+  const [notifications, setNotifications] = useState([])
+  const [showNotifs, setShowNotifs] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
   const [pledgeAccepted, setPledgeAccepted] = useState(false)
@@ -37,7 +39,8 @@ function AppShell() {
     if (!userProfile) return
     const unsub = subscribeToTasks(setTasks)
     const unsub2 = subscribeToHajjReports(setHajjReports)
-    return () => { unsub(); unsub2() }
+    const unsub3 = subscribeToNotifications(setNotifications)
+    return () => { unsub(); unsub2(); unsub3() }
   }, [userProfile])
 
   const persistApiKey = useCallback((key) => {
@@ -155,12 +158,68 @@ function AppShell() {
             <span style={{ color: 'var(--text3)', fontSize: 11, marginRight: 6 }}> | {userProfile.name}</span>
           </div>
         </div>
-        <button onClick={logout} style={{
-          background: 'var(--bg3)', border: '1px solid var(--border)',
-          borderRadius: 8, padding: '4px 10px',
-          color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-        }}>خروج</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* 🔔 Notification bell */}
+          {(() => {
+            const myNotifs = notifications.filter(n => n.to === userProfile.name && !n.read)
+            return (
+              <button onClick={() => setShowNotifs(!showNotifs)} style={{
+                background: myNotifs.length > 0 ? 'rgba(239,68,68,0.15)' : 'var(--bg3)',
+                border: '1px solid var(--border)', borderRadius: 8,
+                padding: '4px 8px', cursor: 'pointer', position: 'relative',
+                fontSize: 16,
+              }}>
+                🔔
+                {myNotifs.length > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -4, right: -4,
+                    background: '#ef4444', color: '#fff', borderRadius: '50%',
+                    width: 16, height: 16, fontSize: 10, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>{myNotifs.length}</span>
+                )}
+              </button>
+            )
+          })()}
+          <button onClick={logout} style={{
+            background: 'var(--bg3)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '4px 10px',
+            color: 'var(--text2)', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+          }}>خروج</button>
+        </div>
       </div>
+
+      {/* Notification panel */}
+      {showNotifs && (
+        <div style={{
+          padding: '12px 16px', background: 'var(--bg2)',
+          borderBottom: '1px solid var(--border)', maxHeight: 300, overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>🔔 الإشعارات</span>
+            <button onClick={() => setShowNotifs(false)} style={{
+              background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, cursor: 'pointer',
+            }}>✕</button>
+          </div>
+          {(() => {
+            const myNotifs = notifications.filter(n => n.to === userProfile.name)
+            if (myNotifs.length === 0) return <p style={{ color: 'var(--text3)', fontSize: 13, textAlign: 'center' }}>لا توجد إشعارات</p>
+            return myNotifs.slice(0, 20).map(n => (
+              <div key={n.id} onClick={async () => { if (!n.read) await markNotificationRead(n.id) }} style={{
+                padding: '10px 12px', borderRadius: 10, marginBottom: 6,
+                background: n.read ? 'var(--bg3)' : 'rgba(59,130,246,0.08)',
+                border: `1px solid ${n.read ? 'var(--border)' : 'rgba(59,130,246,0.2)'}`,
+                cursor: 'pointer',
+              }}>
+                <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: n.read ? 400 : 600 }}>{n.message}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>
+                  من: {n.from} {n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''}
+                </div>
+              </div>
+            ))
+          })()}
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
