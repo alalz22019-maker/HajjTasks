@@ -446,7 +446,7 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       showToast('🎉 أحسنت! تم إنجاز المهمة')
     } else { updates.completedAt = null }
 
-    try { await dbUpdateTask(id, updates) } catch (e) { console.error('Toggle error:', e); showToast('❌ ' + (e.message || 'خطأ في تحديث الحالة')) }
+    try { await dbUpdateTask(id, updates) } catch (e) { console.error('Toggle error:', e); showToast('❌ خطأ في تحديث الحالة') }
   }
 
   async function deleteTask(id) {

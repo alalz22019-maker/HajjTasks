@@ -27,7 +27,16 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  await updateDoc(doc(db, 'hajj_tasks', id), data)
+  try {
+    await updateDoc(doc(db, 'hajj_tasks', id), data)
+  } catch (e) {
+    // Fallback: try original tasks collection (for migrated tasks)
+    try {
+      await updateDoc(doc(db, 'tasks', id), data)
+    } catch (e2) {
+      throw e // throw original error
+    }
+  }
 }
 
 export async function deleteTask(id) {
