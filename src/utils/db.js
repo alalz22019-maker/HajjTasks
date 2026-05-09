@@ -27,7 +27,7 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  await updateDoc(doc(db, 'hajj_tasks', id), data)
+  await setDoc(doc(db, 'hajj_tasks', id), data, { merge: true })
 }
 
 export async function deleteTask(id) {
@@ -83,13 +83,15 @@ export async function deleteReportType(id) {
 /* ─── ACTIVITY LOG ───────────────────────────────────────── */
 
 export async function addActivityLog(taskId, logEntry) {
-  const ref = doc(db, 'hajj_tasks', taskId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const current = snap.data().activityLog || []
-  await updateDoc(ref, {
-    activityLog: [...current, { ...logEntry, at: new Date().toISOString() }]
-  })
+  try {
+    const ref = doc(db, 'hajj_tasks', taskId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return
+    const current = snap.data().activityLog || []
+    await setDoc(ref, {
+      activityLog: [...current, { ...logEntry, at: new Date().toISOString() }]
+    }, { merge: true })
+  } catch (e) { /* ignore log errors */ }
 }
 
 /* ─── USERS ──────────────────────────────────────────────── */
@@ -133,13 +135,15 @@ export async function createRequest(data) {
 }
 
 export async function addUpdateToTask(taskId, updateEntry) {
-  const ref = doc(db, 'hajj_tasks', taskId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const current = snap.data().updates || []
-  await updateDoc(ref, {
-    updates: [...current, { ...updateEntry, timestamp: new Date().toISOString() }]
-  })
+  try {
+    const ref = doc(db, 'hajj_tasks', taskId)
+    const snap = await getDoc(ref)
+    if (!snap.exists()) return
+    const current = snap.data().updates || []
+    await setDoc(ref, {
+      updates: [...current, { ...updateEntry, timestamp: new Date().toISOString() }]
+    }, { merge: true })
+  } catch (e) { /* ignore */ }
 }
 
 export async function importTasksFromArray(tasksArray) {
