@@ -127,6 +127,35 @@ export default function TaskCard({
               <span className="badge badge-project">📁 {task.projectName}</span>
             )}
           </div>
+
+          {/* آخر تحديث */}
+          {task.activityLog && task.activityLog.length > 0 && (() => {
+            const lastUpdate = [...task.activityLog].reverse().find(l => l.action === 'update')
+            const lastAction = task.activityLog[task.activityLog.length - 1]
+            const show = lastUpdate || lastAction
+            if (!show) return null
+            const actionLabels = {
+              created: '🆕 أنشأ المهمة', completed: '✅ أكمل', reopened: '🔄 أعاد فتح',
+              update: '📝', status_change: '🔄 غيّر الحالة', title_edit: '✏️ عدّل',
+            }
+            return (
+              <div style={{
+                marginTop: 6, padding: '5px 8px', borderRadius: 8,
+                background: 'rgba(59,130,246,0.05)', fontSize: 11, color: 'var(--text3)', lineHeight: 1.5,
+              }}>
+                {lastUpdate ? (
+                  <span>📝 <span style={{ color: 'var(--text2)' }}>{lastUpdate.by}</span>: {lastUpdate.detail}</span>
+                ) : (
+                  <span>{actionLabels[lastAction.action] || lastAction.action} — {lastAction.by}</span>
+                )}
+                {show.at && (
+                  <span style={{ marginRight: 6, fontSize: 10 }}>
+                    {new Date(show.at).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
+            )
+          })()}
         </div>
       </div>
 

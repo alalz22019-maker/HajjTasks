@@ -249,7 +249,7 @@ function AppShell() {
           <HajjReportsPage />
         )}
         {page === 'stats' && (
-          <ReportsPage tasks={tasks} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
+          <ReportsPage tasks={tasks} hajjReports={hajjReports} showToast={showToast} apiKey={apiKey} userProfile={userProfile} />
         )}
         {page === 'contacts' && (
           <ContactsPage contacts={contacts} tasks={tasks} showToast={showToast} />
