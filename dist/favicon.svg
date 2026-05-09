@@ -1,46 +1,33 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#f59e0b"/>
-      <stop offset="100%" style="stop-color:#d97706"/>
+      <stop offset="100%" style="stop-color:#ef4444"/>
     </linearGradient>
   </defs>
-  <!-- Transparent background with rounded corners -->
-  <rect width="512" height="512" rx="112" ry="112" fill="#111111"/>
+  <!-- Orange-red gradient background -->
+  <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
   
-  <!-- Kaaba base -->
-  <rect x="146" y="130" width="220" height="220" rx="6" fill="#1a1a1a" stroke="#d4a017" stroke-width="5"/>
+  <!-- Kaaba body - dark cube -->
+  <rect x="156" y="140" width="200" height="200" rx="8" fill="#1a1a1a" stroke="#000" stroke-width="3"/>
   
-  <!-- Kiswa gold band top -->
-  <rect x="146" y="190" width="220" height="8" fill="#d4a017"/>
-  
-  <!-- Kiswa gold band bottom -->
-  <rect x="146" y="260" width="220" height="8" fill="#d4a017"/>
-  
-  <!-- Arabic calligraphy band area -->
-  <rect x="146" y="200" width="220" height="58" fill="none" stroke="#d4a017" stroke-width="1.5" opacity="0.5"/>
+  <!-- Kiswa gold band -->
+  <rect x="156" y="210" width="200" height="40" fill="none" stroke="#d4a017" stroke-width="2.5"/>
+  <rect x="156" y="215" width="200" height="4" fill="#d4a017" opacity="0.6"/>
+  <rect x="156" y="242" width="200" height="4" fill="#d4a017" opacity="0.6"/>
   
   <!-- Door -->
-  <rect x="228" y="245" width="56" height="90" rx="3" fill="#292929" stroke="#d4a017" stroke-width="3"/>
-  <!-- Door arch -->
-  <path d="M231 270 Q256 240 281 270" fill="none" stroke="#d4a017" stroke-width="2.5"/>
-  <!-- Door handle -->
-  <circle cx="270" cy="295" r="4" fill="#d4a017"/>
+  <rect x="228" y="250" width="56" height="80" rx="4" fill="#292929" stroke="#d4a017" stroke-width="2.5"/>
+  <path d="M231 272 Q256 248 281 272" fill="none" stroke="#d4a017" stroke-width="2"/>
   
-  <!-- Hajr Ismail curve -->
-  <path d="M146 340 Q80 290 80 220 Q80 150 146 130" fill="none" stroke="#d4a017" stroke-width="3.5" stroke-dasharray="10,5"/>
+  <!-- Hajr Ismail -->
+  <path d="M156 340 Q90 295 90 230 Q90 165 156 140" fill="none" stroke="#fff" stroke-width="3" opacity="0.4"/>
   
-  <!-- Maqam Ibrahim dot -->
-  <circle cx="300" cy="370" r="8" fill="#d4a017" opacity="0.6"/>
-  
-  <!-- Corner decorations -->
-  <circle cx="146" cy="130" r="6" fill="#d4a017"/>
-  <circle cx="366" cy="130" r="6" fill="#d4a017"/>
-  <circle cx="146" cy="350" r="6" fill="#d4a017"/>
-  <circle cx="366" cy="350" r="6" fill="#d4a017"/>
+  <!-- Black stone corner marker -->
+  <circle cx="366" cy="340" r="7" fill="#d4a017"/>
   
   <!-- LOC text -->
-  <text x="256" y="440" text-anchor="middle"
+  <text x="256" y="430" text-anchor="middle"
     font-family="'Helvetica Neue', Arial, sans-serif"
-    font-size="68" font-weight="800" fill="url(#gold)" letter-spacing="10">LOC</text>
+    font-size="64" font-weight="800" fill="#fff" letter-spacing="8">LOC</text>
 </svg>
