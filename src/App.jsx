@@ -177,6 +177,7 @@ function AppShell() {
         {page === 'tasks' && (
           <TasksPage
             tasks={tasks}
+            setTasks={setTasks}
             apiKey={apiKey}
             setApiKey={persistApiKey}
             showToast={showToast}

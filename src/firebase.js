@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 
 const firebaseConfig = {
   apiKey: "AIzaSyAOOReMBqWLOimGL7EeEyFLldPU1rVlEX4",
@@ -14,5 +14,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
-export const db   = getFirestore(app)
+// Firestore with no offline cache to avoid stale data
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: false,
+})
 export const googleProvider = new GoogleAuthProvider()

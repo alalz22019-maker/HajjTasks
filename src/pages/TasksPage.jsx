@@ -80,7 +80,7 @@ const REQUEST_LABELS = {
   close:      'إغلاق / إتمام المهمة',
 }
 
-export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userProfile, onRequestUpdate, onNavigate }) {
+export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToast, userProfile, onRequestUpdate, onNavigate }) {
   const envApiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const currentApiKey = apiKey || envApiKey || '';
 
@@ -446,7 +446,18 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
       showToast('🎉 أحسنت! تم إنجاز المهمة')
     } else { updates.completedAt = null }
 
-    try { await dbUpdateTask(id, updates); console.log('✅ toggle done for', id) } catch (e) { console.error('Toggle error:', e); showToast('❌ خطأ في تحديث الحالة') }
+    // Optimistic UI update — حدّث الشاشة فوراً
+    if (setTasks) {
+      setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
+    }
+
+    try { await dbUpdateTask(id, updates) } catch (e) {
+      // لو فشل، ارجع الحالة القديمة
+      if (setTasks) {
+        setTasks(prev => prev.map(t => t.id === id ? task : t))
+      }
+      showToast('❌ خطأ في تحديث الحالة')
+    }
   }
 
   async function deleteTask(id) {
