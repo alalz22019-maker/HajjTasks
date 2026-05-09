@@ -117,18 +117,17 @@ export function AuthProvider({ children }) {
     setAuthError('')
   }
 
-  // الصلاحيات تأتي من حقل role في Firestore فقط — لا أسماء hardcoded
-  const isSuperUser = userProfile?.role === 'superuser'
-  const isAdmin     = userProfile?.role === 'admin'
-  const isUser      = userProfile && !isAdmin && !isSuperUser
+  // نسخة الحج — الكل admin بصلاحيات كاملة
+  const isSuperUser = false
+  const isAdmin     = true
+  const isUser      = false
 
-  // صلاحيات مفصّلة
-  const canWrite        = isAdmin || isSuperUser           // إضافة/تعديل مباشر
-  const canApprove      = isAdmin || isSuperUser           // موافقة على الطلبات
-  const canDelete       = isAdmin || isSuperUser           // حذف مهام
-  const canTransfer     = isAdmin || isSuperUser           // تحويل مهام
-  const canManageUsers  = isAdmin                          // إدارة مستخدمين (المدير فقط)
-  const canExport       = isAdmin || isSuperUser           // تصدير Excel
+  const canWrite        = true
+  const canApprove      = true
+  const canDelete       = true
+  const canTransfer     = true
+  const canManageUsers  = true
+  const canExport       = true
 
   return (
     <AuthContext.Provider value={{
