@@ -885,6 +885,13 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
         <div className="header-row">
           <div>
             <div className="header-title">أعمال الحج 🕋</div>
+            {tasks.length > 0 && (
+              <button onClick={async () => {
+                if (!window.confirm('حذف كل المهام؟')) return
+                for (const t of tasks) { try { await dbDeleteTask(t.id) } catch(e){} }
+                showToast('🗑 تم حذف كل المهام')
+              }} style={{ fontSize: 10, padding: '4px 8px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 }}>🗑 حذف الكل</button>
+            )}
             <div className="header-sub">{userProfile?.name}</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
