@@ -35,7 +35,7 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  await updateDoc(doc(db, 'hajj_tasks', id), data)
+  await setDoc(doc(db, 'hajj_tasks', id), data, { merge: true })
 }
 
 export async function deleteTask(id) {

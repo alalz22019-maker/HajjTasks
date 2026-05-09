@@ -9,27 +9,9 @@
       <stop offset="100%" style="stop-color:#d97706"/>
     </linearGradient>
   </defs>
-  <!-- Background -->
   <rect width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
-  <!-- Kaaba body -->
-  <rect x="156" y="160" width="200" height="200" rx="8" fill="#1a1a1a" stroke="#f59e0b" stroke-width="4"/>
-  <!-- Kiswa band (gold stripe) -->
-  <rect x="156" y="220" width="200" height="35" fill="none" stroke="#f59e0b" stroke-width="3"/>
-  <!-- Door -->
-  <rect x="230" y="270" width="52" height="80" rx="4" fill="#292929" stroke="#f59e0b" stroke-width="2"/>
-  <!-- Door arch -->
-  <path d="M230 290 Q256 260 282 290" fill="none" stroke="#f59e0b" stroke-width="2"/>
-  <!-- Hajr Ismail (semi-circle) -->
-  <path d="M156 360 Q100 320 100 260 Q100 200 156 160" fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="8,4"/>
-  <!-- Stars -->
-  <circle cx="380" cy="120" r="3" fill="#f59e0b" opacity="0.8"/>
-  <circle cx="420" cy="150" r="2" fill="#f59e0b" opacity="0.6"/>
-  <circle cx="130" cy="100" r="2.5" fill="#f59e0b" opacity="0.7"/>
-  <circle cx="350" cy="90" r="2" fill="#f59e0b" opacity="0.5"/>
-  <!-- Crescent -->
-  <path d="M400 80 Q415 95 400 110 Q390 95 400 80" fill="#f59e0b" opacity="0.9"/>
-  <!-- Text -->
+  <text x="256" y="280" text-anchor="middle" font-size="220">🕋</text>
   <text x="256" y="430" text-anchor="middle"
     font-family="'IBM Plex Sans Arabic', Arial, sans-serif"
-    font-size="52" font-weight="700" fill="url(#gold)">الحج</text>
+    font-size="72" font-weight="800" fill="url(#gold)" letter-spacing="12">LOC</text>
 </svg>
