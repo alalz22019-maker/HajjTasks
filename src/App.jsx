@@ -19,7 +19,7 @@ function AppShell() {
   const [hajjReports, setHajjReports] = useState([])
   const [apiKey, setApiKey] = useState('')
   const [toast, setToast] = useState(null)
-  const [pledgeAccepted, setPledgeAccepted] = useState(true)
+  const [pledgeAccepted, setPledgeAccepted] = useState(false)
 
   useEffect(() => {
     const storedKey = loadData('mytasks_apikey') || ''

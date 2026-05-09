@@ -447,7 +447,13 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
     try {
       await dbUpdateTask(id, updates)
+      // سجل في Activity Log
+      await addActivityLog(id, {
+        action: done ? 'completed' : 'reopened',
+        by: userProfile?.name || '',
+      })
       if (done) showToast('🎉 أحسنت! تم إنجاز المهمة')
+      else showToast('🔄 تم إعادة فتح المهمة')
     } catch (e) {
       showToast('❌ خطأ في تحديث الحالة: ' + (e.code || e.message || '').substring(0, 40))
     }
