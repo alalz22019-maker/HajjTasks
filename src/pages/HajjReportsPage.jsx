@@ -181,11 +181,28 @@ export default function HajjReportsPage() {
           }}>الكل ({reports.length})</button>
           {allTypes.map(t => {
             const count = reports.filter(r => r.reportType === t.value).length
+            const isCustom = customTypes.some(ct => ct.id === t.value)
             return (
-              <button key={t.value} onClick={() => setFilter(t.value)} style={{
-                ...S.btn(filter === t.value ? '#3b82f6' : 'var(--bg3)'),
-                fontSize: 12, padding: '6px 12px', color: filter === t.value ? '#fff' : 'var(--text2)',
-              }}>{t.label} ({count})</button>
+              <div key={t.value} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                <button onClick={() => setFilter(t.value)} style={{
+                  ...S.btn(filter === t.value ? '#3b82f6' : 'var(--bg3)'),
+                  fontSize: 12, padding: '6px 12px', color: filter === t.value ? '#fff' : 'var(--text2)',
+                  borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+                }}>{t.label} ({count})</button>
+                {isCustom && (
+                  confirmDeleteType === t.value ? (
+                    <div style={{ display: 'flex', gap: 2 }}>
+                      <button onClick={() => handleDeleteType(t.value)} style={{ ...S.btn('#ef4444'), padding: '4px 6px', fontSize: 10, borderRadius: '8px 0 0 8px' }}>حذف</button>
+                      <button onClick={() => setConfirmDeleteType(null)} style={{ ...S.btn('var(--bg3)'), padding: '4px 6px', fontSize: 10 }}>لا</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => setConfirmDeleteType(t.value)} style={{
+                      background: 'var(--bg3)', border: 'none', borderRadius: '8px 0 0 8px',
+                      padding: '6px 6px', color: '#ef4444', cursor: 'pointer', fontSize: 11,
+                    }}>✕</button>
+                  )
+                )}
+              </div>
             )
           })}
         </div>
