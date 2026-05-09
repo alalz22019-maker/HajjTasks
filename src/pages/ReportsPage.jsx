@@ -597,15 +597,19 @@ function DailyBriefCard({ tasks, hajjReports = [] }) {
               borderRadius: 14, padding: '14px 16px',
             }}>
               <SectionHead icon="✅" label="أنجز خلال آخر ٢٤ ساعة" count={done24h.length} color="green" />
-              {done24h.map(t => (
+              {done24h.map(t => {
+                const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
+                return (
                 <div key={t.id} style={{ display: 'flex', gap: 8, marginBottom: 5, alignItems: 'flex-start' }}>
                   <span style={{ color: D.green, fontSize: 11, flexShrink: 0, lineHeight: 1.5 }}>✓</span>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5, textDecoration: 'line-through', textDecorationColor: D.green }}>{t.title}</div>
                     {t.person && <div style={{ fontSize: 10, color: D.text2, marginTop: 2 }}>👤 {t.person}</div>}
+                    {lastUpdate && <div style={{ fontSize: 10, color: D.text2, marginTop: 3, opacity: 0.85 }}>📝 {lastUpdate.by}: {lastUpdate.detail}</div>}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
