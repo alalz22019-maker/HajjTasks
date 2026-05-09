@@ -3,12 +3,12 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAOOReMBqWLOimGL7EeEyFLldPU1rVlEX4",
-  authDomain: "mahami-ba8fa.firebaseapp.com",
-  projectId: "mahami-ba8fa",
-  storageBucket: "mahami-ba8fa.firebasestorage.app",
-  messagingSenderId: "957143670408",
-  appId: "1:957143670408:web:33151564a85c7d7fcf093d",
+  apiKey: "AIzaSyCh2mK-v6gKy7A8FzGUbffHs8CJJIm6XZk",
+  authDomain: "hajj-ops-17f7a.firebaseapp.com",
+  projectId: "hajj-ops-17f7a",
+  storageBucket: "hajj-ops-17f7a.firebasestorage.app",
+  messagingSenderId: "249024146317",
+  appId: "1:249024146317:web:1e2943cda0b094365b2bc4",
 }
 
 const app = initializeApp(firebaseConfig)
