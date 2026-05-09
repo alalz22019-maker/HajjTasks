@@ -435,21 +435,8 @@ export default function TasksPage({ tasks, apiKey, setApiKey, showToast, userPro
   async function toggleTask(id) {
     const task = tasks.find(t => t.id === id)
     if (!task) return
-    if (!canWrite && !task.done) {
-      // الموظف يقدر يغلق مهمته مباشرة
-      try {
-        await dbUpdateTask(id, { 
-          done: true, status: 'completed', 
-          completedAt: new Date().toISOString(),
-          needsApproval: true,
-          pendingEdit: { type: 'close', by: userProfile?.name },
-        })
-        showToast('✅ تم إنجاز المهمة')
-      } catch(e) { showToast('❌ خطأ في إغلاق المهمة') }
-      return
-    }
     const done = !task.done
-    const updates = { done, status: done ? 'done' : 'new' }
+    const updates = { done, status: done ? 'completed' : 'not_started' }
     if (done && task.recurrence) {
       const newDue = calcNextDue(task.dueDate, task.recurrence)
       Object.assign(updates, { done: false, status: 'not_started', dueDate: newDue, completedAt: null })

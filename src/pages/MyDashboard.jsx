@@ -294,101 +294,58 @@ export default function MyDashboard({ tasks, hajjReports = [], showToast, onNavi
           const completed = hajjReports.filter(r => r.status === 'completed')
           if (pending.length === 0 && completed.length === 0) return null
           return (
-            <div style={{ margin: '12px 16px 0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>📋 التقارير</span>
-                <button onClick={() => onNavigate('hajjreports')} style={{
-                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
-                  borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 600,
-                  color: '#60a5fa', cursor: 'pointer', fontFamily: 'inherit',
-                }}>عرض الكل</button>
-              </div>
-              {pending.length > 0 && (
-                <div style={{
-                  background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
-                  borderRadius: 12, padding: '10px 14px', marginBottom: 8,
-                }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⏳ متبقي: {pending.length} تقرير</span>
-                  {pending.slice(0, 3).map(r => (
-                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{r.title || r.reportType}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text3)' }}>👤 {r.person}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                <span style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>✅ {completed.length} مكتمل</span>
-                <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 600 }}>⏳ {pending.length} متبقي</span>
-                <span style={{ fontSize: 12, color: 'var(--text3)' }}>📊 إجمالي: {hajjReports.length}</span>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* 🔔 التنبيهات — أول شي يشوفه الموظف */}
-        {(() => {
-          const myUpdates = updateRequests.filter(u => u.status === 'pending' && u.requestedFromName === userName)
-          const myApprovedReqs = pendingRequests
-          const alertCount = myUpdates.length + overdueTasks.length
-          if (alertCount === 0 && myApprovedReqs === 0) return null
-          return (
             <div style={{
               margin: '12px 16px 0', padding: '14px 16px', borderRadius: 14,
-              background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)',
+              background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(59,130,246,0.06))',
+              border: '1px solid rgba(99,102,241,0.15)',
             }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                🔔 التنبيهات
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{alertCount + myApprovedReqs}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>📋 التقارير</span>
+                <button onClick={() => onNavigate('hajjreports')} style={{
+                  background: 'rgba(59,130,246,0.15)', border: 'none',
+                  borderRadius: 8, padding: '5px 12px', fontSize: 11, fontWeight: 600,
+                  color: '#60a5fa', cursor: 'pointer', fontFamily: 'inherit',
+                }}>عرض الكل →</button>
               </div>
 
-              {/* طلبات تحديث من المدير */}
-              {myUpdates.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#8b5cf6', marginBottom: 4 }}>📩 طلبات تحديث ({myUpdates.length})</div>
-                  {myUpdates.map(u => (
-                    <div key={u.id} style={{
-                      padding: '8px 10px', borderRadius: 10, marginBottom: 4,
-                      background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.15)',
-                      fontSize: 12, color: 'var(--text)',
-                    }}>
-                      <div style={{ fontWeight: 600 }}>{u.taskTitle}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>من: {u.requestedByName}</div>
-                    </div>
-                  ))}
+              {/* ملخص أرقام */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <div style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 10, background: 'rgba(16,185,129,0.08)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>{completed.length}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>مكتمل</div>
                 </div>
-              )}
-
-              {/* مهام متأخرة */}
-              {overdueTasks.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--orange)', marginBottom: 4 }}>⚠️ مهام متأخرة ({overdueTasks.length})</div>
-                  {overdueTasks.slice(0, 3).map(t => (
-                    <div key={t.id} style={{
-                      padding: '8px 10px', borderRadius: 10, marginBottom: 4,
-                      background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.12)',
-                      fontSize: 12, color: 'var(--text)',
-                    }}>
-                      <div style={{ fontWeight: 600 }}>{t.title.substring(0, 50)}</div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2 }}>📅 {t.dueDate}</div>
-                    </div>
-                  ))}
+                <div style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 10, background: 'rgba(239,68,68,0.08)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#ef4444' }}>{pending.length}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>متبقي</div>
                 </div>
-              )}
+                <div style={{ flex: 1, textAlign: 'center', padding: '8px 0', borderRadius: 10, background: 'rgba(99,102,241,0.08)' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#a5b4fc' }}>{hajjReports.length}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>إجمالي</div>
+                </div>
+              </div>
 
-              {/* طلبات معلقة (للمدير) */}
-              {isAdmin && myApprovedReqs > 0 && (
-                <button onClick={() => onNavigate('admin')} style={{
-                  padding: '8px 14px', borderRadius: 10, width: '100%',
-                  background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)',
-                  color: 'var(--blue)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              {/* قائمة المتبقي */}
+              {pending.slice(0, 3).map(r => (
+                <div key={r.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)',
                 }}>
-                  📨 {myApprovedReqs} طلب معلق — عرض في الإدارة →
-                </button>
+                  <div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{r.title || 'تقرير'}</span>
+                    {r.seqNum && <span style={{ fontSize: 10, color: '#f59e0b', marginRight: 4 }}> #{r.seqNum}</span>}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text3)' }}>👤 {r.person}</span>
+                </div>
+              ))}
+              {pending.length > 3 && (
+                <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center', marginTop: 6 }}>
+                  +{pending.length - 3} تقارير أخرى
+                </div>
               )}
             </div>
           )
         })()}
+
 
         {/* ④ الملخص الصباحي الذكي */}
         <div style={{
