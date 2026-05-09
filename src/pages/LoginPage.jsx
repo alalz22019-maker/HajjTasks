@@ -2,27 +2,15 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { getFirestore, doc, setDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore'
 
-// قائمة الأسماء والأدوار المعتمدة في النظام بناءً على الكشف الرسمي
+// فريق أعمال الحج — 7 أشخاص فقط — الكل admin
 const INITIAL_TEAM_MAP = [
   { name: 'م. علي الزهراني', role: 'admin' },
   { name: 'د. منار سمان', role: 'admin' },
   { name: 'د. وليد الحسن', role: 'admin' },
-  { name: 'أ. عبير الشدوخي', role: 'superuser' },
-  { name: 'د. حامد الزهراني', role: 'user' },
-  { name: 'أ. حماد المظيبري', role: 'user' },
-  { name: 'أ. محمد القرشي', role: 'user' },
-  { name: 'أ. محمد الحجيلي', role: 'user' },
-  { name: 'أ. سعد القرشي', role: 'user' },
-  { name: 'أ. أميرة التميمي', role: 'user' },
-  { name: 'Eksha Mohapatra', role: 'user' },
-  { name: 'د. مرام الشهراني', role: 'user' },
-  { name: 'أ. وفاء آل إسماعيل', role: 'user' },
-  { name: 'د. سمية الغريب', role: 'user' },
-  { name: 'أ. مشاعل المطيري', role: 'user' },
-  { name: 'أ. صفاء الشهري', role: 'user' },
-  { name: 'أ. أمجاد المطيري', role: 'user' },
-  { name: 'أ. مي الأسمري', role: 'user' },
-  { name: 'أ. شادي نبيل', role: 'user' }
+  { name: 'أ. محمد القرشي', role: 'admin' },
+  { name: 'أ. محمد الحجيلي', role: 'admin' },
+  { name: 'أ. سعد القرشي', role: 'admin' },
+  { name: 'م. حمادي الشعائره', role: 'admin' },
 ]
 
 export default function LoginPage() {
