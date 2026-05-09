@@ -27,7 +27,9 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
+  console.log('📝 updateTask:', id, JSON.stringify(data))
   await setDoc(doc(db, 'hajj_tasks', id), data, { merge: true })
+  console.log('✅ updateTask success')
 }
 
 export async function deleteTask(id) {
