@@ -12,7 +12,7 @@ import { db } from '../firebase'
 
 export function subscribeToTasks(callback) {
   // بدون orderBy عشان نتجنب مشاكل الفهرسة
-  const ref = collection(db, 'hajj_tasks')
+  const ref = collection(db, 'tasks')
   return onSnapshot(ref, snap => {
     const tasks = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -27,7 +27,7 @@ export function subscribeToTasks(callback) {
 }
 
 export async function addTask(taskData) {
-  const ref = await addDoc(collection(db, 'hajj_tasks'), {
+  const ref = await addDoc(collection(db, 'tasks'), {
     ...taskData,
     createdAt: serverTimestamp(),
   })
@@ -35,17 +35,17 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  await setDoc(doc(db, 'hajj_tasks', id), data, { merge: true })
+  await setDoc(doc(db, 'tasks', id), data, { merge: true })
 }
 
 export async function deleteTask(id) {
-  await deleteDoc(doc(db, 'hajj_tasks', id))
+  await deleteDoc(doc(db, 'tasks', id))
 }
 
 /* ─── HAJJ REPORTS ───────────────────────────────────────── */
 
 export function subscribeToHajjReports(callback) {
-  const ref = collection(db, 'hajj_reports')
+  const ref = collection(db, 'reports')
   return onSnapshot(ref, snap => {
     const reports = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     reports.sort((a, b) => {
@@ -58,7 +58,7 @@ export function subscribeToHajjReports(callback) {
 }
 
 export async function addHajjReport(reportData) {
-  const ref = await addDoc(collection(db, 'hajj_reports'), {
+  const ref = await addDoc(collection(db, 'reports'), {
     ...reportData,
     createdAt: serverTimestamp(),
   })
@@ -66,24 +66,24 @@ export async function addHajjReport(reportData) {
 }
 
 export async function updateHajjReport(id, data) {
-  await updateDoc(doc(db, 'hajj_reports', id), data)
+  await updateDoc(doc(db, 'reports', id), data)
 }
 
 export async function deleteHajjReport(id) {
-  await deleteDoc(doc(db, 'hajj_reports', id))
+  await deleteDoc(doc(db, 'reports', id))
 }
 
 /* ─── REPORT TYPES ───────────────────────────────────────── */
 
 export function subscribeToReportTypes(callback) {
-  const ref = collection(db, 'hajj_report_types')
+  const ref = collection(db, 'report_types')
   return onSnapshot(ref, snap => {
     callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
   })
 }
 
 export async function addReportType(typeData) {
-  const ref = await addDoc(collection(db, 'hajj_report_types'), {
+  const ref = await addDoc(collection(db, 'report_types'), {
     ...typeData,
     createdAt: serverTimestamp(),
   })
@@ -91,14 +91,14 @@ export async function addReportType(typeData) {
 }
 
 export async function deleteReportType(id) {
-  await deleteDoc(doc(db, 'hajj_report_types', id))
+  await deleteDoc(doc(db, 'report_types', id))
 }
 
 /* ─── ACTIVITY LOG ───────────────────────────────────────── */
 
 export async function addActivityLog(taskId, logEntry) {
   try {
-    const ref = doc(db, 'hajj_tasks', taskId)
+    const ref = doc(db, 'tasks', taskId)
     const snap = await getDoc(ref)
     if (!snap.exists()) return
     const current = snap.data().activityLog || []
@@ -124,7 +124,7 @@ export async function createUser({ uid, email, name, role }) {
 /* ─── NOTIFICATIONS ──────────────────────────────────────── */
 
 export function subscribeToNotifications(callback) {
-  const ref = collection(db, 'hajj_notifications')
+  const ref = collection(db, 'notifications')
   return onSnapshot(ref, snap => {
     const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     notifs.sort((a, b) => {
@@ -137,13 +137,13 @@ export function subscribeToNotifications(callback) {
 }
 
 export async function addNotification(data) {
-  await addDoc(collection(db, 'hajj_notifications'), {
+  await addDoc(collection(db, 'notifications'), {
     ...data, read: false, createdAt: serverTimestamp(),
   })
 }
 
 export async function markNotificationRead(id) {
-  await updateDoc(doc(db, 'hajj_notifications', id), { read: true })
+  await updateDoc(doc(db, 'notifications', id), { read: true })
 }
 
 /* ─── STUBS ──────────────────────────────────────────────── */
@@ -154,7 +154,7 @@ export async function createRequest(data) {
 
 export async function addUpdateToTask(taskId, updateEntry) {
   try {
-    const ref = doc(db, 'hajj_tasks', taskId)
+    const ref = doc(db, 'tasks', taskId)
     const snap = await getDoc(ref)
     if (!snap.exists()) return
     const current = snap.data().updates || []
@@ -168,14 +168,14 @@ export async function importTasksFromArray(tasksArray) {
   const batch = writeBatch(db)
   tasksArray.forEach(t => {
     const { id: _id, ...rest } = t
-    const ref = doc(collection(db, 'hajj_tasks'))
+    const ref = doc(collection(db, 'tasks'))
     batch.set(ref, { ...rest, createdAt: serverTimestamp() })
   })
   await batch.commit()
 }
 
 export async function isTasksEmpty() {
-  const snap = await getDocs(collection(db, 'hajj_tasks'))
+  const snap = await getDocs(collection(db, 'tasks'))
   return snap.empty
 }
 
