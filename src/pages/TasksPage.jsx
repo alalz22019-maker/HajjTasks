@@ -312,8 +312,25 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
             taskTitle: taskData.title,
             to: taskData.person,
             from: userProfile?.name || '',
-            message: `كلّفك ${userProfile?.name || ''} بمهمة: ${taskData.title}`,
+            message: taskData.taskType === 'meeting'
+              ? `دعاك ${userProfile?.name || ''} لاجتماع: ${taskData.title}`
+              : `كلّفك ${userProfile?.name || ''} بمهمة: ${taskData.title}`,
           })
+        }
+        // إشعار للحضور (اجتماعات)
+        if (taskData.attendees && taskData.attendees.length > 0) {
+          for (const att of taskData.attendees) {
+            if (att !== userProfile?.name && att !== taskData.person) {
+              await addNotification({
+                type: 'meeting_invite',
+                taskId: newId,
+                taskTitle: taskData.title,
+                to: att,
+                from: userProfile?.name || '',
+                message: `دعاك ${userProfile?.name || ''} لاجتماع: ${taskData.title}`,
+              })
+            }
+          }
         }
       }
       if (subTaskTitles.length > 0) {

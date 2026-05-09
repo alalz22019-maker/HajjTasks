@@ -163,7 +163,10 @@ export default function MyDashboard({ tasks, hajjReports = [], showToast, onNavi
   }
 
   const myTasks = useMemo(() => 
-    tasks.filter(t => t.person && t.person.includes(userName))
+    tasks.filter(t => 
+      (t.person && t.person.includes(userName)) ||
+      (t.attendees && t.attendees.includes(userName))
+    )
   , [tasks, userName])
 
   const allTasks = tasks
