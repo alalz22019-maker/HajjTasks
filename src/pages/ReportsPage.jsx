@@ -871,6 +871,222 @@ function WeeklyReportTab({ tasks, userName }) {
   )
 }
 
+/* ─── التقرير الشامل ─────────────────────────────────────── */
+function ComprehensiveReport({ tasks, hajjReports = [] }) {
+  const { hijri, gregorianEn } = formatDates()
+  
+  const all = tasks
+  const total = all.length
+  const done = all.filter(t => t.done)
+  const pending = all.filter(t => !t.done)
+  const urgent = pending.filter(t => t.priority === 'urgent')
+  const overdue = pending.filter(t => {
+    if (!t.dueDate) return false
+    const d = new Date(t.dueDate); d.setHours(23,59,59)
+    return d < new Date()
+  })
+  const pct = total ? Math.round((done.length / total) * 100) : 0
+
+  // تجميع حسب الشخص
+  const byPerson = {}
+  all.forEach(t => {
+    const p = t.person || 'غير محدد'
+    if (!byPerson[p]) byPerson[p] = { total: 0, done: 0, tasks: [] }
+    byPerson[p].total++
+    if (t.done) byPerson[p].done++
+    byPerson[p].tasks.push(t)
+  })
+
+  // تجميع حسب الملف
+  const byProject = {}
+  all.forEach(t => {
+    const p = t.projectName || 'بدون تصنيف'
+    if (!byProject[p]) byProject[p] = { total: 0, done: 0 }
+    byProject[p].total++
+    if (t.done) byProject[p].done++
+  })
+
+  // تقارير
+  const reportsDone = hajjReports.filter(r => r.status === 'completed')
+  const reportsPending = hajjReports.filter(r => r.status !== 'completed')
+
+  function shareBrief() {
+    let text = `📊 *التقرير الشامل — أعمال الحج*\n`
+    text += `📅 ${hijri}\n📆 ${gregorianEn}\n\n`
+    text += `📋 إجمالي المهام: ${total}\n✅ مكتملة: ${done.length}\n⏳ معلقة: ${pending.length}\n🔴 عاجلة: ${urgent.length}\n⚡ متأخرة: ${overdue.length}\n📊 نسبة الإنجاز: ${pct}%\n\n`
+    
+    if (reportsPending.length > 0 || reportsDone.length > 0) {
+      text += `📋 *التقارير:* مكتمل ${reportsDone.length} | متبقي ${reportsPending.length}\n\n`
+    }
+
+    text += `👥 *الأداء حسب المسؤول:*\n`
+    Object.entries(byPerson).sort((a,b) => b[1].total - a[1].total).forEach(([name, v]) => {
+      const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+      text += `• ${name}: ${v.done}/${v.total} (${p}%)\n`
+    })
+
+    text += `\n📁 *حسب الملف:*\n`
+    Object.entries(byProject).forEach(([name, v]) => {
+      text += `• ${name}: ${v.done}/${v.total}\n`
+    })
+
+    if (pending.length > 0) {
+      text += `\n⏳ *المهام المعلقة:*\n`
+      pending.forEach(t => {
+        const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
+        text += `• ${t.title}`
+        if (t.person) text += ` (${t.person})`
+        if (lastUpdate) text += `\n  📝 ${lastUpdate.detail}`
+        text += `\n`
+      })
+    }
+
+    if (done.length > 0) {
+      text += `\n✅ *المهام المنجزة:*\n`
+      done.forEach(t => {
+        const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
+        text += `• ~~${t.title}~~`
+        if (t.person) text += ` (${t.person})`
+        if (lastUpdate) text += `\n  📝 ${lastUpdate.detail}`
+        text += `\n`
+      })
+    }
+
+    text += `\n_تم إصداره عبر نظام أعمال الحج_`
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank')
+  }
+
+  const S = {
+    card: { background: CARD.background, borderRadius: 14, border: `1px solid ${D.border}`, padding: '14px 16px', marginBottom: 12, boxShadow: CARD.boxShadow },
+    sectionTitle: { fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 },
+  }
+
+  return (
+    <div style={{ padding: '0 16px 32px', direction: 'rtl' }}>
+      {/* Share button */}
+      <button onClick={shareBrief} style={{
+        width: '100%', padding: '12px', borderRadius: 12, border: 'none', marginBottom: 14,
+        background: '#25D366', color: '#fff', fontSize: 14, fontWeight: 700,
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}>📤 مشاركة التقرير الشامل — واتساب</button>
+
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(135deg, #004D2C, #006B3F)', borderRadius: 16,
+        padding: '18px 20px', marginBottom: 14, color: '#fff',
+      }}>
+        <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 4 }}>📊 التقرير الشامل</div>
+        <div style={{ fontSize: 11, opacity: 0.8 }}>أعمال الحج — {hijri}</div>
+        <div style={{ fontSize: 10, opacity: 0.6, direction: 'ltr', textAlign: 'right' }}>{gregorianEn}</div>
+        <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 800 }}>{total}</div><div style={{ fontSize: 9, opacity: 0.7 }}>إجمالي</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 800, color: '#4ade80' }}>{done.length}</div><div style={{ fontSize: 9, opacity: 0.7 }}>مكتملة</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 800, color: '#fbbf24' }}>{pending.length}</div><div style={{ fontSize: 9, opacity: 0.7 }}>معلقة</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 800, color: '#f87171' }}>{overdue.length}</div><div style={{ fontSize: 9, opacity: 0.7 }}>متأخرة</div></div>
+          <div style={{ textAlign: 'center' }}><div style={{ fontSize: 22, fontWeight: 800 }}>{pct}%</div><div style={{ fontSize: 9, opacity: 0.7 }}>إنجاز</div></div>
+        </div>
+      </div>
+
+      {/* التقارير */}
+      {hajjReports.length > 0 && (
+        <div style={S.card}>
+          <div style={S.sectionTitle}><span>📋</span><span style={{ color: D.blue }}>التقارير</span></div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <div style={{ flex: 1, textAlign: 'center', padding: '6px', borderRadius: 8, background: KPI_PALETTE.green.bg }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: D.green }}>{reportsDone.length}</div>
+              <div style={{ fontSize: 9, color: D.text2 }}>مكتمل</div>
+            </div>
+            <div style={{ flex: 1, textAlign: 'center', padding: '6px', borderRadius: 8, background: KPI_PALETTE.red.bg }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: D.red }}>{reportsPending.length}</div>
+              <div style={{ fontSize: 9, color: D.text2 }}>متبقي</div>
+            </div>
+          </div>
+          {reportsPending.map(r => (
+            <div key={r.id} style={{ fontSize: 11, color: D.text, padding: '4px 0', borderBottom: `1px solid ${D.border}` }}>
+              ⏳ {r.title || 'تقرير'} {r.person ? `— ${r.person}` : ''}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* الأداء حسب المسؤول */}
+      <div style={S.card}>
+        <div style={S.sectionTitle}><span>👥</span><span style={{ color: D.blue }}>الأداء حسب المسؤول</span></div>
+        {Object.entries(byPerson).sort((a,b) => b[1].total - a[1].total).map(([name, v]) => {
+          const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+          return (
+            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: D.text, flex: 1, minWidth: 0 }}>{name}</span>
+              <span style={{ fontSize: 10, color: D.text2 }}>{v.done}/{v.total}</span>
+              <div style={{ width: 60, height: 6, borderRadius: 3, background: D.grayBg, overflow: 'hidden' }}>
+                <div style={{ width: `${p}%`, height: '100%', borderRadius: 3, background: p === 100 ? D.green : p >= 50 ? D.blue : D.yellow }} />
+              </div>
+              <span style={{ fontSize: 10, fontWeight: 700, color: p === 100 ? D.green : D.text2, width: 32, textAlign: 'left' }}>{p}%</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* حسب الملف */}
+      <div style={S.card}>
+        <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>حسب الملف</span></div>
+        {Object.entries(byProject).map(([name, v]) => {
+          const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+          return (
+            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: D.text, flex: 1 }}>{name}</span>
+              <span style={{ fontSize: 10, color: D.text2 }}>{v.done}/{v.total}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: p === 100 ? D.green : D.text2 }}>{p}%</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* المهام المعلقة */}
+      {pending.length > 0 && (
+        <div style={S.card}>
+          <div style={S.sectionTitle}><span>⏳</span><span style={{ color: D.yellow }}>المهام المعلقة ({pending.length})</span></div>
+          {pending.map(t => {
+            const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
+            const isOd = t.dueDate && new Date(t.dueDate) < new Date()
+            return (
+              <div key={t.id} style={{ padding: '8px 0', borderBottom: `1px solid ${D.border}` }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5 }}>{t.title}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                  {t.person && <span style={{ fontSize: 10, color: D.text2 }}>👤 {t.person}</span>}
+                  {t.dueDate && <span style={{ fontSize: 10, color: isOd ? D.red : D.text2 }}>📅 {t.dueDate}</span>}
+                  {t.priority === 'urgent' && <span style={{ fontSize: 10, color: D.red, fontWeight: 700 }}>🔴 عاجل</span>}
+                </div>
+                {lastUpdate && <div style={{ fontSize: 10, color: D.text2, marginTop: 3 }}>📝 {lastUpdate.by}: {lastUpdate.detail}</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* المهام المنجزة */}
+      {done.length > 0 && (
+        <div style={S.card}>
+          <div style={S.sectionTitle}><span>✅</span><span style={{ color: D.green }}>المهام المنجزة ({done.length})</span></div>
+          {done.map(t => {
+            const lastUpdate = t.activityLog ? [...t.activityLog].reverse().find(l => l.action === 'update') : null
+            return (
+              <div key={t.id} style={{ padding: '6px 0', borderBottom: `1px solid ${D.border}` }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: D.text, lineHeight: 1.5, textDecoration: 'line-through', textDecorationColor: D.green, opacity: 0.7 }}>{t.title}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
+                  {t.person && <span style={{ fontSize: 10, color: D.text2 }}>👤 {t.person}</span>}
+                  {t.completedAt && <span style={{ fontSize: 10, color: D.green }}>✅ {new Date(t.completedAt).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' })}</span>}
+                </div>
+                {lastUpdate && <div style={{ fontSize: 10, color: D.text2, marginTop: 3 }}>📝 {lastUpdate.by}: {lastUpdate.detail}</div>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ReportsPage({ tasks, hajjReports = [], showToast, apiKey, userProfile }) {
 
   const { isUser } = useAuth() 
@@ -1203,10 +1419,23 @@ export default function ReportsPage({ tasks, hajjReports = [], showToast, apiKey
                 transition: 'all 0.2s',
               }}
             >⚡ اليومي</button>
+            <button
+              onClick={() => setVisualType('comprehensive')}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: visualType === 'comprehensive'
+                  ? 'linear-gradient(135deg, #10b981, #059669)'
+                  : 'var(--bg3)',
+                color: visualType === 'comprehensive' ? '#fff' : 'var(--text2)',
+                transition: 'all 0.2s',
+              }}
+            >📊 الشامل</button>
           </div>
 
           {visualType === 'executive' && <VisualSummary tasks={tasks} apiKey={apiKey} />}
           {visualType === 'daily'     && (() => { try { return <DailyBriefCard tasks={tasks} hajjReports={hajjReports} /> } catch(e) { return <div style={{padding:20,color:'red'}}>خطأ في التقرير اليومي: {e.message}</div> } })()}
+          {visualType === 'comprehensive' && <ComprehensiveReport tasks={tasks} hajjReports={hajjReports} />}
         </div>
       )}
 
