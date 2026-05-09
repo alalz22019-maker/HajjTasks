@@ -14,8 +14,9 @@ export function subscribeToTasks(callback) {
   // بدون orderBy عشان نتجنب مشاكل الفهرسة
   const ref = collection(db, 'hajj_tasks')
   return onSnapshot(ref, snap => {
-    const tasks = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    // ترتيب يدوي
+    const tasks = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.title) // تجاهل المهام بدون عنوان
     tasks.sort((a, b) => {
       const da = a.createdAt?.toDate?.() || new Date(a.createdAt || 0)
       const db2 = b.createdAt?.toDate?.() || new Date(b.createdAt || 0)
