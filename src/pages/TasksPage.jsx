@@ -443,20 +443,13 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       showToast('🔄 تجددت المهمة المتكررة')
     } else if (done) {
       updates.completedAt = new Date().toISOString()
-      showToast('🎉 أحسنت! تم إنجاز المهمة')
     } else { updates.completedAt = null }
 
-    // Optimistic UI update — حدّث الشاشة فوراً
-    if (setTasks) {
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t))
-    }
-
-    try { await dbUpdateTask(id, updates) } catch (e) {
-      // لو فشل، ارجع الحالة القديمة
-      if (setTasks) {
-        setTasks(prev => prev.map(t => t.id === id ? task : t))
-      }
-      showToast('❌ خطأ في تحديث الحالة')
+    try {
+      await dbUpdateTask(id, updates)
+      if (done) showToast('🎉 أحسنت! تم إنجاز المهمة')
+    } catch (e) {
+      showToast('❌ خطأ في تحديث الحالة: ' + (e.code || e.message || '').substring(0, 40))
     }
   }
 

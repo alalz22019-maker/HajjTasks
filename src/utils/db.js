@@ -34,15 +34,7 @@ export async function addTask(taskData) {
 }
 
 export async function updateTask(id, data) {
-  const ref = doc(db, 'hajj_tasks', id)
-  // تأكد إن الـ document موجود أولاً
-  const snap = await getDoc(ref)
-  if (snap.exists()) {
-    await updateDoc(ref, data)
-  } else {
-    // إذا مو موجود، أنشئه
-    await setDoc(ref, { ...data, createdAt: serverTimestamp() })
-  }
+  await updateDoc(doc(db, 'hajj_tasks', id), data)
 }
 
 export async function deleteTask(id) {
