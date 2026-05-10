@@ -260,7 +260,7 @@ export default function MyDashboard({ tasks, hajjReports = [], showToast, onNavi
     { id: 'today',    label: 'اليوم',     icon: '📅' },
     { id: 'team',     label: 'الفريق',    icon: '👥' },
     { id: 'streak',   label: 'الإنجاز',   icon: '🔥' },
-    { id: 'projects', label: 'الملف',  icon: '📁' },
+    { id: 'projects', label: 'المسارات',  icon: '📁' },
   ]
 
   const RANK_MEDALS = ['🥇','🥈','🥉']
@@ -662,7 +662,7 @@ export default function MyDashboard({ tasks, hajjReports = [], showToast, onNavi
         {/* ─── Projects Section ─── */}
         {activeSection === 'projects' && (
           <div style={{ padding: '0 16px' }}>
-            <SectionHeader icon="📁" title="الملف" count={projects.length} />
+            <SectionHeader icon="📁" title="المسارات" count={projects.length} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
               {projects.map(p => (
                 <div key={p.name} style={{

@@ -271,7 +271,7 @@ function buildWeeklyReport(tasks, userName) {
 
   if (projects.length > 1) {
     lines.push(sep)
-    lines.push(`📁 *المشاريع*`)
+    lines.push(`📁 *المسارات*`)
     projects.slice(0, 6).forEach(([name, v]) => {
       const p = v.total ? Math.round((v.done / v.total) * 100) : 0
       lines.push(`• ${name}: ${v.done}/${v.total} (${p}%)`)
@@ -820,7 +820,7 @@ function WeeklyReportTab({ tasks, userName }) {
             fontSize: 14, fontWeight: 700, color: '#3b82f6', marginBottom: 8,
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <span>📁</span> المشاريع
+            <span>📁</span> المسارات
           </div>
           {projects.slice(0, 6).map(([name, v]) => {
             const p = v.total ? Math.round((v.done / v.total) * 100) : 0
@@ -899,7 +899,7 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
     byPerson[p].tasks.push(t)
   })
 
-  // تجميع حسب الملف
+  // تجميع حسب المسار
   const byProject = {}
   all.forEach(t => {
     const p = t.projectName || 'بدون تصنيف'
@@ -927,7 +927,7 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
       text += `• ${name}: ${v.done}/${v.total} (${p}%)\n`
     })
 
-    text += `\n📁 *حسب الملف:*\n`
+    text += `\n📁 *حسب المسار:*\n`
     Object.entries(byProject).forEach(([name, v]) => {
       text += `• ${name}: ${v.done}/${v.total}\n`
     })
@@ -1050,9 +1050,9 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
         })}
       </div>
 
-      {/* حسب الملف */}
+      {/* حسب المسار */}
       <div style={S.card}>
-        <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>حسب الملف</span></div>
+        <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>حسب المسار</span></div>
         {Object.entries(byProject).map(([name, v]) => {
           const p = v.total ? Math.round((v.done / v.total) * 100) : 0
           return (

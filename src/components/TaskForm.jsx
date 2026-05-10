@@ -269,7 +269,7 @@ export default function TaskForm({ task, onSave, onClose, apiKey, defaultTaskTyp
 
         {/* المشروع / المبادرة — multi-select */}
         <div className="form-group">
-          <label className="form-label">الملف / المبادرة</label>
+          <label className="form-label">المسار</label>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {PROJECT_FILES.map(p => {
               const selected = (form.projectNames || []).includes(p)
