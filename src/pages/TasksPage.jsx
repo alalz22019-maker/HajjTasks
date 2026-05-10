@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import TaskCard from '../components/TaskCard'
 import SubtaskInline from '../components/SubtaskInline'
 import TaskForm from '../components/TaskForm'
-import { STATUS_OPTIONS, migrateStatus, TEAM_MEMBERS } from '../constants'
+import { STATUS_OPTIONS, migrateStatus, TEAM_MEMBERS, PROJECT_FILES } from '../constants'
 import SmartChat from '../components/SmartChat'
 import MeetingMinutesParser from '../components/MeetingMinutesParser'
 import QuickAddMenu from '../components/QuickAddMenu'
@@ -54,6 +54,7 @@ const FILTERS = [
   { id: 'done',     label: 'مكتملة' },
   { id: 'urgent',   label: 'عاجل' },
   { id: 'mine',     label: 'مهامي' },
+  { id: 'paths',    label: 'المسارات' },
   { id: 'meetings', label: 'اجتماعات' },
 ]
 
@@ -87,6 +88,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
   const { isAdmin, isSuperUser, isUser, canWrite, canDelete, canExport } = useAuth()
   const [filter, setFilter]       = useState('all')
+  const [selectedPath, setSelectedPath] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [showForm, setShowForm]   = useState(false)
   const [editTask, setEditTask]   = useState(null)
@@ -173,6 +175,11 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
       else if (filter === 'urgent'   && t.priority !== 'urgent') return false
       else if (filter === 'mine'     && (!t.person || t.person.trim() !== userProfile?.name)) return false
       else if (filter === 'meetings' && t.taskType !== 'meeting') return false
+      else if (filter === 'paths') {
+        if (!selectedPath) return true // show all when no path selected
+        const names = t.projectNames || (t.projectName ? t.projectName.split(',').map(s => s.trim()) : [])
+        return names.includes(selectedPath)
+      }
       else if (filter === 'reports'  && t.taskType !== 'report') return false
       else if (filter === 'waiting'  && t.status !== 'waiting') return false
       else if (filter === 'review'   && t.status !== 'review') return false
@@ -1061,9 +1068,27 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
 
         <div className="filters" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '5px' }}>
           {FILTERS.map(f => (
-            <button key={f.id} className={`filter-btn${filter === f.id ? ' active' : ''}`} onClick={() => setFilter(f.id)}>{f.label}</button>
+            <button key={f.id} className={`filter-btn${filter === f.id ? ' active' : ''}`} onClick={() => { setFilter(f.id); if (f.id !== 'paths') setSelectedPath('') }}>{f.label}</button>
           ))}
         </div>
+
+        {/* المسارات الفرعية */}
+        {filter === 'paths' && (
+          <div className="filters" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '5px', marginTop: 4 }}>
+            <button className={`filter-btn${!selectedPath ? ' active' : ''}`} onClick={() => setSelectedPath('')} style={{ fontSize: 11 }}>الكل</button>
+            {PROJECT_FILES.map(p => {
+              const count = tasks.filter(t => {
+                const names = t.projectNames || (t.projectName ? t.projectName.split(',').map(s => s.trim()) : [])
+                return names.includes(p)
+              }).length
+              return (
+                <button key={p} className={`filter-btn${selectedPath === p ? ' active' : ''}`} onClick={() => setSelectedPath(p)} style={{ fontSize: 11 }}>
+                  {p.replace('مسار ', '')} ({count})
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {filtered.length === 0 ? (
           <div className="empty-state"><div className="empty-icon">📋</div><div className="empty-text">لا توجد مهام</div></div>
