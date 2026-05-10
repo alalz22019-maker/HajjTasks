@@ -11,6 +11,8 @@ import Toast from './components/Toast'
 import { HARDCODED_API_KEY } from './config'
 import { loadData, saveData } from './utils/storage'
 import { subscribeToTasks, subscribeToHajjReports, subscribeToNotifications, markNotificationRead } from './utils/db'
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore'
+import { db } from './firebase'
 
 function AppShell() {
   const { firebaseUser, userProfile, logout, isAdmin, isSuperUser, loading } = useAuth()
@@ -40,6 +42,32 @@ function AppShell() {
     const unsub = subscribeToTasks(setTasks)
     const unsub2 = subscribeToHajjReports(setHajjReports)
     const unsub3 = subscribeToNotifications(setNotifications)
+
+    // Migration: تحويل التصنيفات القديمة للمسارات الجديدة (مرة وحدة)
+    const migrationDone = localStorage.getItem('hajj_migration_v2')
+    if (!migrationDone) {
+      const MIGRATION = {
+        'ميداني': 'مسار جمع البيانات', 'إداري': 'مسار التدريب',
+        'لوجستي': 'مسار التذاكر', 'طوارئ': 'مسار جاهزية الكوادر الصحية',
+        'التقارير': 'مسار التقارير الدورية', 'لوح البيانات': 'مسار جمع البيانات',
+        'غرفة العمليات': 'مسار الفرضيات', 'التذاكر': 'مسار التذاكر',
+        'الزيارات الإشرافية': 'مسار تقرير الزيارات الاشرافية',
+        'الزيارات الاشرافية': 'مسار تقرير الزيارات الاشرافية',
+      }
+      getDocs(collection(db, 'tasks')).then(snap => {
+        snap.docs.forEach(d => {
+          const pName = d.data().projectName || ''
+          const parts = pName.split(',').map(s => s.trim()).filter(Boolean)
+          let changed = false
+          const newParts = parts.map(p => { if (MIGRATION[p]) { changed = true; return MIGRATION[p] } return p })
+          if (changed) {
+            updateDoc(doc(db, 'tasks', d.id), { projectName: newParts.join(', '), projectNames: newParts })
+          }
+        })
+        localStorage.setItem('hajj_migration_v2', 'done')
+      }).catch(() => {})
+    }
+
     return () => { unsub(); unsub2(); unsub3() }
   }, [userProfile])
 
