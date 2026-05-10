@@ -927,9 +927,12 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
       text += `• ${name}: ${v.done}/${v.total} (${p}%)\n`
     })
 
-    text += `\n📁 *حسب المسار:*\n`
-    Object.entries(byProject).forEach(([name, v]) => {
-      text += `• ${name}: ${v.done}/${v.total}\n`
+    text += `\n📁 *المسارات:*\n`
+    const allPaths = ['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية']
+    allPaths.forEach((name, i) => {
+      const v = byProject[name] || { total: 0, done: 0 }
+      const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+      text += `${i+1}. ${name}: ${v.done}/${v.total} (${p}%)\n`
     })
 
     if (pending.length > 0) {
@@ -1052,14 +1055,19 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
 
       {/* حسب المسار */}
       <div style={S.card}>
-        <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>حسب المسار</span></div>
-        {Object.entries(byProject).map(([name, v]) => {
+        <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>المسارات</span></div>
+        {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية'].map((name, i) => {
+          const v = byProject[name] || { total: 0, done: 0 }
           const p = v.total ? Math.round((v.done / v.total) * 100) : 0
           return (
-            <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: D.text, flex: 1 }}>{name}</span>
-              <span style={{ fontSize: 10, color: D.text2 }}>{v.done}/{v.total}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, color: p === 100 ? D.green : D.text2 }}>{p}%</span>
+            <div key={name} style={{ marginBottom: 10, padding: '8px 10px', borderRadius: 10, background: i % 2 === 0 ? 'rgba(0,107,63,0.04)' : 'transparent' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: D.text }}>{i + 1}. {name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: p === 100 ? D.green : p > 0 ? D.blue : D.text2 }}>{v.done}/{v.total} ({p}%)</span>
+              </div>
+              <div style={{ width: '100%', height: 6, borderRadius: 3, background: D.grayBg, overflow: 'hidden' }}>
+                <div style={{ width: `${p}%`, height: '100%', borderRadius: 3, background: p === 100 ? D.green : p >= 50 ? D.blue : p > 0 ? D.yellow : 'transparent', transition: 'width 0.3s' }} />
+              </div>
             </div>
           )
         })}
