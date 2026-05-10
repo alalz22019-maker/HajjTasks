@@ -189,7 +189,7 @@ export default function TasksPage({ tasks, setTasks, apiKey, setApiKey, showToas
           || (t.person || '').toLowerCase().includes(q)
           || (t.projectName || '').toLowerCase().includes(q)
     })
-  }, [tasks, filter, searchQuery, userProfile])
+  }, [tasks, filter, searchQuery, userProfile, selectedPath])
 
   const childrenMap = useMemo(() => {
     const map = {}
