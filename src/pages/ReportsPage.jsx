@@ -638,6 +638,36 @@ function DailyBriefCard({ tasks, hajjReports = [] }) {
             </div>
           )}
 
+          {/* المسارات */}
+          <div style={{ background: CARD.background, borderRadius: CARD.borderRadius, border: `1px solid ${D.border}`, padding: CARD.padding, boxShadow: CARD.boxShadow, marginTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: D.blue, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>📁</span> المسارات
+            </div>
+            {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية'].map((name, i) => {
+              const byPath = {}
+              tasks.forEach(t => {
+                const names = t.projectNames || (t.projectName ? t.projectName.split(',').map(s => s.trim()).filter(Boolean) : [])
+                names.forEach(p => {
+                  if (!byPath[p]) byPath[p] = { total: 0, done: 0 }
+                  byPath[p].total++
+                  if (t.done) byPath[p].done++
+                })
+              })
+              const v = byPath[name] || { total: 0, done: 0 }
+              const p = v.total ? Math.round((v.done / v.total) * 100) : 0
+              return (
+                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: D.text, flex: 1, minWidth: 0 }}>{i+1}. {name}</span>
+                  <span style={{ fontSize: 9, color: D.text2, whiteSpace: 'nowrap' }}>{v.done}/{v.total}</span>
+                  <div style={{ width: 40, height: 4, borderRadius: 2, background: D.grayBg, overflow: 'hidden', flexShrink: 0 }}>
+                    <div style={{ width: `${p}%`, height: '100%', borderRadius: 2, background: p === 100 ? D.green : p >= 50 ? D.blue : p > 0 ? D.yellow : 'transparent' }} />
+                  </div>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: p === 100 ? D.green : D.text2, width: 28, textAlign: 'left' }}>{p}%</span>
+                </div>
+              )
+            })}
+          </div>
+
           <div style={{ textAlign: 'center', paddingTop: 4 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: D.green }}>أعمال الحج</div>
             <div style={{ fontSize: 10, color: D.text3, marginTop: 2 }}>
@@ -899,13 +929,16 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
     byPerson[p].tasks.push(t)
   })
 
-  // تجميع حسب المسار
+  // تجميع حسب المسار — مهمة واحدة ممكن تكون في أكثر من مسار
   const byProject = {}
   all.forEach(t => {
-    const p = t.projectName || 'بدون تصنيف'
-    if (!byProject[p]) byProject[p] = { total: 0, done: 0 }
-    byProject[p].total++
-    if (t.done) byProject[p].done++
+    const names = t.projectNames || (t.projectName ? t.projectName.split(',').map(s => s.trim()).filter(Boolean) : ['بدون تصنيف'])
+    if (names.length === 0) names.push('بدون تصنيف')
+    names.forEach(p => {
+      if (!byProject[p]) byProject[p] = { total: 0, done: 0 }
+      byProject[p].total++
+      if (t.done) byProject[p].done++
+    })
   })
 
   // تقارير
