@@ -11,6 +11,8 @@ const INITIAL_TEAM_MAP = [
   { name: 'أ. محمد الحجيلي', role: 'admin' },
   { name: 'أ. سعد القرشي', role: 'admin' },
   { name: 'م. حمادي الشعائره', role: 'admin' },
+  { name: 'أ. نوال البلوي', role: 'admin' },
+  { name: 'أ. صخر الزهراني', role: 'admin' },
 ]
 
 export default function LoginPage() {
