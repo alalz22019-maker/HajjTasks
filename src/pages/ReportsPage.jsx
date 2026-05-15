@@ -643,7 +643,7 @@ function DailyBriefCard({ tasks, hajjReports = [] }) {
             <div style={{ fontSize: 12, fontWeight: 700, color: D.blue, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span>📁</span> المسارات
             </div>
-            {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية'].map((name, i) => {
+            {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية', 'مسار لوحة بيانات القيادة والتحكم'].map((name, i) => {
               const byPath = {}
               tasks.forEach(t => {
                 const names = t.projectNames || (t.projectName ? t.projectName.split(',').map(s => s.trim()).filter(Boolean) : [])
@@ -961,7 +961,7 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
     })
 
     text += `\n📁 *المسارات:*\n`
-    const allPaths = ['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية']
+    const allPaths = ['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية', 'مسار لوحة بيانات القيادة والتحكم']
     allPaths.forEach((name, i) => {
       const v = byProject[name] || { total: 0, done: 0 }
       const p = v.total ? Math.round((v.done / v.total) * 100) : 0
@@ -1089,7 +1089,7 @@ function ComprehensiveReport({ tasks, hajjReports = [] }) {
       {/* حسب المسار */}
       <div style={S.card}>
         <div style={S.sectionTitle}><span>📁</span><span style={{ color: D.blue }}>المسارات</span></div>
-        {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية'].map((name, i) => {
+        {['مسار التدريب', 'مسار الفرضيات', 'مسار جمع البيانات', 'مسار التقارير الدورية', 'مسار تقرير الزيارات الاشرافية', 'مسار التذاكر', 'مسار جاهزية الكوادر الصحية', 'مسار لوحة بيانات القيادة والتحكم'].map((name, i) => {
           const v = byProject[name] || { total: 0, done: 0 }
           const p = v.total ? Math.round((v.done / v.total) * 100) : 0
           return (
