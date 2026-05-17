@@ -30,6 +30,7 @@ export const PROJECT_FILES = [
   'مسار التذاكر',
   'مسار جاهزية الكوادر الصحية',
   'مسار لوحة بيانات القيادة والتحكم',
+  'أخرى',
 ]
 
 export const PRIORITIES = [
