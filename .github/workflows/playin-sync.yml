@@ -1,9 +1,7 @@
-name: PlayIn Sync
+name: PlayIn Sync (Manual Fallback)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '*/5 * * * *'
 
 permissions:
   contents: write
@@ -77,6 +75,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No PlayIn changes."
           else
-            git commit -m "PlayIn: sync application source"
+            git commit -m "PlayIn: manual fallback sync"
             git push origin main
           fi
