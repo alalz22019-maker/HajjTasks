@@ -1,0 +1,82 @@
+name: PlayIn Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Archive Hajj app once
+        shell: bash
+        run: |
+          set -e
+          ARCHIVE_BRANCH="archive/hajj-before-playin-2026-08-14"
+          if ! git ls-remote --exit-code --heads origin "$ARCHIVE_BRANCH" >/dev/null 2>&1; then
+            git branch "$ARCHIVE_BRANCH" HEAD
+            git push origin "$ARCHIVE_BRANCH"
+          fi
+
+      - name: Sync PlayIn source from Supabase
+        shell: python
+        env:
+          SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFtcHdla2liaGR6bXBtZGJ1dnh6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NTAwNjgsImV4cCI6MjEwMjIyNjA2OH0.ADvceljQzYvcy_9HxwVEjWRm0vhyjkj3CyU77EHupJE"
+        run: |
+          import json, os, pathlib, shutil, urllib.request
+
+          url = "https://qmpwekibhdzmpmdbuvxz.supabase.co/rest/v1/deployment_files?select=path,content&order=path"
+          key = os.environ["SUPABASE_ANON_KEY"]
+          req = urllib.request.Request(url, headers={
+              "apikey": key,
+              "Authorization": f"Bearer {key}",
+          })
+          with urllib.request.urlopen(req, timeout=30) as r:
+              files = json.load(r)
+
+          if not files:
+              raise RuntimeError("PlayIn deployment source is empty")
+
+          keep = pathlib.Path('.github/workflows/playin-sync.yml')
+          for item in list(pathlib.Path('.').iterdir()):
+              if item.name in {'.git', '.github'}:
+                  continue
+              shutil.rmtree(item) if item.is_dir() else item.unlink()
+
+          github = pathlib.Path('.github')
+          if github.exists():
+              for p in sorted(github.rglob('*'), key=lambda x: len(x.parts), reverse=True):
+                  if p == keep:
+                      continue
+                  if p.is_file():
+                      p.unlink()
+                  elif p.is_dir() and p != keep.parent and not any(p.iterdir()):
+                      p.rmdir()
+
+          for entry in files:
+              target = pathlib.Path(entry['path'])
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(entry['content'], encoding='utf-8')
+
+      - name: Commit PlayIn changes
+        shell: bash
+        run: |
+          set -e
+          git config user.name "PlayIn Automation"
+          git config user.email "playin-bot@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No PlayIn changes."
+          else
+            git commit -m "PlayIn: sync application source"
+            git push origin main
+          fi
